@@ -25,13 +25,18 @@ h2,h3{margin-top:0}.muted{color:#c8b7cf;line-height:1.65}
 .ok{color:#9de9b0;font-weight:700}
 footer{padding:12px 18px 22px;text-align:center;color:#bcaac5;font-size:12px}
 @media(max-width:860px){main{grid-template-columns:1fr}.viewer-shell{min-height:58vh}canvas{height:58vh;min-height:455px}}
+.install-wrap{padding:0 14px 14px}.install-btn{display:none;width:100%;padding:13px 16px;border:1px solid rgba(242,200,121,.55);border-radius:12px;background:#2a1834;color:#f2c879;font-size:16px;font-weight:700}.install-btn.show{display:block}
 </style>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon-192.svg">
 </head>
 <body>
 <header>
 <p class="eyebrow">SCENESLATE / LILITH V13</p>
 <h1>Hero Asset Factory Mode</h1>
 </header>
+<div class="install-wrap"><button id="installBtn" class="install-btn" type="button">홈 화면에 리리스 V13 설치</button></div>
 <main>
 <section class="viewer-shell" aria-label="리리스 회전 프록시 뷰어">
 <div class="badge">NO-FETCH 3D PROXY</div>
@@ -202,5 +207,38 @@ footer{padding:12px 18px 22px;text-align:center;color:#bcaac5;font-size:12px}
   resize();tick();
 })();
 </script>
+
+<script>
+(() => {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js", { scope: "./" }).catch(() => {});
+    });
+  }
+
+  let deferredPrompt = null;
+  const button = document.getElementById("installBtn");
+
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault();
+    deferredPrompt = event;
+    button.classList.add("show");
+  });
+
+  button.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    button.classList.remove("show");
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    button.classList.remove("show");
+  });
+})();
+</script>
+
 </body>
 </html>
