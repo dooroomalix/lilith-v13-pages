@@ -57,7 +57,7 @@ function centerAndFit(root) {
 }
 
 new GLTFLoader().load(
-  "./assets/hero/lilith_character.glb?v=concept1",
+  "./lilith_character.glb?v=concept2",
   gltf => {
     hero = gltf.scene;
     centerAndFit(hero);
