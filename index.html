@@ -5,13 +5,33 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LILITH ZERO</title>
 <style>
+html,body{margin:0;height:
+cd /sdcard/Download/lilith-v13-pages
+
+cat > index.html <<'EOF'
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LILITH ZERO</title>
+<style>
 html,body{margin:0;height:100%;background:#07080d;color:#f4efe9;font-family:system-ui}
 header{padding:20px;border-bottom:1px solid #493866}
 p{color:#d5a461;letter-spacing:.2em}
 h1{font-size:42px;margin:0;font-family:Georgia,serif}
 #status{color:#83ff9b;font-weight:bold}
 canvas{width:100%;height:70vh;display:block}
+#error{white-space:pre-wrap;color:#ff8d8d;padding:12px}
 </style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
 <header>
@@ -20,6 +40,7 @@ canvas{width:100%;height:70vh;display:block}
 <div id="status">BOOTING</div>
 </header>
 <canvas id="heroCanvas"></canvas>
-<script type="module" src="./viewer/app_three.js"></script>
+<div id="error"></div>
+<script type="module" src="./viewer/app_three.js?v=5"></script>
 </body>
 </html>
