@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070b14">
+<title>마지막 성문의 수호자 · 플레이</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(120% 80% at 50% 0%, #16263d 0%, #080d17 55%, #04060b 100%);
+    color: #e8f1ff;
+    font-family: "Noto Sans KR", "Apple SD Gothic Neo", system-ui, -apple-system, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 28px 18px calc(28px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+  main { width: 100%; max-width: 620px; }
+  header { text-align: center; margin-bottom: 30px; }
+  .crest {
+    width: 74px; height: 74px; margin: 0 auto 16px;
+    border-radius: 22px;
+    border: 1px solid rgba(150, 200, 255, .45);
+    background: radial-gradient(circle at 50% 35%, #2a4a72, #0d1626 70%);
+    box-shadow: 0 0 34px rgba(80, 150, 240, .3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px;
+  }
+  h1 { font-size: 25px; letter-spacing: .5px; font-weight: 800; }
+  header p { margin-top: 10px; font-size: 14px; color: #93a9c4; line-height: 1.6; }
+  .cards { display: grid; gap: 14px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    padding: 20px 20px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(120, 160, 210, .28);
+    background: linear-gradient(150deg, rgba(30, 48, 76, .92), rgba(14, 22, 36, .92));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+    transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+  }
+  a.card:hover, a.card:focus-visible { border-color: rgba(150, 200, 255, .7); box-shadow: 0 14px 34px rgba(30, 80, 150, .35); }
+  a.card:active { transform: scale(.985); }
+  .card h2 { font-size: 18px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(90, 160, 255, .18); color: #a9cdff;
+    border: 1px solid rgba(120, 180, 255, .35);
+  }
+  .card p { font-size: 13.5px; color: #a9bdd6; line-height: 1.65; }
+  .card .meta { margin-top: 12px; font-size: 12px; color: #6f8aa8; }
+  .card .go { margin-top: 14px; font-size: 14px; font-weight: 700; color: #8fc3ff; }
+  footer { margin-top: 26px; text-align: center; font-size: 12px; color: #5f7691; line-height: 1.7; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="crest">🛡️</div>
+    <h1>마지막 성문의 수호자</h1>
+    <p>플레이할 버전을 골라 주세요.<br>휴대폰은 가로로 돌리면 화면이 꽉 찹니다.</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="battle_v2/">
+      <h2>전투 v2 프로토타입 <span class="badge">PixiJS</span></h2>
+      <p>카엘과 리아의 성문 방어전. 스카우트를 베고 보스의 예고 동작을 정확한 타이밍에 흘려 반격하는 전투 손맛을 확인하는 버전입니다.</p>
+      <div class="meta">가로 화면 권장 · 터치 조작 지원</div>
+      <div class="go">전투 플레이 →</div>
+    </a>
+
+    <a class="card" href="stage1/">
+      <h2>1단계 빌드 <span class="badge">스토리 · 분기</span></h2>
+      <p>멸망한 도시의 마지막 하루를 다시 사는 2D 액션. 이동·공격·회피·스킬과 대화로 시민들의 동의를 모아 기억의 심장을 재가동하는 1단계 이야기 빌드입니다.</p>
+      <div class="meta">키보드 또는 화면 버튼 · AUTO 플레이 지원</div>
+      <div class="go">이야기 플레이 →</div>
+    </a>
+  </div>
+
+  <footer>
+    아름다운세상 · 김석중<br>
+    두 버전 모두 별도 설치 없이 브라우저에서 바로 실행됩니다.
+  </footer>
+</main>
+</body>
+</html>
