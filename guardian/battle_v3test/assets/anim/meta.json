@@ -1,0 +1,101 @@
+{
+  "bodyH": 410.0,
+  "anims": {
+    "idle": {
+      "file": "assets/anim/kael_idle.webp",
+      "frames": 3,
+      "fps": 6,
+      "loop": true,
+      "frameW": 264,
+      "frameH": 436,
+      "anchorX": 0.4886,
+      "anchorY": 0.9794
+    },
+    "run": {
+      "file": "assets/anim/kael_run.webp",
+      "frames": 6,
+      "fps": 15,
+      "loop": true,
+      "frameW": 420,
+      "frameH": 525,
+      "anchorX": 0.3952,
+      "anchorY": 0.7943
+    },
+    "atk1": {
+      "file": "assets/anim/kael_atk1.webp",
+      "frames": 3,
+      "fps": 20,
+      "loop": false,
+      "frameW": 622,
+      "frameH": 442,
+      "anchorX": 0.4968,
+      "anchorY": 0.9208
+    },
+    "atk2": {
+      "file": "assets/anim/kael_atk2.webp",
+      "frames": 3,
+      "fps": 20,
+      "loop": false,
+      "frameW": 301,
+      "frameH": 534,
+      "anchorX": 0.5216,
+      "anchorY": 0.8464
+    },
+    "atk3": {
+      "file": "assets/anim/kael_atk3.webp",
+      "frames": 4,
+      "fps": 24,
+      "loop": false,
+      "frameW": 329,
+      "frameH": 482,
+      "anchorX": 0.5015,
+      "anchorY": 0.8672
+    },
+    "dodge": {
+      "file": "assets/anim/kael_dodge.webp",
+      "frames": 3,
+      "fps": 22,
+      "loop": false,
+      "frameW": 410,
+      "frameH": 488,
+      "anchorX": 0.5439,
+      "anchorY": 0.8566
+    },
+    "hurt": {
+      "file": "assets/anim/kael_hurt.webp",
+      "frames": 2,
+      "fps": 14,
+      "loop": false,
+      "frameW": 265,
+      "frameH": 449,
+      "anchorX": 0.4604,
+      "anchorY": 0.8463
+    },
+    "lia": {
+      "file": "assets/anim/lia_summon.webp",
+      "frames": 2,
+      "fps": 8,
+      "loop": true,
+      "frameW": 287,
+      "frameH": 465,
+      "anchorX": 0.5366,
+      "anchorY": 0.8774
+    },
+    "scout_atk": {
+      "file": "assets/anim/scout_atk.webp",
+      "frames": 1,
+      "w": 318,
+      "h": 300,
+      "fps": 1,
+      "loop": false
+    },
+    "boss_atk": {
+      "file": "assets/anim/boss_atk.webp",
+      "frames": 1,
+      "w": 324,
+      "h": 480,
+      "fps": 1,
+      "loop": false
+    }
+  }
+}
