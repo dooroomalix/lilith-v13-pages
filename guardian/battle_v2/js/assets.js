@@ -1,26 +1,35 @@
-/* assets.js : 이미지 로딩 + 절차적 텍스처(글로우/안개/비네트 등) 생성 */
+/* assets.js : 이미지 로딩 + 스프라이트 시트 애니메이션 + 절차적 텍스처(글로우/안개/비네트 등) */
 (function () {
   const IMAGES = {
-    bg: 'assets/bg_gate.png',
-    kael: 'assets/kael.png',
-    lia: 'assets/lia.png',
-    portraitKael: 'assets/portrait_kael.png',
-    portraitLia: 'assets/portrait_lia.png',
-    scout: 'assets/mon_scout.png',
-    boss: 'assets/boss.png',
+    bg: 'assets/bg_gate.webp',
+    portraitKael: 'assets/portrait_kael.webp',
+    portraitLia: 'assets/portrait_lia.webp',
+    scout: 'assets/mon_scout.webp',
+    boss: 'assets/boss.webp',
   };
+
+  // 첫 화면에 바로 필요한 것만 먼저 받는다 (대기·달리기·1타·리아)
+  const ANIM_CRITICAL = ['idle', 'run', 'atk1', 'lia'];
+  // 나머지는 인트로가 뜬 뒤 백그라운드로 (모바일 첫 로딩 경량화)
+  const ANIM_LAZY = ['atk2', 'atk3', 'dodge', 'hurt', 'scout_atk', 'boss_atk'];
 
   const A = {
     tex: {},
+    anim: {},
+    animMeta: null,
     total: 0,
     loaded: 0,
+    _imgCache: {},
+    _pending: {},
 
     async load(onProgress) {
-      this.total = Object.keys(IMAGES).length + 6;
-      const jobs = Object.entries(IMAGES).map(([key, path]) => this._loadOne(key, path, onProgress));
+      const prog = onProgress || (() => {});
+      this.total = Object.keys(IMAGES).length + 6 + ANIM_CRITICAL.length + 1;
+      const jobs = Object.entries(IMAGES).map(([key, path]) => this._loadOne(key, path, prog));
+      jobs.push(this._loadMeta(prog));
       await Promise.all(jobs);
+      await Promise.all(ANIM_CRITICAL.map((k) => this._loadAnim(k, prog)));
 
-      const scene = onProgress || (() => {});
       const gen = {
         glow: () => this._glowTex(),
         soft: () => this._softDotTex(),
@@ -32,24 +41,82 @@
       for (const [key, fn] of Object.entries(gen)) {
         this.tex[key] = fn();
         this.loaded++;
-        scene(this.loaded / this.total);
+        prog(this.loaded / this.total);
       }
       return this.tex;
     },
 
-    _loadOne(key, path, onProgress) {
-      return new Promise((resolve, reject) => {
+    /* 보스/몬스터 추가 프레임은 첫 화면이 뜬 뒤 비동기로 */
+    async loadLazy() {
+      for (const k of ANIM_LAZY) {
+        try { await this._loadAnim(k, () => {}); } catch (e) { console.warn('lazy anim', k, e.message); }
+      }
+    },
+
+    /* 아직 안 받은 동작을 쓰려 할 때: 지금 있는 프레임으로 버티고 뒤에서 받는다 */
+    ensureAnim(key) {
+      if (this.anim[key] || !this.animMeta || this._pending[key]) return null;
+      this._pending[key] = true;
+      this._loadAnim(key, () => {}).catch(() => {}).then(() => { this._pending[key] = false; });
+      return null;
+    },
+
+    async _loadMeta(prog) {
+      const res = await fetch('assets/anim/meta.json', { cache: 'no-cache' });
+      this.animMeta = await res.json();
+      this.loaded++;
+      prog(this.loaded / this.total);
+    },
+
+    _img(path) {
+      if (this._imgCache[path]) return this._imgCache[path];
+      const p = new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => {
-          const t = PIXI.Texture.from(img);
-          t.source.scaleMode = 'linear';
-          this.tex[key] = t;
-          this.loaded++;
-          if (onProgress) onProgress(this.loaded / this.total);
-          resolve(t);
-        };
+        img.onload = () => resolve(img);
         img.onerror = () => reject(new Error('image load failed: ' + path));
         img.src = path;
+      });
+      this._imgCache[path] = p;
+      return p;
+    },
+
+    async _loadAnim(key, prog) {
+      if (this.anim[key]) return this.anim[key];
+      const m = this.animMeta.anims[key];
+      if (!m) return null;
+      const img = await this._img(m.file);
+      const base = PIXI.Texture.from(img);
+      base.source.scaleMode = 'linear';
+      const entry = {
+        key, fps: m.fps, loop: m.loop, file: m.file,
+        frames: [], ax: m.anchorX, ay: m.anchorY,
+        fw: m.frameW, fh: m.frameH, count: m.frames,
+      };
+      if (m.frames > 1) {
+        for (let i = 0; i < m.frames; i++) {
+          entry.frames.push(new PIXI.Texture({
+            source: base.source,
+            frame: new PIXI.Rectangle(i * m.frameW, 0, m.frameW, m.frameH),
+          }));
+        }
+      } else {
+        entry.frames.push(base);
+        entry.fw = m.w; entry.fh = m.h;
+      }
+      this.anim[key] = entry;
+      this.loaded++;
+      if (prog) prog(this.loaded / this.total);
+      return entry;
+    },
+
+    _loadOne(key, path, onProgress) {
+      return this._img(path).then((img) => {
+        const t = PIXI.Texture.from(img);
+        t.source.scaleMode = 'linear';
+        this.tex[key] = t;
+        this.loaded++;
+        if (onProgress) onProgress(this.loaded / this.total);
+        return t;
       });
     },
 

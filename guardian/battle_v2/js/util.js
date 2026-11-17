@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v2.0.0-build227';
+G.VERSION = 'v3.0.2-build307';
 G.W = 1280;
 G.H = 720;
 

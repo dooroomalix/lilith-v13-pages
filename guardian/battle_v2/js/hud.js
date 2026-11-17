@@ -540,7 +540,10 @@
         m.circle(px, py, 5.5).fill({ color: 0xffb03a, alpha: 1 });
         m.circle(px, py, 9).stroke({ width: 1.5, color: 0xffb03a, alpha: 0.6 });
       }
-      [[game.kael, 0x6fdcff], [game.lia, 0xcf9bff]].forEach(([h, col]) => {
+      const dots = [[game.kael, 0x6fdcff]];
+      // 리아는 소환 중일 때만 미니맵에 표시
+      if (game.lia && game.lia.active && game.lia.obj) dots.push([game.lia.obj, 0xcf9bff]);
+      dots.forEach(([h, col]) => {
         const [px, py] = toMap(h.x, h.y);
         m.circle(px, py, 3.6).fill({ color: col, alpha: 1 });
         m.circle(px, py, 6.5).stroke({ width: 1.2, color: col, alpha: 0.5 });

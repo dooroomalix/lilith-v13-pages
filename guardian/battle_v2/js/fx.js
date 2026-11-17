@@ -358,18 +358,144 @@
       this.items.push(item);
     }
 
+    /* ---------- 검기 궤적 (블레이드 트레일) ---------- */
+    trail(hero, cfg, idx = 0) {
+      const dir = idx === 1 ? -1 : 1;
+      const heavy = idx === 2;
+      const g = new PIXI.Graphics();
+      g.blendMode = 'add';
+      g.x = hero.x + 64;
+      g.y = hero.centerY;
+      this.layer.addChild(g);
+      const r0 = cfg.ang - dir * (heavy ? 0.85 : 0.6);
+      const r1 = cfg.ang + dir * (heavy ? 0.95 : 0.65);
+      const dur = heavy ? 0.3 : 0.22;
+      const span = 0.95;
+
+      const draw = (head, alpha) => {
+        g.clear();
+        const inner = heavy ? 96 : 82;
+        const outer = heavy ? 244 : 200;
+        const steps = 22;
+        for (let s = 0; s < 3; s++) {
+          const w = span * (1 - s * 0.24);
+          const a1 = head - dir * w;
+          const col = s === 0 ? (heavy ? 0x2f6bff : 0x3f7dff) : s === 1 ? 0x8fd0ff : 0xffffff;
+          const al = (s === 0 ? 0.16 : s === 1 ? 0.3 : 0.55) * alpha;
+          const ri = inner + s * 14;
+          const ro = outer - s * 10;
+          const pts = [];
+          for (let i = 0; i <= steps; i++) {
+            const a = a1 + (head - a1) * (i / steps);
+            const k = i / steps;
+            const rr = ro * (0.86 + 0.14 * k);
+            pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 0.86]);
+          }
+          for (let i = steps; i >= 0; i--) {
+            const a = a1 + (head - a1) * (i / steps);
+            const k = i / steps;
+            const rr = ri + (ro - ri) * 0.25 * k;
+            pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 0.86]);
+          }
+          g.poly(pts).fill({ color: col, alpha: al });
+        }
+        // 선두 백색 섬광
+        const hx = Math.cos(head) * outer;
+        const hy = Math.sin(head) * outer * 0.86;
+        g.circle(hx, hy, heavy ? 22 : 15).fill({ color: 0xffffff, alpha: 0.5 * alpha });
+      };
+      draw(r0, 1);
+
+      const item = {
+        obj: g, t: 0,
+        update: (dt) => {
+          item.t += dt;
+          const p = item.t / dur;
+          if (p >= 1) return false;
+          const head = G.lerp(r0, r1, G.easeOutCubic(Math.min(1, p * 1.6)));
+          draw(head, Math.pow(1 - p, 1.3));
+          g.alpha = Math.pow(1 - p, 1.1);
+          g.scale.set(0.94 + 0.12 * p);
+          return true;
+        },
+      };
+      this.items.push(item);
+    }
+
+    /* ---------- 지면 충격(먼지·파편) ---------- */
+    groundBurst(x, y) {
+      this.ring(x, y - 4, 0x9fd6ff, 190, 0.42, 4);
+      for (let i = 0; i < 16; i++) {
+        const a = G.rand(0.35, -0.35) + (G.chance(0.5) ? 0 : Math.PI);
+        const sp = G.rand(360, 120);
+        this._particle(x + G.rand(40, -40), y - 2, {
+          color: G.chance(0.5) ? 0x9fb8d8 : 0x6d86a8,
+          size: G.rand(18, 6),
+          vx: Math.cos(a) * sp,
+          vy: -Math.abs(Math.sin(a)) * sp * 0.75,
+          life: G.rand(0.5, 0.25),
+          grav: 900,
+          drag: 0.9,
+        });
+      }
+    }
+
+    /* ---------- 회피 잔상 ---------- */
+    afterimage(unit, dur = 0.5) {
+      const spawn = () => {
+        const spr = unit.sprite;
+        if (!spr) return;
+        const s = new PIXI.Sprite(spr.texture);
+        s.anchor.set(spr.anchor.x, spr.anchor.y);
+        s.scale.set(spr.scale.x, spr.scale.y);
+        s.x = unit.x + (spr.x || 0);
+        s.y = unit.y + (spr.y || 0);
+        s.tint = 0x7cc4ff;
+        s.blendMode = 'add';
+        s.alpha = 0.4;
+        this.layer.addChild(s);
+        const ghost = {
+          obj: s, t: 0,
+          update: (dt) => {
+            ghost.t += dt;
+            const p = ghost.t / 0.28;
+            if (p >= 1) return false;
+            s.alpha = 0.4 * (1 - p);
+            s.y += 6 * dt;
+            return true;
+          },
+        };
+        this.items.push(ghost);
+      };
+      const item = {
+        obj: null, t: 0, tick: 0,
+        update: (dt) => {
+          item.t += dt;
+          if (item.t > dur) return false;
+          item.tick -= dt;
+          if (item.tick <= 0) {
+            item.tick = 0.055;
+            spawn();
+          }
+          return true;
+        },
+      };
+      spawn();
+      this.items.push(item);
+    }
+
     update(dt) {
       for (let i = this.items.length - 1; i >= 0; i--) {
         const it = this.items[i];
         if (!it.update(dt)) {
-          it.obj.destroy();
+          if (it.obj) it.obj.destroy();
           this.items.splice(i, 1);
         }
       }
     }
 
     clear() {
-      this.items.forEach((it) => it.obj.destroy());
+      this.items.forEach((it) => { if (it.obj) it.obj.destroy(); });
       this.items.length = 0;
     }
   }

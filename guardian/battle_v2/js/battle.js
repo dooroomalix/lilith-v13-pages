@@ -65,7 +65,11 @@
       this.waveQueue = [];
       this.atkCD = 0;
       this.attackBuffer = 0;
-      this.liaCD = 1.0;
+      this.comboStep = 0;
+      this.comboWindow = 0;
+      this.cutin = null;
+      this.cutT = 0;
+      this.summonActive = false;
       this.bossSpawned = false;
       this.overlayButtons = [];
       this.time = 0;
@@ -77,15 +81,12 @@
 
     _initActors() {
       this.kael = new G.Hero(this, {
-        name: '카엘', role: '성문기사', texKey: 'kael', x: 380, scale: 0.70, hpMax: 780, shadowW: 160, glowColor: 0x5fb0ff,
+        name: '카엘', role: '성문기사', x: 380, bodyPx: 332, hpMax: 780, shadowW: 160, glowColor: 0x5fb0ff,
       });
-      this.lia = new G.Hero(this, {
-        name: '리아', role: '기록관', texKey: 'lia', x: 262, scale: 0.64, hpMax: 780, shadowW: 140, glowColor: 0xa07bff,
-      });
-      this.kael.atk = 122;
-      this.lia.atk = 96;
-      this.lia.y = G.GROUND_Y - 14;
-      this.actorLayer.addChild(this.lia.obj, this.kael.obj);
+      this.kael.atk = 152;
+      // 리아는 필드에 상주하지 않고 궁극기에서만 소환된다
+      this.lia = new G.LiaSummon(this);
+      this.actorLayer.addChild(this.kael.obj);
     }
 
     after(delay, fn) {
@@ -140,14 +141,14 @@
       t.x = G.W / 2; t.y = G.H / 2 - 34;
       c.addChild(t);
       const sub = new PIXI.Text({
-        text: 'THE LAST GATEKEEPER   ·   전투 프로토타입 v2',
+        text: 'THE LAST GATEKEEPER   ·   전투 v3',
         style: { fontFamily: G.FONT, fontSize: 18, fontWeight: '700', fill: 0x8fb8e0, letterSpacing: 3 },
       });
       sub.anchor.set(0.5);
       sub.x = G.W / 2; sub.y = G.H / 2 + 30;
       c.addChild(sub);
       const hint = new PIXI.Text({
-        text: '터치하면 시작 · BGM이 함께 재생됩니다',
+        text: '터치하면 시작 · 음악은 잠시 뒤에 흐릅니다',
         style: { fontFamily: G.FONT, fontSize: 14, fill: 0x6f8fb0, letterSpacing: 1 },
       });
       hint.anchor.set(0.5);
@@ -211,21 +212,31 @@
     }
 
     /* ---------------- 데미지 ---------------- */
-    heroStrike(hero, cfg) {
-      const dir = 1;
+    heroStrike(hero, cfg, idx = 0) {
       const near = this._nearestEnemy();
       const reachDist = near ? G.clamp(Math.abs(near.x - hero.x) * 0.55, 110, 260) : 170;
-      const cx = hero.x + 70;
+      const cx = hero.x + 78;
       const cy = hero.centerY;
-      // 카엘의 검 궤적 (몸 앞)
+      const heavy = idx === 2;
+      // 검 궤적 (3겹 크레센트 + 백색 코어)
       this.fx.slash(cx, cy, {
-        radius: 152, spread: cfg.spread * 0.9, angle: cfg.ang, width: 18,
-        color: 0x3f7dff, dur: 0.2, scale: 1.0,
+        radius: heavy ? 196 : 158, spread: cfg.spread * 0.95, angle: cfg.ang, width: heavy ? 26 : 19,
+        color: heavy ? 0x4aa8ff : 0x3f7dff, dur: heavy ? 0.24 : 0.18, scale: 1.0,
       });
+      this.fx.slash(cx + 10, cy - 4, {
+        radius: heavy ? 152 : 122, spread: cfg.spread * 0.72, angle: cfg.ang - 0.07, width: 8,
+        color: 0xffffff, dur: 0.13, scale: 1.0,
+      });
+      this.fx.trail(hero, cfg, idx);
       // 타격 지점 섬광
       this.fx.burst(cx + reachDist - 30, cy, {
-        color: 0x9fd6ff, core: 0xffffff, rays: 16, length: 150, width: 7, dur: 0.19, angle: cfg.ang * 0.3,
+        color: 0x9fd6ff, core: 0xffffff, rays: heavy ? 22 : 16, length: heavy ? 200 : 150,
+        width: heavy ? 9 : 7, dur: 0.19, angle: cfg.ang * 0.3,
       });
+      if (heavy) {
+        this.fx.ring(hero.x + 150, hero.y - 8, 0x9fd6ff, 250, 0.45, 6);
+        this.fx.groundBurst(hero.x + 170, hero.y);
+      }
 
       let hits = 0;
       this.enemies.forEach((e) => {
@@ -234,42 +245,51 @@
         const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
         if (inFront && inRange) {
           hits++;
-          this._hitEnemy(e, hero, cfg.dmg);
+          this._hitEnemy(e, hero, cfg.dmg, cfg);
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying) {
         if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 200) {
           if (this.boss.x > hero.x - 60) {
             hits++;
-            this._hitBoss(hero, cfg.dmg);
+            this._hitBoss(hero, cfg.dmg, cfg);
           }
         }
       }
+      // 히트스톱 35~60ms + 화면 흔들림 (3타가 가장 묵직)
       if (hits > 0) {
-        this.hitStop = 0.05;
-        this.scene.shake(cfg.push > 30 ? 8 : 5, 0.16);
-        G.Sfx.hit(false);
+        this.hitStop = cfg.hitStop;
+        this.scene.shake(cfg.shake, 0.16 + idx * 0.03);
+        this.flashImpact(heavy ? 0.1 : 0.05);
+        G.Sfx.hit(heavy);
         this.combo += hits;
         this.comboT = 2.4;
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
+      } else {
+        this.hitStop = Math.min(this.hitStop, 0.012);
       }
     }
 
-    _hitEnemy(e, hero, mult) {
+    flashImpact(alpha) {
+      this.flashG.clear();
+      this.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xbfe4ff, alpha });
+      this.flashT = 0.06;
+    }
+
+    _hitEnemy(e, hero, mult, cfg) {
       const crit = G.chance(0.24);
       const dmg = Math.round(hero.atk * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
       this.stats.damage += dmg;
-      e.takeDamage(dmg, { crit });
+      const knock = cfg ? (cfg.advance > 24 ? 420 : cfg.advance > 18 ? 300 : 230) : 200;
+      e.takeDamage(dmg, { crit, knock });
       if (crit && G.chance(0.5)) G.Sfx.hit(true);
     }
 
-    _hitBoss(hero, mult) {
+    _hitBoss(hero, mult, cfg) {
       const crit = G.chance(0.24);
       const dmg = Math.round(hero.atk * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
       this.stats.damage += dmg;
-      this.boss.takeDamage(dmg, { crit });
-      this.boss.obj.x = this.boss.x + 6;
-      this.after(0.06, () => { if (this.boss && this.boss.obj) this.boss.obj.x = this.boss.x; });
+      this.boss.takeDamage(dmg, { crit, kb: cfg && cfg.advance > 24 ? 90 : 40 });
     }
 
     damageHero(amount, fromX) {
@@ -334,7 +354,7 @@
       // 남은 잡몹 정리
       this.enemies.forEach((e) => { if (e.alive && !e.dying) e.die(); });
       this.after(0.7, () => {
-        this.boss = new G.Boss(this, { hp: 30000, x: 820 });
+        this.boss = new G.Boss(this, { hp: 24000, x: 820 });
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
         this.fx.ring(820, G.GROUND_Y - 10, 0xff3355, 260, 0.9, 8);
@@ -401,37 +421,160 @@
     }
 
     useSkill2() {
-      const h = this.lia;
-      if (this.cooldowns.skill2 > 0 || h.mp < 40) return false;
-      h.mp -= 40;
+      if (this.cooldowns.skill2 > 0 || this.lia.mp < 40) return false;
+      if (this.lia.active) return false;
+      this.lia.mp -= 40;
       this.cooldowns.skill2 = this.skillMax.skill2;
-      h.cast();
       G.Sfx.magic();
-      this.showPrompt('빛의 심판', 0xc9a8ff, 0.9);
+
       const target = this._densestTarget();
-      const tx = target ? target.x : 900;
+      const tx = target ? G.clamp(target.x, 280, 1060) : 900;
       const ty = target ? target.y : G.GROUND_Y;
-      this.fx.rune(tx, ty - 60, 0xb98bff, 110, 0.9);
-      this.after(0.42, () => {
-        this.fx.pillar(tx, ty - 10, 0xcfe4ff, 520, 0.8, 150);
-        this.fx.ring(tx, ty - 10, 0xd7c2ff, 190, 0.6, 6);
-        this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 26, 520);
-        this.scene.shake(9, 0.35);
+
+      // 1) 컷인 (리아 등장 연출)
+      this._liaCutIn();
+      // 2) 소환 마법진 + 리아 강림
+      this.summonActive = true;
+      this.after(0.24, () => {
+        this.fx.rune(tx - 60, ty - 20, 0xb98bff, 150, 1.0);
+        this._spawnLia(tx - 150, ty - 2);
+      });
+      // 3) 빛의 심판 — 빛기둥 + 광역 피해 + 넉백
+      this.after(0.62, () => {
+        this.fx.pillar(tx, ty - 10, 0xe8f2ff, 680, 1.05, 240);
+        this.fx.pillar(tx - 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
+        this.fx.pillar(tx + 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
+        this.fx.ring(tx, ty - 10, 0xd7c2ff, 280, 0.75, 10);
+        this.fx.ring(tx, ty - 10, 0xffffff, 170, 0.5, 5);
+        this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 36, 620);
+        this.fx.groundBurst(tx, ty);
+        this.flashImpact(0.16);
+        this.scene.shake(12, 0.42);
+        this.hitStop = 0.06;
+        let n = 0;
         this.enemies.forEach((e) => {
-          if (e.alive && !e.dying && Math.abs(e.x - tx) < 220) {
-            const dmg = Math.round(h.atk * 3.4 * G.rand(1.05, 0.95));
+          if (e.alive && !e.dying && Math.abs(e.x - tx) < 260) {
+            const dmg = Math.round(this.lia.atk * 3.4 * G.rand(1.05, 0.95));
             this.stats.damage += dmg;
-            e.takeDamage(dmg, { crit: true, color: 0xd9c8ff });
+            const delay = n++ * 0.06;
+            this.after(delay, () => {
+              if (e.alive && !e.dying) e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: 520 });
+            });
           }
         });
-        if (this.boss && this.boss.alive && Math.abs(this.boss.x - tx) < 300) {
-          const dmg = Math.round(h.atk * 3.2);
+        if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - tx) < 320) {
+          const dmg = Math.round(this.lia.atk * 3.2);
           this.stats.damage += dmg;
-          this.boss.takeDamage(dmg, { crit: true });
+          this.boss.takeDamage(dmg, { crit: true, kb: 70 });
         }
         G.Sfx.hit(true);
+        this.combo += 3;
+        this.comboT = 2.8;
+        this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       });
+      this.after(1.9, () => { this.summonActive = false; });
       return true;
+    }
+
+    /* 리아 컷인: 화면 좌측에서 초상화가 미끄러져 들어왔다가 사라진다 */
+    _liaCutIn() {
+      if (this.cutin) {
+        this.cutin.destroy({ children: true });
+        this.cutin = null;
+      }
+      const c = new PIXI.Container();
+      c.zIndex = 15;
+      const band = new PIXI.Graphics();
+      band.poly([-30, 120, 500, 46, 610, 300, -30, 430]).fill({ color: 0x140a2a, alpha: 0.86 });
+      band.poly([-30, 150, 500, 76, 590, 280, -30, 400]).fill({ color: 0x6d3bd1, alpha: 0.22 });
+      band.poly([-30, 420, 200, 330, 240, 344, -30, 446]).fill({ color: 0xc9a8ff, alpha: 0.35 });
+      c.addChild(band);
+
+      const por = new PIXI.Sprite(G.Assets.tex.portraitLia);
+      por.anchor.set(0.5);
+      por.width = 300; por.height = 300;
+      por.x = 168; por.y = 240;
+      c.addChild(por);
+
+      const g = new PIXI.Sprite(G.Assets.tex.glow);
+      g.anchor.set(0.5);
+      g.blendMode = 'add';
+      g.tint = 0xb98bff;
+      g.width = 520; g.height = 520;
+      g.x = 168; g.y = 250;
+      g.alpha = 0.35;
+      c.addChild(g);
+
+      const name = new PIXI.Text({
+        text: '리아 · 빛의 심판',
+        style: G.style({ fontSize: 40, fontWeight: '900', fill: 0xf4ecff, letterSpacing: 3, stroke: { color: 0x2a1052, width: 8 } }),
+      });
+      name.anchor.set(0, 0.5);
+      name.x = 322; name.y = 214;
+      c.addChild(name);
+
+      const sub = new PIXI.Text({
+        text: 'SUMMON  ·  기록관의 빛',
+        style: G.style({ fontSize: 17, fill: 0xc9b0ff, fontWeight: '800', letterSpacing: 2 }),
+      });
+      sub.anchor.set(0, 0.5);
+      sub.x = 326; sub.y = 262;
+      c.addChild(sub);
+
+      c.x = -640;
+      c.alpha = 0;
+      this.root.addChild(c);
+      this.cutin = c;
+      this.cutT = 0;
+    }
+
+    _spawnLia(x, y) {
+      const L = this.lia;
+      if (L.obj) {
+        L.obj.destroy({ children: true });
+        L.obj = null;
+      }
+      const a = G.Assets.anim.lia;
+      if (!a) return;
+      const o = new PIXI.Container();
+      const spr = new PIXI.AnimatedSprite(a.frames);
+      spr.anchor.set(a.ax, a.ay);
+      const sc = 340 / (a.fh || 465);
+      spr.scale.set(sc);
+      spr.animationSpeed = 0;
+      spr.gotoAndStop(0);
+      o.addChild(spr);
+
+      const glow = new PIXI.Sprite(G.Assets.tex.glow);
+      glow.anchor.set(0.5);
+      glow.blendMode = 'add';
+      glow.tint = 0xb98bff;
+      glow.width = 420; glow.height = 420;
+      glow.y = -190;
+      glow.alpha = 0.38;
+      o.addChildAt(glow, 0);
+
+      const rune = new PIXI.Graphics();
+      rune.y = -4;
+      rune.circle(0, 0, 96).stroke({ width: 3, color: 0xc9a8ff, alpha: 0.9 });
+      rune.circle(0, 0, 72).stroke({ width: 1.6, color: 0xe4d6ff, alpha: 0.7 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * G.TAU;
+        rune.moveTo(Math.cos(ang) * 72, Math.sin(ang) * 72 * 0.32);
+        rune.lineTo(Math.cos(ang + 0.22) * 96, Math.sin(ang + 0.22) * 96 * 0.32);
+      }
+      rune.stroke({ width: 1.4, color: 0xc9a8ff, alpha: 0.7 });
+      o.addChildAt(rune, 0);
+
+      o.x = x; o.y = y; o.zIndex = y;
+      this.actorLayer.addChild(o);
+
+      L.obj = o; L.sprite = spr; L.glow = glow; L.rune = rune;
+      L.x = x; L.y = y; L.t = 0; L.active = true; L.dur = 1.6;
+
+      this.fx.ring(x, y - 6, 0xb98bff, 180, 0.6, 5);
+      this.fx.sparkBurst(x, y - 140, 0xd9c8ff, 22, 440);
+      G.Sfx.magic();
     }
 
     _densestTarget() {
@@ -471,7 +614,7 @@
 
       // 히트스톱 / 슬로우
       let dt = realDt;
-      if (this.hitStop > 0) { this.hitStop -= realDt; dt = realDt * 0.08; }
+      if (this.hitStop > 0) { this.hitStop = Math.max(0, this.hitStop - realDt); dt = realDt * 0.08; }
       if (this.slowT > 0) { this.slowT -= realDt; dt *= 0.35; }
 
       this._processTimers(dt);
@@ -515,27 +658,41 @@
       if (this.autoMode !== 'manual') this._autoAI(dt);
       if (manualMove && this.kael.state !== 'dead') {
         const sp = 260;
+        this.kael.moveSpeed = Math.abs(mx) * sp;
         this.kael.move(mx * sp, my * sp * 0.6, dt);
-        this.lia.move(mx * sp * 0.9, my * sp * 0.6, dt);
       } else if (this.autoMode !== 'manual') {
         this._autoMove(dt);
-      }
-      // 리아는 카엘을 따라온다
-      if (!manualMove) {
-        const targetX = this.kael.x - 128;
-        const targetY = Math.max(this.kael.y - 18, G.GROUND_Y - 16);
-        this.lia.x = G.lerp(this.lia.x, targetX, Math.min(1, dt * 3));
-        this.lia.y = G.lerp(this.lia.y, targetY, Math.min(1, dt * 2));
-        this.lia.obj.x = this.lia.x;
-        this.lia.obj.y = this.lia.y;
       }
 
       // 공격 쿨다운
       this.atkCD -= dt;
       if (this.atkCD <= 0.42) this.atkCD = Math.max(this.atkCD, 0);
 
+      // 스킬 쿨다운 (수동 모드에서도 흐른다)
+      this.cooldowns.skill1 = Math.max(0, this.cooldowns.skill1 - dt);
+      this.cooldowns.skill2 = Math.max(0, this.cooldowns.skill2 - dt);
+
+      // 콤보 유지 시간이 지나면 1타로 리셋
+      if (this.comboWindow > 0) {
+        this.comboWindow -= dt;
+        if (this.comboWindow <= 0) this.comboStep = 0;
+      }
+
       this.kael.update(dt, this.time);
-      this.lia.update(dt, this.time);
+      this.lia.update(dt);
+
+      // 컷인 연출
+      if (this.cutin) {
+        this.cutT += realDt;
+        const tin = G.clamp(this.cutT / 0.18, 0, 1);
+        const tout = G.clamp((this.cutT - 0.85) / 0.28, 0, 1);
+        this.cutin.x = -640 * (1 - G.easeOutCubic(tin)) - 320 * G.easeInCubic(tout);
+        this.cutin.alpha = (this.cutT < 0.85 ? G.clamp(this.cutT / 0.12, 0, 1) : 1 - tout);
+        if (this.cutT > 1.14) {
+          this.cutin.destroy({ children: true });
+          this.cutin = null;
+        }
+      }
 
       // 콤보 타이머
       if (this.comboT > 0) {
@@ -617,12 +774,20 @@
 
     _tryAttack() {
       if (this.kael.state === 'dead') return;
-      if (this.atkCD > 0.16 || this.kael.state === 'attack' || this.kael.state === 'dodge') {
-        this.attackBuffer = 0.3; // 다음 타이밍에 자동 발동 (입력 버퍼링)
+      if (this.kael.state === 'attack') {
+        // 공격 중 입력은 버퍼링해서 콤보로 이어진다
+        if (this.kael.stateT > this.kael.atkCfg.dur * 0.55) this.attackBuffer = 0.34;
         return;
       }
-      if (this.kael.attack()) {
-        this.atkCD = 0.30;
+      if (this.kael.state === 'dodge' || this.kael.state === 'cast') return;
+      if (this.kael.attack(this.comboStep)) {
+        // 2·3타는 앞으로 미세 전진 (콤보 손맛)
+        const adv = this.kael.atkCfg.advance;
+        this.kael.x = G.clamp(this.kael.x + adv, 140, 820);
+        this.kael.obj.x = this.kael.x;
+        this.comboStep = this.kael.comboStep;
+        this.comboWindow = 0.62;
+        this.atkCD = this.kael.atkCfg.dur * 0.55;
         this.attackBuffer = 0;
       }
     }
@@ -635,17 +800,22 @@
         this.perfectCounter = true;
         G.Sfx.counter();
       }
+      const wasDodge = this.kael.state === 'dodge';
       if (this.kael.dodgeCD > 0 || this.kael.state === 'attack') {
-        // 쿨다운 중에도 퍼펙트 카운터는 성립한다
+        if (this.kael.state !== 'attack') return;
         this.kael.state = 'dodge';
         this.kael.stateT = 0;
-        this.kael.invuln = 0.42;
+        this.kael.dodgeFrom = this.kael.x;
+        this.kael.dodgeDist = 150;
+        this.kael.invuln = 0.36;
       } else {
         this.kael.dodge();
       }
-      // 회피 이펙트
+      if (wasDodge) return;
+      // 회피 이펙트 + 잔상
       this.fx.sparkBurst(this.kael.x - 20, this.kael.centerY, 0x9fd6ff, 8, 220, Math.PI);
-      this.fx.ring(this.kael.x, this.kael.y - 6, 0x9fd6ff, 70, 0.35, 3);
+      this.fx.ring(this.kael.x, this.kael.y - 6, 0x9fd6ff, 80, 0.35, 3);
+      this.fx.afterimage(this.kael, 0.55);
     }
 
     _bossWindow() {
@@ -678,15 +848,13 @@
 
     _autoAI(dt) {
       const target = this._nearestEnemy();
-      this.cooldowns.skill1 = Math.max(0, this.cooldowns.skill1 - dt);
-      this.cooldowns.skill2 = Math.max(0, this.cooldowns.skill2 - dt);
 
       // 스킬 사용 (적이 전투 사거리 안에 들어왔을 때만)
       const closeTarget = target && Math.abs(target.x - this.kael.x) < 330;
       if (closeTarget && this.cooldowns.skill1 <= 0 && this.kael.mp >= 30 && this.kael.state !== 'attack') {
         this.useSkill1();
       }
-      if (closeTarget && this.cooldowns.skill2 <= 0 && this.lia.mp >= 45) {
+      if (closeTarget && this.cooldowns.skill2 <= 0 && this.lia.mp >= 45 && !this.lia.active) {
         this.useSkill2();
       }
 
@@ -696,12 +864,6 @@
         if (Math.abs(target.x - this.kael.x) < reach) {
           this._tryAttack();
         }
-      }
-      // 리아 마법
-      this.liaCD -= dt;
-      if (this.liaCD <= 0 && target && Math.abs(target.x - this.kael.x) < 380) {
-        this.liaCD = 1.7;
-        this._liaBolt(target);
       }
     }
 
@@ -713,7 +875,10 @@
       let mx = 0;
       if (dist > desired + 40) mx = 1;
       else if (dist < desired - 150) mx = -0.6;
-      if (Math.abs(mx) > 0.01) this.kael.move(mx * 210, 0, dt);
+      if (Math.abs(mx) > 0.01) {
+        this.kael.moveSpeed = Math.abs(mx) * 210;
+        this.kael.move(mx * 210, 0, dt);
+      }
       this.kael.x = G.clamp(this.kael.x, 300, 420);
       this.kael.obj.x = this.kael.x;
       // y 정렬
@@ -730,27 +895,6 @@
       });
       if (!best && this.boss && this.boss.alive && !this.boss.dying) return this.boss;
       return best;
-    }
-
-    _liaBolt(target) {
-      if (this.lia.state === 'dead') return;
-      const s = new PIXI.Sprite(G.Assets.tex.glow);
-      s.anchor.set(0.5);
-      s.blendMode = 'add';
-      s.tint = 0xc9a8ff;
-      s.width = 46; s.height = 46;
-      s.x = this.lia.x + 40;
-      s.y = this.lia.centerY - 30;
-      this.scene.fxLayer.addChild(s);
-      this.fx.rune(this.lia.x + 30, this.lia.y - 40, 0xb98bff, 44, 0.4);
-      const proj = {
-        spr: s, t: 0, dur: G.clamp(G.dist(s.x, s.y, target.x, target.y - 90) / 1400, 0.18, 0.5),
-        from: { x: s.x, y: s.y },
-        to: { x: target.x, y: target.y - 90 },
-        target,
-        trailT: 0,
-      };
-      this.projectiles.push(proj);
     }
 
     _updateProjectiles(dt) {
@@ -912,10 +1056,11 @@
       this.combo = 0;
       this.cooldowns = { skill1: 0, skill2: 0 };
       this.timers.length = 0;
+      if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
+      this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
       this.kael = null; this.lia = null;
       this._initActors();
       this.kael.hp = this.kael.hpMax;
-      this.lia.hp = this.lia.hpMax;
       this.phase = 'wave';
       this.phaseT = 0;
       this.timeLeft = 60;

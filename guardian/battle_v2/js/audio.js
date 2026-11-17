@@ -30,16 +30,43 @@
     resume() {
       this.init();
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-      if (!this.bgm) {
-        const a = new Audio('audio/boss_bgm.mp3');
-        a.loop = true;
-        a.volume = this.bgmVolume;
-        a.preload = 'auto';
-        this.bgm = a;
+      // BGM(4.9MB)은 첫 터치 직후에도 바로 받지 않고, 전투가 시작된 뒤 비동기로 받는다
+      if (!this.bgm && !this._bgmScheduled) this._scheduleBgm(1500);
+      if (this._needGesture && this.bgm) {
+        this._needGesture = false;
+        this._playBgm();
       }
-      if (!this.bgmStarted && this.bgm) {
+    },
+
+    _scheduleBgm(delay) {
+      this._bgmScheduled = true;
+      const go = () => setTimeout(() => this._loadBgm(), delay);
+      if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 2500 });
+      else go();
+    },
+
+    _loadBgm() {
+      if (this.bgm) return;
+      const a = new Audio();
+      a.src = 'audio/boss_bgm.mp3';
+      a.loop = true;
+      a.volume = this.muted ? 0 : this.bgmVolume;
+      a.preload = 'auto';
+      this.bgm = a;
+      this._wantPlay = true;
+      a.addEventListener('canplay', () => {
+        if (this._wantPlay) this._playBgm();
+      });
+      a.load();
+    },
+
+    _playBgm() {
+      if (!this.bgm || this.bgmStarted) return;
+      const p = this.bgm.play();
+      if (p && p.then) {
+        p.then(() => { this.bgmStarted = true; }).catch(() => { this._needGesture = true; });
+      } else {
         this.bgmStarted = true;
-        this.bgm.play().catch(() => {});
       }
     },
 

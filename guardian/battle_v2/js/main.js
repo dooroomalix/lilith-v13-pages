@@ -109,6 +109,8 @@
 
     loading.classList.add('hide');
     setTimeout(() => loading.remove(), 600);
+    // 보스/몬스터 추가 프레임은 첫 화면을 막지 않고 뒤에서 받는다
+    setTimeout(() => { G.Assets.loadLazy(); }, 900);
 
     // ---- 디버그/검증 훅 ----
     window.__debug = {
@@ -121,7 +123,15 @@
         autoMode: game.autoMode,
         combo: game.combo,
         errors: window.__errors,
+        kaelState: game.kael.state,
+        anim: game.kael.animName,
+        frame: game.kael.sprite.currentFrame,
+        comboStep: game.comboStep,
+        liaMp: Math.round(game.lia.mp),
+        liaActive: !!(game.lia && game.lia.active),
+        cutin: !!game.cutin,
       }),
+      animInfo: () => Object.fromEntries(Object.entries(G.Assets.anim).map(([k, v]) => [k, { n: v.frames.length, fw: v.fw, fh: v.fh }])),
       dismissIntro: () => game._dismissIntro(),
       stopTicker: () => app.ticker.stop(),
       startTicker: () => app.ticker.start(),
@@ -135,6 +145,8 @@
       forceBoss: () => game.enterBossPhase(),
       setAuto: (m) => { game.autoMode = m; },
       attack: () => game.hud.input.attack = true,
+      summon: () => game.useSkill2(),
+      skill1: () => game.useSkill1(),
       damageBurst: () => {
         const e = game.enemies.find((x) => x.alive);
         if (e) {
