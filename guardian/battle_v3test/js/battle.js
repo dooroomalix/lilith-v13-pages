@@ -451,11 +451,15 @@
         this.flashImpact(0.16);
         this.scene.shake(12, 0.42);
         this.hitStop = 0.06;
+        let n = 0;
         this.enemies.forEach((e) => {
           if (e.alive && !e.dying && Math.abs(e.x - tx) < 260) {
             const dmg = Math.round(this.lia.atk * 3.4 * G.rand(1.05, 0.95));
             this.stats.damage += dmg;
-            e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: 520 });
+            const delay = n++ * 0.06;
+            this.after(delay, () => {
+              if (e.alive && !e.dying) e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: 520 });
+            });
           }
         });
         if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - tx) < 320) {
