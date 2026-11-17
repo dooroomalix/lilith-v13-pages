@@ -495,7 +495,7 @@
     }
 
     clear() {
-      this.items.forEach((it) => it.obj.destroy());
+      this.items.forEach((it) => { if (it.obj) it.obj.destroy(); });
       this.items.length = 0;
     }
   }
