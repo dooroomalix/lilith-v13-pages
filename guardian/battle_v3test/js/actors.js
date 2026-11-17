@@ -103,7 +103,7 @@
     }
 
     _useAnim(name) {
-      const a = G.Assets.anim[name];
+      const a = G.Assets.anim[name] || G.Assets.ensureAnim(name);
       if (!a) return null;
       if (this.animName !== name) {
         this.sprite.textures = a.frames;
@@ -404,7 +404,7 @@
       this.flashSpr.blendMode = 'add';
       this.flashSpr.alpha = 0;
       this.obj.addChild(this.flashSpr);
-      this.baseH = this.sprite.height * this.scale;
+      this.baseH = this.sprite.height;
       this.obj.x = this.x;
       this.obj.y = this.y;
       this.obj.zIndex = this.y;
@@ -616,7 +616,7 @@
       this.sprite.anchor.set(0.5, 1);
       this.sprite.scale.set(this.scale);
       this.obj.addChild(this.sprite);
-      this.baseH = this.sprite.height * this.scale;
+      this.baseH = this.sprite.height;
       this.flashSpr = new PIXI.Sprite(G.Assets.tex.boss);
       this.flashSpr.anchor.set(0.5, 1);
       this.flashSpr.scale.set(this.scale);

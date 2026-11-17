@@ -148,7 +148,7 @@
       sub.x = G.W / 2; sub.y = G.H / 2 + 30;
       c.addChild(sub);
       const hint = new PIXI.Text({
-        text: '터치하면 시작 · BGM이 함께 재생됩니다',
+        text: '터치하면 시작 · 음악은 잠시 뒤에 흐릅니다',
         style: { fontFamily: G.FONT, fontSize: 14, fill: 0x6f8fb0, letterSpacing: 1 },
       });
       hint.anchor.set(0.5);
@@ -425,7 +425,6 @@
       if (this.lia.active) return false;
       this.lia.mp -= 40;
       this.cooldowns.skill2 = this.skillMax.skill2;
-      this.showPrompt('리아 · 빛의 심판', 0xc9a8ff, 1.0);
       G.Sfx.magic();
 
       const target = this._densestTarget();
@@ -532,7 +531,7 @@
       const o = new PIXI.Container();
       const spr = new PIXI.AnimatedSprite(a.frames);
       spr.anchor.set(a.ax, a.ay);
-      const sc = 390 / a.frameH;
+      const sc = 390 / (a.fh || 465);
       spr.scale.set(sc);
       spr.animationSpeed = 0;
       spr.gotoAndStop(0);
@@ -607,7 +606,7 @@
 
       // 히트스톱 / 슬로우
       let dt = realDt;
-      if (this.hitStop > 0) { this.hitStop -= realDt; dt = realDt * 0.08; }
+      if (this.hitStop > 0) { this.hitStop = Math.max(0, this.hitStop - realDt); dt = realDt * 0.08; }
       if (this.slowT > 0) { this.slowT -= realDt; dt *= 0.35; }
 
       this._processTimers(dt);

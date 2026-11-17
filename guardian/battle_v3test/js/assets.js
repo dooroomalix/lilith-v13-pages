@@ -2,18 +2,16 @@
 (function () {
   const IMAGES = {
     bg: 'assets/bg_gate.webp',
-    kael: 'assets/kael.png',
-    lia: 'assets/lia.png',
-    portraitKael: 'assets/portrait_kael.png',
-    portraitLia: 'assets/portrait_lia.png',
-    scout: 'assets/mon_scout.png',
-    boss: 'assets/boss.png',
+    portraitKael: 'assets/portrait_kael.webp',
+    portraitLia: 'assets/portrait_lia.webp',
+    scout: 'assets/mon_scout.webp',
+    boss: 'assets/boss.webp',
   };
 
-  // 전투 시작 전에 반드시 필요한 카엘 애니메이션
-  const ANIM_CRITICAL = ['idle', 'run', 'atk1', 'atk2', 'atk3', 'dodge', 'hurt', 'lia'];
-  // 보스/몬스터 추가 프레임은 시작 후 백그라운드로
-  const ANIM_LAZY = ['scout_atk', 'boss_atk'];
+  // 첫 화면에 바로 필요한 것만 먼저 받는다 (대기·달리기·1타·리아)
+  const ANIM_CRITICAL = ['idle', 'run', 'atk1', 'lia'];
+  // 나머지는 인트로가 뜬 뒤 백그라운드로 (모바일 첫 로딩 경량화)
+  const ANIM_LAZY = ['atk2', 'atk3', 'dodge', 'hurt', 'scout_atk', 'boss_atk'];
 
   const A = {
     tex: {},
@@ -22,6 +20,7 @@
     total: 0,
     loaded: 0,
     _imgCache: {},
+    _pending: {},
 
     async load(onProgress) {
       const prog = onProgress || (() => {});
@@ -52,6 +51,14 @@
       for (const k of ANIM_LAZY) {
         try { await this._loadAnim(k, () => {}); } catch (e) { console.warn('lazy anim', k, e.message); }
       }
+    },
+
+    /* 아직 안 받은 동작을 쓰려 할 때: 지금 있는 프레임으로 버티고 뒤에서 받는다 */
+    ensureAnim(key) {
+      if (this.anim[key] || !this.animMeta || this._pending[key]) return null;
+      this._pending[key] = true;
+      this._loadAnim(key, () => {}).catch(() => {}).then(() => { this._pending[key] = false; });
+      return null;
     },
 
     async _loadMeta(prog) {
