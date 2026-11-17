@@ -83,7 +83,7 @@
       this.kael = new G.Hero(this, {
         name: '카엘', role: '성문기사', x: 380, bodyPx: 332, hpMax: 780, shadowW: 160, glowColor: 0x5fb0ff,
       });
-      this.kael.atk = 122;
+      this.kael.atk = 152;
       // 리아는 필드에 상주하지 않고 궁극기에서만 소환된다
       this.lia = new G.LiaSummon(this);
       this.actorLayer.addChild(this.kael.obj);
@@ -354,7 +354,7 @@
       // 남은 잡몹 정리
       this.enemies.forEach((e) => { if (e.alive && !e.dying) e.die(); });
       this.after(0.7, () => {
-        this.boss = new G.Boss(this, { hp: 30000, x: 820 });
+        this.boss = new G.Boss(this, { hp: 24000, x: 820 });
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
         this.fx.ring(820, G.GROUND_Y - 10, 0xff3355, 260, 0.9, 8);
@@ -441,10 +441,14 @@
       });
       // 3) 빛의 심판 — 빛기둥 + 광역 피해 + 넉백
       this.after(0.62, () => {
-        this.fx.pillar(tx, ty - 10, 0xd7e6ff, 620, 0.95, 180);
-        this.fx.ring(tx, ty - 10, 0xd7c2ff, 240, 0.7, 8);
-        this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 30, 560);
+        this.fx.pillar(tx, ty - 10, 0xe8f2ff, 680, 1.05, 240);
+        this.fx.pillar(tx - 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
+        this.fx.pillar(tx + 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
+        this.fx.ring(tx, ty - 10, 0xd7c2ff, 280, 0.75, 10);
+        this.fx.ring(tx, ty - 10, 0xffffff, 170, 0.5, 5);
+        this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 36, 620);
         this.fx.groundBurst(tx, ty);
+        this.flashImpact(0.16);
         this.scene.shake(12, 0.42);
         this.hitStop = 0.06;
         this.enemies.forEach((e) => {
@@ -531,7 +535,7 @@
       const o = new PIXI.Container();
       const spr = new PIXI.AnimatedSprite(a.frames);
       spr.anchor.set(a.ax, a.ay);
-      const sc = 390 / (a.fh || 465);
+      const sc = 340 / (a.fh || 465);
       spr.scale.set(sc);
       spr.animationSpeed = 0;
       spr.gotoAndStop(0);

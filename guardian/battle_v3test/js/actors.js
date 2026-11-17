@@ -32,8 +32,8 @@
   /* ============================ 영웅 ============================ */
   const COMBO = [
     { anim: 'atk1', wind: 0.055, dur: 0.27, hit: 0.095, reach: 252, dmg: 1.00, radius: 132, spread: 1.30, ang: -0.34, lunge: 34, advance: 16, hitStop: 0.035, shake: 5 },
-    { anim: 'atk2', wind: 0.050, dur: 0.26, hit: 0.085, reach: 258, dmg: 1.06, radius: 138, spread: 1.24, ang: 0.26, lunge: 42, advance: 20, hitStop: 0.045, shake: 6 },
-    { anim: 'atk3', wind: 0.085, dur: 0.40, hit: 0.150, reach: 300, dmg: 1.62, radius: 172, spread: 1.52, ang: -0.08, lunge: 62, advance: 30, hitStop: 0.060, shake: 10 },
+    { anim: 'atk2', wind: 0.050, dur: 0.26, hit: 0.085, reach: 258, dmg: 1.12, radius: 138, spread: 1.24, ang: 0.26, lunge: 42, advance: 20, hitStop: 0.045, shake: 6 },
+    { anim: 'atk3', wind: 0.085, dur: 0.40, hit: 0.150, reach: 300, dmg: 1.85, radius: 172, spread: 1.52, ang: -0.08, lunge: 62, advance: 30, hitStop: 0.060, shake: 10 },
   ];
 
   class Hero extends Unit {
