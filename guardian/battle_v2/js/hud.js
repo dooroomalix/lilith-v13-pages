@@ -99,9 +99,10 @@
       this.mpNum = this._text('mpnum', '100/100', G.style({ fontSize: 10, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x06264a, width: 3 } }), root);
       this.mpNum.x = 318;
 
-      // 바 그래픽
+      // 바 그래픽 (숫자보다 아래에 깔리도록 먼저 추가)
       this.bars = new PIXI.Graphics();
-      root.addChild(this.bars);
+      root.addChildAt(this.bars, root.getChildIndex(this.hpNum));
+      root.addChild(this.hpNum, this.mpNum);
 
       // ---- 우상단 : 지역명 / 타이머 / 일시정지 / 미니맵 ----
       this.rightG = new PIXI.Graphics();
