@@ -466,9 +466,9 @@
       g.rect(bx + sweep, my + 1, 12, mh - 2).fill({ color: 0xffffff, alpha: 0.10 });
 
       if (this.hpNum.text !== `${Math.ceil(kael.hp)}/${kael.hpMax}`) this.hpNum.text = `${Math.ceil(kael.hp)}/${kael.hpMax}`;
-      this.hpNum.x = bx + bw - this.hpNum.width; this.hpNum.y = by;
+      this.hpNum.x = bx + bw - this.hpNum.width - 6; this.hpNum.y = by - 1;
       if (this.mpNum.text !== `${Math.floor(kael.mp)}/${kael.mpMax}`) this.mpNum.text = `${Math.floor(kael.mp)}/${kael.mpMax}`;
-      this.mpNum.x = bx + bw - this.mpNum.width; this.mpNum.y = my - 2;
+      this.mpNum.x = bx + bw - this.mpNum.width - 6; this.mpNum.y = my - 2;
 
       // 타이머
       const tStr = G.fmtTime(game.timeLeft);

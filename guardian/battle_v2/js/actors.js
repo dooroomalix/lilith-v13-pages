@@ -113,8 +113,8 @@
         stride: 0,
         idleT: 0,
       });
-      this.addHalo(opts.haloColor || 0x6fb8ff, 340, 0.15);
-      this.addShadow(opts.shadowW || 170, 0.52);
+      this.addHalo(opts.haloColor || 0x6fb8ff, 360, 0.18);
+      this.addShadow(opts.shadowW || 176, 0.6);
 
       const meta = G.Assets.animMeta || { bodyH: 410 };
       this.bodyH = meta.bodyH;

@@ -2,6 +2,22 @@
 (function () {
   const AUTO_CYCLE = ['counter', 'full', 'manual'];
 
+  /* 애니 판타지풍 패널/버튼 (오버레이 공용) */
+  function platePath(g, x, y, w, h, cut, fill, alpha) {
+    const p = [x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
+      x + w - cut, y + h, x + cut, y + h, x, y + h - cut, x, y + cut];
+    g.poly(p).fill({ color: fill, alpha });
+    return p;
+  }
+  function plateEdge(g, x, y, w, h, cut, color, alpha, width) {
+    const p = [x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
+      x + w - cut, y + h, x + cut, y + h, x, y + h - cut, x, y + cut];
+    g.poly(p).stroke({ width: width || 1.6, color, alpha });
+  }
+  function gem(g, x, y, r, color, alpha) {
+    g.poly([x, y - r, x + r * 0.72, y, x, y + r, x - r * 0.72, y]).fill({ color, alpha });
+  }
+
   class Game {
     constructor(app) {
       this.app = app;
@@ -974,29 +990,32 @@
       bg.rect(0, 0, G.W, G.H).fill({ color: 0x02060d, alpha: 0.72 });
       c.addChild(bg);
       const g = new PIXI.Graphics();
-      g.roundRect(G.W / 2 - 220, 190, 440, 330, 16).fill({ color: 0x0a1626, alpha: 0.95 });
-      g.roundRect(G.W / 2 - 220, 190, 440, 330, 16).stroke({ width: 2, color: 0x8fc6ff, alpha: 0.5 });
+      platePath(g, G.W / 2 - 230, 180, 460, 350, 16, 0x0a1626, 0.96);
+      plateEdge(g, G.W / 2 - 230, 180, 460, 350, 16, 0xe8c27a, 0.75, 2);
+      plateEdge(g, G.W / 2 - 224, 186, 448, 338, 14, 0x9fd0ff, 0.22, 1);
+      gem(g, G.W / 2 - 230, 355, 7, 0xe8c27a, 0.95);
+      gem(g, G.W / 2 + 230, 355, 7, 0xe8c27a, 0.95);
       c.addChild(g);
-      const t = new PIXI.Text({ text: '일시정지', style: G.style({ fontSize: 36, fontWeight: '900', fill: 0xeaf4ff, letterSpacing: 4 }) });
-      t.anchor.set(0.5); t.x = G.W / 2; t.y = 250;
+      const t = new PIXI.Text({ text: '일시정지', style: G.style({ fontSize: 36, fontWeight: '900', fill: 0xf6e6c0, letterSpacing: 5, stroke: { color: 0x2a1a08, width: 6 } }) });
+      t.anchor.set(0.5); t.x = G.W / 2; t.y = 240;
       c.addChild(t);
 
       const mkBtn = (label, y, fn) => {
         const bg2 = new PIXI.Graphics();
-        bg2.roundRect(G.W / 2 - 150, y, 300, 54, 10).fill({ color: 0x14304d, alpha: 0.9 });
-        bg2.roundRect(G.W / 2 - 150, y, 300, 54, 10).stroke({ width: 1.6, color: 0x7fb8e8, alpha: 0.7 });
+        platePath(bg2, G.W / 2 - 150, y, 300, 54, 12, 0x14304d, 0.92);
+        plateEdge(bg2, G.W / 2 - 150, y, 300, 54, 12, 0x7fb8e8, 0.8, 1.8);
         c.addChild(bg2);
         const lt = new PIXI.Text({ text: label, style: G.style({ fontSize: 20, fontWeight: '800', fill: 0xeaf4ff }) });
         lt.anchor.set(0.5); lt.x = G.W / 2; lt.y = y + 27;
         c.addChild(lt);
         this.overlayButtons.push({ x: G.W / 2 - 150, y, w: 300, h: 54, fn });
       };
-      mkBtn('계속하기', 300, () => this.togglePause());
-      mkBtn(this.muted ? '소리 켜기' : '소리 끄기', 366, () => {
+      mkBtn('계속하기', 296, () => this.togglePause());
+      mkBtn(this.muted ? '소리 켜기' : '소리 끄기', 362, () => {
         this.muted = G.Sfx.toggleMute();
         this._buildPauseOverlay();
       });
-      mkBtn('처음부터', 432, () => { this.togglePause(); this._defeat('처음부터'); });
+      mkBtn('처음부터', 428, () => { this.togglePause(); this._defeat('처음부터'); });
       this.overlay.addChild(c);
       this.pauseActive = true;
     }
@@ -1020,8 +1039,12 @@
       bg.rect(0, 0, G.W, G.H).fill({ color: 0x02060d, alpha: 0.88 });
       c.addChild(bg);
       const g = new PIXI.Graphics();
-      g.roundRect(G.W / 2 - 280, 150, 560, 420, 18).fill({ color: 0x081422, alpha: 0.96 });
-      g.roundRect(G.W / 2 - 280, 150, 560, 420, 18).stroke({ width: 2, color: win ? 0xffd166 : 0xff6b7a, alpha: 0.7 });
+      platePath(g, G.W / 2 - 290, 140, 580, 440, 18, 0x081422, 0.97);
+      plateEdge(g, G.W / 2 - 290, 140, 580, 440, 18, win ? 0xffd166 : 0xff6b7a, 0.8, 2.2);
+      plateEdge(g, G.W / 2 - 282, 148, 564, 424, 15, 0x9fd0ff, 0.2, 1);
+      gem(g, G.W / 2 - 290, 360, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
+      gem(g, G.W / 2 + 290, 360, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
+      gem(g, G.W / 2, 140, 8, win ? 0xffd166 : 0xff6b7a, 0.9);
       c.addChild(g);
 
       const title = new PIXI.Text({
@@ -1053,10 +1076,10 @@
         c.addChild(vt);
       });
 
-      const btnY = 486;
+      const btnY = 496;
       const bg2 = new PIXI.Graphics();
-      bg2.roundRect(G.W / 2 - 150, btnY, 300, 56, 10).fill({ color: win ? 0x2a3f1f : 0x14304d, alpha: 0.95 });
-      bg2.roundRect(G.W / 2 - 150, btnY, 300, 56, 10).stroke({ width: 1.8, color: win ? 0xffd166 : 0x7fb8e8, alpha: 0.8 });
+      platePath(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0x2a3f1f : 0x14304d, 0.95);
+      plateEdge(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0xffd166 : 0x7fb8e8, 0.85, 2);
       c.addChild(bg2);
       const bt = new PIXI.Text({ text: '다시 도전', style: G.style({ fontSize: 22, fontWeight: '900', fill: 0xf2f8ff }) });
       bt.anchor.set(0.5); bt.x = G.W / 2; bt.y = btnY + 28;

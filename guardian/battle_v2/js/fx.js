@@ -157,7 +157,7 @@
       layer(o.radius * 1.02, o.width * 1.05, o.color2, 0.22 * o.flare, o.spiral * 0.9, 2.0);
       if (o.edge !== null) layer(o.radius * 1.0, o.width * 0.55, o.edge, 0.5 * o.flare, o.spiral * 0.8, 2.2);
       layer(o.radius, o.width * 0.72, o.color2, 0.34 * o.flare, o.spiral, 2.1);
-      layer(o.radius * 0.985, o.width * 0.24, 0xffffff, 0.8, o.spiral, 2.4);
+      layer(o.radius * 0.985, o.width * 0.20, 0xffffff, 0.66, o.spiral, 2.5);
 
       const item = {
         obj: g, t: 0,
