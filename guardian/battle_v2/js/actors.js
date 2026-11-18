@@ -423,11 +423,11 @@
 
       // 스프라이트 배치
       if (this.state !== 'dead') {
-        this.sprite.y = bob - this.bobPx;
+        this.sprite.y = bob + this.bobPx;
         this.sprite.rotation = rot;
         this.rim.rotation = rot;
         this.sprite.x = dx;
-        this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4 - this.bobPx;
+        this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4 + this.bobPx;
         this.weaponGlow.x = 40 * this.facing;
       } else {
         this.obj.rotation = rot;

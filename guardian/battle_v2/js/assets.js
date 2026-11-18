@@ -74,7 +74,14 @@
       prog(this.loaded / this.total);
     },
 
+    /* 버전 쿼리: 배포 후 CDN/브라우저에 옛 이미지가 남지 않게 */
+    _v(path) {
+      const v = (window.G && G.VERSION ? G.VERSION : 'v0');
+      return path + (path.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(v);
+    },
+
     _img(path) {
+      path = this._v(path);
       if (this._imgCache[path]) return this._imgCache[path];
       const p = new Promise((resolve, reject) => {
         const img = new Image();

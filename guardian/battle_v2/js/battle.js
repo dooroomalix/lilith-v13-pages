@@ -505,15 +505,15 @@
       const c = new PIXI.Container();
       c.zIndex = 15;
       const band = new PIXI.Graphics();
-      band.poly([-30, 120, 500, 46, 610, 300, -30, 430]).fill({ color: 0x140a2a, alpha: 0.86 });
-      band.poly([-30, 150, 500, 76, 590, 280, -30, 400]).fill({ color: 0x6d3bd1, alpha: 0.22 });
-      band.poly([-30, 420, 200, 330, 240, 344, -30, 446]).fill({ color: 0xc9a8ff, alpha: 0.35 });
+      band.poly([-30, 150, 500, 76, 610, 330, -30, 460]).fill({ color: 0x140a2a, alpha: 0.86 });
+      band.poly([-30, 180, 500, 106, 590, 310, -30, 430]).fill({ color: 0x6d3bd1, alpha: 0.22 });
+      band.poly([-30, 450, 200, 360, 240, 374, -30, 476]).fill({ color: 0xc9a8ff, alpha: 0.35 });
       c.addChild(band);
 
       const por = new PIXI.Sprite(G.Assets.tex.portraitLia);
       por.anchor.set(0.5);
       por.width = 300; por.height = 300;
-      por.x = 168; por.y = 240;
+      por.x = 168; por.y = 268;
       c.addChild(por);
 
       const g = new PIXI.Sprite(G.Assets.tex.glow);
@@ -521,7 +521,7 @@
       g.blendMode = 'add';
       g.tint = 0xb98bff;
       g.width = 520; g.height = 520;
-      g.x = 168; g.y = 250;
+      g.x = 168; g.y = 278;
       g.alpha = 0.35;
       c.addChild(g);
 
@@ -530,7 +530,7 @@
         style: G.style({ fontSize: 40, fontWeight: '900', fill: 0xf4ecff, letterSpacing: 3, stroke: { color: 0x2a1052, width: 8 } }),
       });
       name.anchor.set(0, 0.5);
-      name.x = 322; name.y = 214;
+      name.x = 322; name.y = 242;
       c.addChild(name);
 
       const sub = new PIXI.Text({
@@ -538,7 +538,7 @@
         style: G.style({ fontSize: 17, fill: 0xc9b0ff, fontWeight: '800', letterSpacing: 2 }),
       });
       sub.anchor.set(0, 0.5);
-      sub.x = 326; sub.y = 262;
+      sub.x = 326; sub.y = 290;
       c.addChild(sub);
 
       c.x = -640;
