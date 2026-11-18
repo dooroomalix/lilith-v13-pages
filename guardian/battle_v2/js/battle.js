@@ -192,6 +192,8 @@
       c.addChild(bt);
       this.introBtn = { g: btn, t: bt, y: by };
       c.zIndex = 120;              // HUD 위에 올려 타이틀 화면이 깔끔하게 덮이도록
+      this.hud.root.visible = false;
+      this.vignette.visible = false;
       const hint = new PIXI.Text({
         text: '음악은 시작한 뒤 잠시 후 흐릅니다 · 가로 화면 권장',
         style: { fontFamily: G.FONT, fontSize: 13, fill: 0x6f8fb0, letterSpacing: 1 },
@@ -226,6 +228,9 @@
       if (!this.introC) return;
       const c = this.introC;
       this.introC = null;
+      this.hud.root.visible = true;
+      this.vignette.visible = true;
+      if (this.introBtn) this.introBtn = null;
       this.introT = 0;
       this.introFade = c;
       this.start();
