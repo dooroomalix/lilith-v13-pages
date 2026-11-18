@@ -794,12 +794,6 @@
 
     _tryDodge() {
       if (this.kael.state === 'dead') return;
-      // 퍼펙트 윈도우 판정
-      if (this.perfectWindow && this.boss && this.boss.state === 'windup' && this.boss.kind === 'perfect') {
-        this.perfectWindow = false;
-        this.perfectCounter = true;
-        G.Sfx.counter();
-      }
       const wasDodge = this.kael.state === 'dodge';
       if (this.kael.dodgeCD > 0 || this.kael.state === 'attack') {
         if (this.kael.state !== 'attack') return;
@@ -812,6 +806,12 @@
         this.kael.dodge();
       }
       if (wasDodge) return;
+      // 회피가 실제로 시작된 뒤에만 퍼펙트 반격을 인정한다.
+      if (this.perfectWindow && this.boss && this.boss.state === 'windup' && this.boss.kind === 'perfect') {
+        this.perfectWindow = false;
+        this.perfectCounter = true;
+        G.Sfx.counter();
+      }
       // 회피 이펙트 + 잔상
       this.fx.sparkBurst(this.kael.x - 20, this.kael.centerY, 0x9fd6ff, 8, 220, Math.PI);
       this.fx.ring(this.kael.x, this.kael.y - 6, 0x9fd6ff, 80, 0.35, 3);
