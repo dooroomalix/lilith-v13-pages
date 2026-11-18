@@ -579,7 +579,7 @@
       const fill = new PIXI.Graphics();
       this.barFill = fill;
       this.bar.addChild(bg, fill);
-      this.bar.y = -this.baseH - 26;
+      this.bar.y = -this.baseH - 14;
       this.lvText = new PIXI.Text({
         text: 'Lv.' + this.lv,
         style: { fontFamily: G.FONT, fontSize: 11, fontWeight: '900', fill: 0xffd6dc, stroke: { color: 0x1a0308, width: 3 } },
