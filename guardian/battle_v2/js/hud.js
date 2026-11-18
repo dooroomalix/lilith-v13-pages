@@ -476,7 +476,7 @@
       this.timerText.style.fill = game.phase === 'boss' ? 0xffc2ca : (game.timeLeft < 11 ? 0xffd166 : 0xffffff);
 
       // 지역명
-      const area = game.phase === 'boss' ? '폐허의 왕좌' : '폐허의 거리';
+      const area = (game.phase === 'boss' || game.phase === 'bossIntro' || game.phase === 'victory') ? '폐허의 왕좌' : '폐허의 거리';
       if (this.areaText.text !== area) this.areaText.text = area;
 
       // 보스 HP

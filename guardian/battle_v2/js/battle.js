@@ -343,7 +343,7 @@
       if (crit) {
         if (this.time - (this._critPop || -9) > 0.3) {
           this._critPop = this.time;
-          this.fx.popText(e.x, e.centerY - 96, 'CRITICAL', { color: 0xffd166, size: 21, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+          this.fx.popText(e.x, e.centerY - 146, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
         }
         this.fx.debris(e.x, e.centerY, 5, 0xffe0a0, 1.0);
         G.Sfx.hit(true);
@@ -359,7 +359,7 @@
       if (crit) {
         if (this.time - (this._critPop || -9) > 0.3) {
           this._critPop = this.time;
-          this.fx.popText(this.boss.x - 40, this.boss.centerY - 110, 'CRITICAL', { color: 0xffd166, size: 21, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+          this.fx.popText(this.boss.x - 40, this.boss.centerY - 165, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
         }
         G.Sfx.hit(true);
       }
@@ -523,8 +523,8 @@
         this.fx.pillar(tx, ty - 10, 0xe8f2ff, 680, 1.05, 240);
         this.fx.pillar(tx - 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
         this.fx.pillar(tx + 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
-        this.fx.ring(tx, ty - 10, 0xd7c2ff, 280, 0.75, 10);
-        this.fx.ring(tx, ty - 10, 0xffffff, 170, 0.5, 5);
+        this.fx.ring(tx, ty - 10, 0xd7c2ff, 210, 0.7, 9, 0.42);
+        this.fx.ring(tx, ty - 10, 0xffffff, 140, 0.45, 4, 0.42);
         this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 36, 620);
         this.fx.groundBurst(tx, ty);
         this.flashImpact(0.16);
@@ -659,7 +659,7 @@
 
       this.fx.ring(x, y - 6, 0xb98bff, 180, 0.6, 5, 0.4);
       this.fx.sparkBurst(x, y - 140, 0xd9c8ff, 22, 440);
-      this.fx.shockRing(x, y - 6, 0xc9a8ff, 200, 0.6);
+      this.fx.shockRing(x, y - 6, 0xc9a8ff, 150, 0.55);
       G.Sfx.magic();
     }
 

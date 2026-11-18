@@ -305,8 +305,8 @@
 
     /* 지면을 따라 퍼지는 충격파 (타원) */
     shockRing(x, y, color = 0x9fd6ff, radius = 240, dur = 0.5) {
-      this.ring(x, y, color, radius, dur, 6, 0.34);
-      this.ring(x, y, 0xffffff, radius * 0.72, dur * 0.8, 3, 0.34);
+      this.ring(x, y, color, radius * 0.86, dur, 5, 0.34);
+      this.ring(x, y, 0xffffff, radius * 0.58, dur * 0.8, 2.5, 0.34);
       const s = new PIXI.Sprite(T().halo);
       s.anchor.set(0.5);
       s.x = x; s.y = y;
@@ -319,9 +319,9 @@
           item.t += dt;
           const p = item.t / (dur * 0.9);
           if (p >= 1) return false;
-          const r = radius * (0.3 + 0.9 * G.easeOutCubic(p));
-          s.width = r * 2; s.height = r * 0.62;
-          s.alpha = (1 - p) * 0.3;
+          const r = radius * (0.28 + 0.72 * G.easeOutCubic(p));
+          s.width = r * 1.5; s.height = r * 0.44;
+          s.alpha = (1 - p) * 0.22;
           return true;
         },
       };
