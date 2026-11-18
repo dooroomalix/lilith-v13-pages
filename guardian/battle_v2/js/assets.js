@@ -76,7 +76,7 @@
 
     /* 버전 쿼리: 배포 후 CDN/브라우저에 옛 이미지가 남지 않게 */
     _v(path) {
-      const v = (window.G && G.VERSION ? G.VERSION : 'v0');
+      const v = (window.G && (G.ASSET_V || G.VERSION)) || 'v0';
       return path + (path.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(v);
     },
 
