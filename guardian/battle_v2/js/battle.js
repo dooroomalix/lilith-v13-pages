@@ -143,9 +143,24 @@
 
     _buildIntro() {
       const c = this.introC = new PIXI.Container();
+      // 배경을 어둡게 깔아 '타이틀 화면' 느낌
+      const shot = new PIXI.Sprite(G.Assets.tex.bg);
+      shot.anchor.set(0.5);
+      shot.scale.set(Math.max(G.W / shot.width, G.H / shot.height) * 1.12);
+      shot.x = G.W / 2; shot.y = G.H / 2;
+      shot.tint = 0x6f89b0;
+      shot.alpha = 0.55;
+      c.addChild(shot);
       const bg = new PIXI.Graphics();
-      bg.rect(0, 0, G.W, G.H).fill({ color: 0x03060d, alpha: 1 });
+      bg.rect(0, 0, G.W, G.H).fill({ color: 0x03060d, alpha: 0.55 });
+      bg.rect(0, G.H * 0.3, G.W, G.H * 0.42).fill({ color: 0x03060d, alpha: 0.35 });
       c.addChild(bg);
+      const deco = new PIXI.Graphics();
+      deco.moveTo(G.W / 2 - 300, G.H / 2 - 96).lineTo(G.W / 2 - 60, G.H / 2 - 96).stroke({ width: 1.6, color: 0xe8c27a, alpha: 0.55 });
+      deco.moveTo(G.W / 2 + 60, G.H / 2 - 96).lineTo(G.W / 2 + 300, G.H / 2 - 96).stroke({ width: 1.6, color: 0xe8c27a, alpha: 0.55 });
+      deco.poly([G.W / 2, G.H / 2 - 102, G.W / 2 + 7, G.H / 2 - 96, G.W / 2, G.H / 2 - 90, G.W / 2 - 7, G.H / 2 - 96]).fill({ color: 0xe8c27a, alpha: 0.9 });
+      deco.moveTo(G.W / 2 - 210, G.H / 2 + 66).lineTo(G.W / 2 + 210, G.H / 2 + 66).stroke({ width: 1, color: 0x9fd0ff, alpha: 0.25 });
+      c.addChild(deco);
       const t = new PIXI.Text({
         text: '마지막 성문의 수호자',
         style: { fontFamily: G.FONT, fontSize: 58, fontWeight: '900', fill: 0xeaf4ff, letterSpacing: 8, stroke: { color: 0x0a1c38, width: 8 } },
@@ -160,12 +175,28 @@
       sub.anchor.set(0.5);
       sub.x = G.W / 2; sub.y = G.H / 2 + 30;
       c.addChild(sub);
+      // 시작 버튼
+      const btn = new PIXI.Graphics();
+      const bw = 300, bh = 56, bx = G.W / 2 - bw / 2, by = G.H / 2 + 88;
+      const p = [bx + 14, by, bx + bw - 14, by, bx + bw, by + 14, bx + bw, by + bh - 14,
+        bx + bw - 14, by + bh, bx + 14, by + bh, bx, by + bh - 14, bx, by + 14];
+      btn.poly(p).fill({ color: 0x142a44, alpha: 0.8 });
+      btn.poly(p).stroke({ width: 1.8, color: 0xe8c27a, alpha: 0.7 });
+      c.addChild(btn);
+      const bt = new PIXI.Text({
+        text: '터치하여 시작',
+        style: { fontFamily: G.FONT, fontSize: 22, fontWeight: '900', fill: 0xf6e6c0, letterSpacing: 3 },
+      });
+      bt.anchor.set(0.5);
+      bt.x = G.W / 2; bt.y = by + bh / 2;
+      c.addChild(bt);
+      this.introBtn = { g: btn, t: bt, y: by };
       const hint = new PIXI.Text({
-        text: '터치하면 시작 · 음악은 잠시 뒤에 흐릅니다',
-        style: { fontFamily: G.FONT, fontSize: 14, fill: 0x6f8fb0, letterSpacing: 1 },
+        text: '음악은 시작한 뒤 잠시 후 흐릅니다 · 가로 화면 권장',
+        style: { fontFamily: G.FONT, fontSize: 13, fill: 0x6f8fb0, letterSpacing: 1 },
       });
       hint.anchor.set(0.5);
-      hint.x = G.W / 2; hint.y = G.H / 2 + 90;
+      hint.x = G.W / 2; hint.y = G.H / 2 + 164;
       c.addChild(hint);
       this.overlay.addChild(c);
     }
@@ -304,7 +335,10 @@
       const knock = cfg ? (cfg.advance > 24 ? 420 : cfg.advance > 18 ? 300 : 230) : 200;
       e.takeDamage(dmg, { crit, knock });
       if (crit) {
-        this.fx.popText(e.x, e.centerY - 70, 'CRITICAL', { color: 0xffd166, size: 24, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        if (this.time - (this._critPop || -9) > 0.3) {
+          this._critPop = this.time;
+          this.fx.popText(e.x, e.centerY - 96, 'CRITICAL', { color: 0xffd166, size: 21, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        }
         this.fx.debris(e.x, e.centerY, 5, 0xffe0a0, 1.0);
         G.Sfx.hit(true);
       }
@@ -317,7 +351,10 @@
       this.stats.damage += dmg;
       this.boss.takeDamage(dmg, { crit, kb: cfg && cfg.advance > 24 ? 90 : 40 });
       if (crit) {
-        this.fx.popText(this.boss.x - 40, this.boss.centerY - 80, 'CRITICAL', { color: 0xffd166, size: 24, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        if (this.time - (this._critPop || -9) > 0.3) {
+          this._critPop = this.time;
+          this.fx.popText(this.boss.x - 40, this.boss.centerY - 110, 'CRITICAL', { color: 0xffd166, size: 21, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        }
         G.Sfx.hit(true);
       }
       return crit;

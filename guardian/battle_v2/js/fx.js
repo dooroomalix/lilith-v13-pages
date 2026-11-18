@@ -241,7 +241,7 @@
     /* ---------- 데미지 숫자 ---------- */
     damage(x, y, value, opts = {}) {
       const o = Object.assign({ crit: false, color: null, size: 0, rise: 64 }, opts);
-      const size = o.size || (o.crit ? 36 : 23);
+      const size = o.size || (o.crit ? 30 : 22);
       const color = o.color || (o.crit ? 0xffd75e : 0xffffff);
       const t = new PIXI.Text({
         text: String(Math.round(value)),
@@ -256,9 +256,9 @@
       });
       t.anchor.set(0.5, 1);
       this._dmgIdx = ((this._dmgIdx || 0) + 1) % 4;
-      t.x = x + G.rand(66, -66) + (this._dmgIdx - 1.5) * 22;
-      t.y = y - this._dmgIdx * 13 + G.rand(10, -10);
-      t.scale.set(o.crit ? 2.0 : 1.7);
+      t.x = x + G.rand(96, -96) + (this._dmgIdx - 1.5) * 30;
+      t.y = y - this._dmgIdx * 16 + G.rand(14, -14);
+      t.scale.set(o.crit ? 1.7 : 1.45);
       this.layer.addChild(t);
 
       const item = {
@@ -269,8 +269,8 @@
           if (p >= 1) return false;
           const e = G.easeOutCubic(Math.min(1, item.t2 / 0.18));
           t.y = y - o.rise * G.easeOutCubic(Math.min(1, item.t2 / 0.55));
-          const base = o.crit ? 2.0 : 1.7;
-          t.scale.set(base - 0.75 * e);
+          const base = o.crit ? 1.7 : 1.45;
+          t.scale.set(base - 0.55 * e);
           t.alpha = p < 0.55 ? 1 : 1 - (p - 0.55) / 0.45;
           return true;
         },

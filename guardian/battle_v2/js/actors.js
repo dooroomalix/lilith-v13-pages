@@ -543,8 +543,8 @@
       this.flashT = 0;
       this.walkT = G.rand(3);
 
-      this.addHalo(0xa06bff, 220, 0.13);
-      this.addShadow(110, 0.44);
+      this.addHalo(0xa06bff, 240, 0.16);
+      this.addShadow(112, 0.5);
       this.sprite = new PIXI.Sprite(G.Assets.tex.scout);
       this.sprite.anchor.set(0.5, 1);
       this.sprite.scale.set(-this.scale, this.scale);
@@ -554,7 +554,7 @@
       this.rim.scale.set(-this.scale * 1.02, this.scale * 1.02);
       this.rim.tint = 0xc79bff;
       this.rim.blendMode = 'add';
-      this.rim.alpha = 0.3;
+      this.rim.alpha = 0.42;
       this.rim.y = -6;
       this.obj.addChildAt(this.rim, this.obj.getChildIndex(this.sprite));
       this.flashSpr = new PIXI.Sprite(G.Assets.tex.scout);
