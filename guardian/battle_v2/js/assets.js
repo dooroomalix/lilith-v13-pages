@@ -1,4 +1,4 @@
-/* assets.js : 이미지 로딩 + 스프라이트 시트 애니메이션 + 절차적 텍스처(글로우/안개/비네트 등) */
+/* assets.js : 이미지 로딩 + 스프라이트 시트 애니메이션 + 절차적 텍스처(그림자/할로/안개/빛줄기 등) */
 (function () {
   const IMAGES = {
     bg: 'assets/bg_gate.webp',
@@ -8,8 +8,8 @@
     boss: 'assets/boss.webp',
   };
 
-  // 첫 화면에 바로 필요한 것만 먼저 받는다 (대기·달리기·1타·리아)
-  const ANIM_CRITICAL = ['idle', 'run', 'atk1', 'lia'];
+  // 첫 화면에 바로 필요한 것만 먼저 받는다 (대기·걷기·달리기·1타·리아)
+  const ANIM_CRITICAL = ['idle', 'walk', 'run', 'atk1', 'lia'];
   // 나머지는 인트로가 뜬 뒤 백그라운드로 (모바일 첫 로딩 경량화)
   const ANIM_LAZY = ['atk2', 'atk3', 'dodge', 'hurt', 'scout_atk', 'boss_atk'];
 
@@ -37,6 +37,12 @@
         vignette: () => this._vignetteTex(),
         streak: () => this._streakTex(),
         ring: () => this._ringTex(),
+        shadow: () => this._shadowTex(),
+        halo: () => this._haloTex(),
+        mist: () => this._mistTex(),
+        spark: () => this._sparkTex(),
+        shard: () => this._shardTex(),
+        beam: () => this._beamTex(),
       };
       for (const [key, fn] of Object.entries(gen)) {
         this.tex[key] = fn();
@@ -91,6 +97,8 @@
         key, fps: m.fps, loop: m.loop, file: m.file,
         frames: [], ax: m.anchorX, ay: m.anchorY,
         fw: m.frameW, fh: m.frameH, count: m.frames,
+        pxBodyH: m.pxBodyH || this.animMeta.bodyH,
+        bob: m.bob || null, contacts: m.contacts || null,
       };
       if (m.frames > 1) {
         for (let i = 0; i < m.frames; i++) {
@@ -102,6 +110,7 @@
       } else {
         entry.frames.push(base);
         entry.fw = m.w; entry.fh = m.h;
+        entry.pxBodyH = m.h;
       }
       this.anim[key] = entry;
       this.loaded++;
@@ -170,6 +179,141 @@
         x.arc(px, py, r, 0, G.TAU);
         x.fill();
       }
+      return PIXI.Texture.from(c);
+    },
+
+    /* 캐릭터 발밑 접지 그림자 — 타원 소프트 (중심 진하게, 가장자리 0) */
+    _shadowTex() {
+      const w = 256, h = 128;
+      const c = this._canvas(w, h);
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(0,0,0,0.95)');
+      g.addColorStop(0.35, 'rgba(0,0,0,0.72)');
+      g.addColorStop(0.62, 'rgba(0,0,0,0.30)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.setTransform(1, 0, 0, h / w, 0, (h - h) / 2);
+      x.fillStyle = g;
+      x.fillRect(0, 0, w, w);
+      return PIXI.Texture.from(c);
+    },
+
+    /* 발밑 환경광 — 바닥이 캐릭터 빛을 받는 느낌 */
+    _haloTex() {
+      const w = 256, h = 128;
+      const c = this._canvas(w, h);
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.55)');
+      g.addColorStop(0.42, 'rgba(255,255,255,0.22)');
+      g.addColorStop(0.78, 'rgba(255,255,255,0.05)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.setTransform(1, 0, 0, h / w, 0, 0);
+      x.fillStyle = g;
+      x.fillRect(0, 0, w, w);
+      return PIXI.Texture.from(c);
+    },
+
+    /* 낮게 깔리는 안개 띠 */
+    _mistTex() {
+      const w = 768, h = 256;
+      const c = this._canvas(w, h);
+      const x = c.getContext('2d');
+      for (let i = 0; i < 44; i++) {
+        const px = G.rand(w * 1.0, 0);
+        const py = h * 0.55 + G.rand(h * 0.3, -h * 0.3);
+        const rx = G.rand(230, 70);
+        const ry = rx * G.rand(0.22, 0.09);
+        const a = G.rand(0.10, 0.025);
+        const g = x.createRadialGradient(px, py, 0, px, py, rx);
+        g.addColorStop(0, `rgba(255,255,255,${a})`);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.save();
+        x.translate(px, py);
+        x.scale(1, ry / rx);
+        x.translate(-px, -py);
+        x.fillStyle = g;
+        x.beginPath();
+        x.arc(px, py, rx, 0, G.TAU);
+        x.fill();
+        x.restore();
+      }
+      return PIXI.Texture.from(c);
+    },
+
+    /* 네 갈래 스파크 (타격 섬광) */
+    _sparkTex() {
+      const s = 128;
+      const c = this._canvas(s, s);
+      const x = c.getContext('2d');
+      x.translate(s / 2, s / 2);
+      const star = (r1, r2, w, a) => {
+        x.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * G.TAU;
+          const nx = Math.cos(ang + Math.PI / 4), ny = Math.sin(ang + Math.PI / 4);
+          x.moveTo(0, 0);
+          x.lineTo(nx * w, ny * w);
+          x.lineTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
+          x.lineTo(-nx * w, -ny * w);
+          x.closePath();
+        }
+        x.fillStyle = `rgba(255,255,255,${a})`;
+        x.fill();
+        x.beginPath();
+        x.arc(0, 0, r2, 0, G.TAU);
+        x.fill();
+      };
+      star(s * 0.48, s * 0.16, s * 0.045, 0.95);
+      star(s * 0.30, s * 0.10, s * 0.02, 0.8);
+      return PIXI.Texture.from(c);
+    },
+
+    /* 파편 조각 */
+    _shardTex() {
+      const s = 32;
+      const c = this._canvas(s, s);
+      const x = c.getContext('2d');
+      x.beginPath();
+      x.moveTo(s * 0.5, 0);
+      x.lineTo(s * 0.92, s * 0.62);
+      x.lineTo(s * 0.42, s);
+      x.lineTo(s * 0.08, s * 0.55);
+      x.closePath();
+      const g = x.createLinearGradient(0, 0, s, s);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)');
+      g.addColorStop(1, 'rgba(255,255,255,0.35)');
+      x.fillStyle = g;
+      x.fill();
+      return PIXI.Texture.from(c);
+    },
+
+    /* 성문에서 내려오는 빛줄기 (부드러운 사다리꼴) */
+    _beamTex() {
+      const w = 256, h = 512;
+      const c = this._canvas(w, h);
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, 'rgba(255,255,255,0.55)');
+      g.addColorStop(0.35, 'rgba(255,255,255,0.26)');
+      g.addColorStop(0.75, 'rgba(255,255,255,0.08)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g;
+      x.beginPath();
+      x.moveTo(w * 0.34, 0);
+      x.lineTo(w * 0.66, 0);
+      x.lineTo(w * 1.0, h);
+      x.lineTo(w * 0.0, h);
+      x.closePath();
+      x.fill();
+      // 좌우 페더
+      const side = x.createLinearGradient(0, 0, w, 0);
+      side.addColorStop(0, 'rgba(0,0,0,0)');
+      side.addColorStop(0.5, 'rgba(255,255,255,0.10)');
+      side.addColorStop(1, 'rgba(0,0,0,0)');
+      x.globalCompositeOperation = 'lighter';
+      x.fillStyle = side;
+      x.fillRect(0, 0, w, h);
       return PIXI.Texture.from(c);
     },
 

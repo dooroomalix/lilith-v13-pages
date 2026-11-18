@@ -184,6 +184,22 @@
       o.stop(t + 1.2);
     },
 
+    /* 발걸음 (달리기/걷기 접지음) */
+    step(power = 1) {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const n = ctx.createBufferSource();
+      n.buffer = this._noiseBuf;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 420 + 260 * power;
+      const ng = ctx.createGain();
+      this._env(ng, t, 0.004, 0.075, 0.055 + 0.05 * power);
+      n.connect(lp).connect(ng).connect(this.master);
+      n.start(t);
+      n.stop(t + 0.14);
+    },
+
     /* UI */
     ui(up = true) {
       if (!this.ctx || this.muted) return;

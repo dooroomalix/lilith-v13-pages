@@ -3,23 +3,69 @@
   "anims": {
     "idle": {
       "file": "assets/anim/kael_idle.webp",
-      "frames": 3,
-      "fps": 6,
+      "frames": 4,
+      "fps": 5,
       "loop": true,
-      "frameW": 264,
-      "frameH": 436,
-      "anchorX": 0.4886,
-      "anchorY": 0.9794
+      "frameW": 189,
+      "frameH": 360,
+      "pxBodyH": 348.5,
+      "anchorX": 0.6836,
+      "anchorY": 0.9846,
+      "bob": [
+        0.0,
+        0.006,
+        0.0,
+        -0.004
+      ],
+      "contacts": []
+    },
+    "walk": {
+      "file": "assets/anim/kael_walk.webp",
+      "frames": 6,
+      "fps": 10,
+      "loop": true,
+      "frameW": 231,
+      "frameH": 392,
+      "pxBodyH": 348.5,
+      "anchorX": 0.5078,
+      "anchorY": 0.9107,
+      "bob": [
+        0.0,
+        0.012,
+        -0.006,
+        0.0,
+        0.012,
+        -0.006
+      ],
+      "contacts": [
+        0,
+        3
+      ]
     },
     "run": {
       "file": "assets/anim/kael_run.webp",
-      "frames": 6,
-      "fps": 15,
+      "frames": 8,
+      "fps": 14,
       "loop": true,
-      "frameW": 420,
-      "frameH": 525,
-      "anchorX": 0.3952,
-      "anchorY": 0.7943
+      "frameW": 422,
+      "frameH": 628,
+      "pxBodyH": 348.5,
+      "anchorX": 0.5418,
+      "anchorY": 0.8053,
+      "bob": [
+        0.0,
+        0.015,
+        -0.008,
+        -0.03,
+        0.0,
+        0.015,
+        -0.008,
+        -0.03
+      ],
+      "contacts": [
+        0,
+        4
+      ]
     },
     "atk1": {
       "file": "assets/anim/kael_atk1.webp",

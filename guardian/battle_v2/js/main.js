@@ -96,9 +96,12 @@
       if (k === 'k') game.hud.input.skill1 = true;
       if (k === 'l') game.hud.input.skill2 = true;
       if (k === 'Shift') game.hud.input.dodge = true;
-      if (k === 'Escape' || k === 'p') game.togglePause();
-      if (k === 'm') { game.muted = G.Sfx.toggleMute(); }
-      if (k === 't') game.cycleAuto();
+      // 길게 누르는 동안 keydown 반복으로 토글이 여러 번 실행되지 않도록 제한
+      if (!e.repeat) {
+        if (k === 'Escape' || k === 'p') game.togglePause();
+        if (k === 'm') { game.muted = G.Sfx.toggleMute(); }
+        if (k === 't') game.cycleAuto();
+      }
       if (game.introC) game._dismissIntro();
     });
     window.addEventListener('keyup', (e) => {

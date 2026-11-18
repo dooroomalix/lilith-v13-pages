@@ -6,14 +6,11 @@
     constructor(app) {
       this.app = app;
       this.scene = new G.Scene(app);
-      this.actorLayer = new PIXI.Container();
-      this.actorLayer.sortableChildren = true;
-      this.scene.root.addChildAt(this.actorLayer, 2);
+      this.actorLayer = this.scene.actorLayer;
       this.fx = new G.Fx(this.scene.fxLayer);
 
       this.root = new PIXI.Container();
       this.root.sortableChildren = true;
-      this.scene.root.zIndex = 0;
       this.root.addChild(this.scene.root);
 
       this.hud = new G.Hud(app, this);
@@ -141,7 +138,7 @@
       t.x = G.W / 2; t.y = G.H / 2 - 34;
       c.addChild(t);
       const sub = new PIXI.Text({
-        text: 'THE LAST GATEKEEPER   ·   전투 v3',
+        text: 'THE LAST GATEKEEPER   ·   전투 ' + G.VERSION.split('-')[0],
         style: { fontFamily: G.FONT, fontSize: 18, fontWeight: '700', fill: 0x8fb8e0, letterSpacing: 3 },
       });
       sub.anchor.set(0.5);
@@ -215,53 +212,61 @@
     heroStrike(hero, cfg, idx = 0) {
       const near = this._nearestEnemy();
       const reachDist = near ? G.clamp(Math.abs(near.x - hero.x) * 0.55, 110, 260) : 170;
-      const cx = hero.x + 78;
+      const cx = hero.x + 78 * hero.facing;
       const cy = hero.centerY;
       const heavy = idx === 2;
-      // 검 궤적 (3겹 크레센트 + 백색 코어)
+      const f = hero.facing || 1;
+      // 검궤적: 바깥 잔광 + 골드 테두리 + 시안 + 백색 코어 (2색 검기)
       this.fx.slash(cx, cy, {
-        radius: heavy ? 196 : 158, spread: cfg.spread * 0.95, angle: cfg.ang, width: heavy ? 26 : 19,
-        color: heavy ? 0x4aa8ff : 0x3f7dff, dur: heavy ? 0.24 : 0.18, scale: 1.0,
+        radius: heavy ? 206 : 162, spread: cfg.spread * 0.95, angle: cfg.ang,
+        width: heavy ? 27 : 20,
+        color: heavy ? 0x2f6bff : 0x3f7dff,
+        color2: heavy ? 0x9fd6ff : 0x8fd0ff,
+        edge: heavy ? 0xffd166 : 0xbfe4ff,
+        dur: heavy ? 0.26 : 0.19, scale: 1.0,
       });
-      this.fx.slash(cx + 10, cy - 4, {
-        radius: heavy ? 152 : 122, spread: cfg.spread * 0.72, angle: cfg.ang - 0.07, width: 8,
-        color: 0xffffff, dur: 0.13, scale: 1.0,
+      this.fx.slash(cx + 10 * f, cy - 4, {
+        radius: heavy ? 156 : 126, spread: cfg.spread * 0.72, angle: cfg.ang - 0.07, width: 8,
+        color: 0xffffff, color2: 0xffffff, dur: 0.13, scale: 1.0,
       });
       this.fx.trail(hero, cfg, idx);
-      // 타격 지점 섬광
-      this.fx.burst(cx + reachDist - 30, cy, {
-        color: 0x9fd6ff, core: 0xffffff, rays: heavy ? 22 : 16, length: heavy ? 200 : 150,
+      // 타격 지점 섬광 (별 + 방사 버스트 + 스파크)
+      const hx = cx + (reachDist - 20) * f;
+      this.fx.burst(hx, cy, {
+        color: 0x9fd6ff, core: 0xffffff, rays: heavy ? 22 : 16, length: heavy ? 210 : 155,
         width: heavy ? 9 : 7, dur: 0.19, angle: cfg.ang * 0.3,
       });
+      this.fx.sparkBurst(hx, cy, heavy ? 0xffe0a0 : 0xbfe4ff, heavy ? 14 : 9, heavy ? 520 : 360, cfg.ang);
       if (heavy) {
-        this.fx.ring(hero.x + 150, hero.y - 8, 0x9fd6ff, 250, 0.45, 6);
-        this.fx.groundBurst(hero.x + 170, hero.y);
+        this.fx.shockRing(hero.x + 150 * f, hero.y - 8, 0x9fd6ff, 260, 0.5);
+        this.fx.groundBurst(hero.x + 170 * f, hero.y);
       }
 
       let hits = 0;
+      let critHit = false;
       this.enemies.forEach((e) => {
         if (!e.alive || e.dying) return;
         const inFront = e.x > hero.x - 30;
         const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
         if (inFront && inRange) {
           hits++;
-          this._hitEnemy(e, hero, cfg.dmg, cfg);
+          if (this._hitEnemy(e, hero, cfg.dmg, cfg)) critHit = true;
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying) {
         if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 200) {
           if (this.boss.x > hero.x - 60) {
             hits++;
-            this._hitBoss(hero, cfg.dmg, cfg);
+            if (this._hitBoss(hero, cfg.dmg, cfg)) critHit = true;
           }
         }
       }
-      // 히트스톱 35~60ms + 화면 흔들림 (3타가 가장 묵직)
       if (hits > 0) {
-        this.hitStop = cfg.hitStop;
-        this.scene.shake(cfg.shake, 0.16 + idx * 0.03);
+        this.hitStop = cfg.hitStop * (critHit ? 1.25 : 1);
+        this.scene.shake(cfg.shake * (critHit ? 1.3 : 1), 0.16 + idx * 0.03);
         this.flashImpact(heavy ? 0.1 : 0.05);
-        G.Sfx.hit(heavy);
+        if (critHit) this.flashImpact(0.09, 0xffe6a8);
+        G.Sfx.hit(heavy || critHit);
         this.combo += hits;
         this.comboT = 2.4;
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
@@ -270,9 +275,9 @@
       }
     }
 
-    flashImpact(alpha) {
+    flashImpact(alpha, color = 0xbfe4ff) {
       this.flashG.clear();
-      this.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xbfe4ff, alpha });
+      this.flashG.rect(0, 0, G.W, G.H).fill({ color, alpha });
       this.flashT = 0.06;
     }
 
@@ -282,7 +287,12 @@
       this.stats.damage += dmg;
       const knock = cfg ? (cfg.advance > 24 ? 420 : cfg.advance > 18 ? 300 : 230) : 200;
       e.takeDamage(dmg, { crit, knock });
-      if (crit && G.chance(0.5)) G.Sfx.hit(true);
+      if (crit) {
+        this.fx.popText(e.x, e.centerY - 70, 'CRITICAL', { color: 0xffd166, size: 24, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        this.fx.debris(e.x, e.centerY, 5, 0xffe0a0, 1.0);
+        G.Sfx.hit(true);
+      }
+      return crit;
     }
 
     _hitBoss(hero, mult, cfg) {
@@ -290,12 +300,16 @@
       const dmg = Math.round(hero.atk * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
       this.stats.damage += dmg;
       this.boss.takeDamage(dmg, { crit, kb: cfg && cfg.advance > 24 ? 90 : 40 });
+      if (crit) {
+        this.fx.popText(this.boss.x - 40, this.boss.centerY - 80, 'CRITICAL', { color: 0xffd166, size: 24, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
+        G.Sfx.hit(true);
+      }
+      return crit;
     }
 
     damageHero(amount, fromX) {
       if (this.phase === 'victory' || this.phase === 'defeat') return;
       const kael = this.kael;
-      // 리아가 함께 맞는 연출은 생략, 카엘이 피해를 받는다
       if (kael.hurt(amount, fromX)) {
         this.scene.shake(11, 0.3);
         this.flashG.clear();
@@ -357,8 +371,9 @@
         this.boss = new G.Boss(this, { hp: 24000, x: 820 });
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
-        this.fx.ring(820, G.GROUND_Y - 10, 0xff3355, 260, 0.9, 8);
+        this.fx.shockRing(820, G.GROUND_Y - 10, 0xff3355, 300, 0.9);
         this.fx.sparkBurst(820, G.GROUND_Y - 180, 0xff6b4a, 34, 620);
+        this.fx.debris(820, G.GROUND_Y - 6, 12, 0xff8a6a, 1.3);
       });
       this.after(2.1, () => {
         this.phase = 'boss';
@@ -389,12 +404,17 @@
       this.slowT = 0.85;
       this.scene.zoomTo(1.09, 0.4);
       this.scene.shake(18, 0.6);
-      this.fx.popText(640, 300, 'PERFECT COUNTER', { color: 0xffe9a8, size: 52, dur: 1.4 });
-      this.fx.ring(kax = kaelX(this), this.kael.centerY, 0xfff2c0, 300, 0.6, 8);
-      this.fx.ring(boss.x - 60, boss.y - 40, 0xffe9a8, 260, 0.55, 9);
-      this.fx.burst(boss.x - 70, boss.centerY, { color: 0xffd166, core: 0xffffff, rays: 18, length: 200, width: 9, dur: 0.3 });
-      this.fx.sparkBurst(this.kael.x + 120, this.kael.centerY, 0xfff0b0, 30, 700);
-      this.fx.sparkBurst(boss.x - 60, boss.centerY, 0xfff0b0, 26, 640);
+      this.flashImpact(0.22, 0xfff2c0);
+      this.fx.popText(640, 300, 'PERFECT COUNTER', { color: 0xffe9a8, size: 52, dur: 1.4, stroke: 0x3a2404, letter: 4 });
+      // 카엘 주변에서 보스로 뻗는 골드 충격파
+      this.fx.ring(this.kael.x + 40, this.kael.centerY, 0xfff2c0, 300, 0.6, 8, 0.7);
+      this.fx.ring(boss.x - 60, boss.y - 40, 0xffe9a8, 260, 0.55, 9, 0.8);
+      this.fx.shockRing(boss.x - 70, boss.y - 6, 0xffd166, 300, 0.6);
+      this.fx.burst(boss.x - 70, boss.centerY, { color: 0xffd166, core: 0xffffff, rays: 22, length: 230, width: 10, dur: 0.32 });
+      this.fx.sparkBurst(this.kael.x + 120, this.kael.centerY, 0xfff0b0, 34, 780);
+      this.fx.sparkBurst(boss.x - 60, boss.centerY, 0xfff0b0, 30, 700);
+      this.fx.speedLines(boss.x - 60, boss.centerY, 1, 10, 1.4);
+      this.fx.speedLines(boss.x - 60, boss.centerY, -1, 10, 1.4);
       const dmg = 980;
       this.stats.damage += dmg;
       boss.takeDamage(dmg, { crit: true });
@@ -537,6 +557,11 @@
       const a = G.Assets.anim.lia;
       if (!a) return;
       const o = new PIXI.Container();
+      const sh = new PIXI.Sprite(G.Assets.tex.shadow);
+      sh.anchor.set(0.5);
+      sh.width = 160; sh.height = 54;
+      sh.alpha = 0.34;
+      o.addChild(sh);
       const spr = new PIXI.AnimatedSprite(a.frames);
       spr.anchor.set(a.ax, a.ay);
       const sc = 340 / (a.fh || 465);
@@ -570,10 +595,12 @@
       this.actorLayer.addChild(o);
 
       L.obj = o; L.sprite = spr; L.glow = glow; L.rune = rune;
+      L.shadow = sh;
       L.x = x; L.y = y; L.t = 0; L.active = true; L.dur = 1.6;
 
-      this.fx.ring(x, y - 6, 0xb98bff, 180, 0.6, 5);
+      this.fx.ring(x, y - 6, 0xb98bff, 180, 0.6, 5, 0.4);
       this.fx.sparkBurst(x, y - 140, 0xd9c8ff, 22, 440);
+      this.fx.shockRing(x, y - 6, 0xc9a8ff, 200, 0.6);
       G.Sfx.magic();
     }
 
@@ -619,8 +646,6 @@
 
       this._processTimers(dt);
       this.scene.update(dt);
-      this.actorLayer.x = this.scene.fxLayer.x;
-      this.actorLayer.y = this.scene.fxLayer.y;
 
       // 입력
       const inp = this.hud.consume();
@@ -741,11 +766,14 @@
           this.kaelSkillTick = 0.11;
           const h = this.kael;
           this.fx.slash(h.x + 150, h.centerY - 20, {
-            radius: 155, spread: 1.1, angle: G.rand(-0.15, -0.75), width: 16, color: 0x3f9bff, dur: 0.22,
+            radius: 160, spread: 1.1, angle: G.rand(-0.15, -0.75), width: 17,
+            color: 0x2f7bff, color2: 0x7fc8ff, edge: 0xffd166, dur: 0.24,
           });
           this.fx.slash(h.x + 175, h.centerY, {
-            radius: 170, spread: 1.0, angle: G.rand(0.45, 0.05), width: 7, color: 0xffffff, dur: 0.17,
+            radius: 176, spread: 1.0, angle: G.rand(0.45, 0.05), width: 7,
+            color: 0xffffff, color2: 0xffffff, dur: 0.17,
           });
+          this.fx.speedLines(h.x + 120, h.centerY, 1, 4, 1.1);
           this.scene.shake(7, 0.2);
           [this.enemies, this.boss && this.boss.alive ? [this.boss] : []].forEach(() => {});
           this.enemies.forEach((e) => {
@@ -794,12 +822,6 @@
 
     _tryDodge() {
       if (this.kael.state === 'dead') return;
-      // 퍼펙트 윈도우 판정
-      if (this.perfectWindow && this.boss && this.boss.state === 'windup' && this.boss.kind === 'perfect') {
-        this.perfectWindow = false;
-        this.perfectCounter = true;
-        G.Sfx.counter();
-      }
       const wasDodge = this.kael.state === 'dodge';
       if (this.kael.dodgeCD > 0 || this.kael.state === 'attack') {
         if (this.kael.state !== 'attack') return;
@@ -812,9 +834,16 @@
         this.kael.dodge();
       }
       if (wasDodge) return;
+      // 회피가 실제로 시작된 뒤에만 퍼펙트 반격을 인정한다.
+      if (this.perfectWindow && this.boss && this.boss.state === 'windup' && this.boss.kind === 'perfect') {
+        this.perfectWindow = false;
+        this.perfectCounter = true;
+        G.Sfx.counter();
+      }
       // 회피 이펙트 + 잔상
-      this.fx.sparkBurst(this.kael.x - 20, this.kael.centerY, 0x9fd6ff, 8, 220, Math.PI);
-      this.fx.ring(this.kael.x, this.kael.y - 6, 0x9fd6ff, 80, 0.35, 3);
+      this.fx.sparkBurst(this.kael.x - 20, this.kael.centerY, 0x9fd6ff, 10, 240, Math.PI);
+      this.fx.ring(this.kael.x, this.kael.y - 6, 0x9fd6ff, 90, 0.35, 3, 0.4);
+      this.fx.speedLines(this.kael.x + 30, this.kael.centerY, 1, 5, 1.0);
       this.fx.afterimage(this.kael, 0.55);
     }
 
@@ -1065,13 +1094,18 @@
       this.phaseT = 0;
       this.timeLeft = 60;
       this.scene.zoomTo(1, 0.4);
+      this.scene.focus = 0;
+      this.scene._focusTarget = 0;
+      if (this.hud) { this.hud.hpGhost = 1; this.hud.mpGhost = 1; this.hud._bossGhostP = 1; }
+      this.perfectWindow = false;
+      this.perfectCounter = false;
+      this.hitStop = 0;
+      this.slowT = 0;
+      this.time = 0;
       this.start();
       this.showPrompt('WAVE 1', 0xbfe0ff, 1.2);
     }
   }
-
-  function kaelX(g) { return g.kael.x + 40; }
-  let kax = 0;
 
   G.Game = Game;
 })();

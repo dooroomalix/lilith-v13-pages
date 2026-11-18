@@ -1,6 +1,13 @@
-/* actors.js : 카엘(스프라이트 애니메이션) / 리아(소환 연출) / 그림자 정찰병 / 보스 */
+/* actors.js : 카엘(거리 동기 스프라이트 애니메이션 + 접지 그림자 + 림라이트) / 리아 / 정찰병 / 보스 */
 (function () {
   const GROUND_Y = 588;
+  const PERSP = 0.0009;            // y(깊이)에 따른 원근 배율
+
+  function approach(cur, target, step) {
+    if (cur < target) return Math.min(target, cur + step);
+    if (cur > target) return Math.max(target, cur - step);
+    return target;
+  }
 
   class Unit {
     constructor(game) {
@@ -9,24 +16,56 @@
       this.alive = true;
       this.hitFlash = 0;
       this.dead = false;
+      this.contactPulse = 0;
     }
 
-    addShadow(width, alpha = 0.45) {
-      const sh = new PIXI.Sprite(G.Assets.tex.glow);
+    /* 바닥 접지 그림자: 캐릭터가 땅에 붙어 있는 느낌의 핵심 */
+    addShadow(width, alpha = 0.5) {
+      const sh = new PIXI.Sprite(G.Assets.tex.shadow);
       sh.anchor.set(0.5);
       sh.width = width;
       sh.height = width * 0.34;
       sh.y = 0;
       sh.alpha = alpha;
-      sh.tint = 0x05070f;
-      sh.blendMode = 'normal';
+      sh.tint = 0xffffff;
       this.obj.addChild(sh);
       this.shadow = sh;
+      this.shadowBase = { w: width, a: alpha };
+      return sh;
     }
 
-    flash(color = 0xffffff) {
-      this.hitFlash = 0.12;
+    /* 발밑 환경광: 바닥이 캐릭터의 빛을 받는 느낌 (배경과 이어 붙인다) */
+    addHalo(color = 0x6fb8ff, width = 320, alpha = 0.16) {
+      const h = new PIXI.Sprite(G.Assets.tex.halo);
+      h.anchor.set(0.5);
+      h.width = width;
+      h.height = width * 0.42;
+      h.y = -2;
+      h.tint = color;
+      h.blendMode = 'add';
+      h.alpha = alpha;
+      this.obj.addChild(h);
+      this.halo = h;
+      this.haloBase = { w: width, a: alpha };
+      return h;
     }
+
+    updateGroundFx(dt, liftPx, squash = 1, dim = 0) {
+      this.contactPulse = Math.max(0, this.contactPulse - dt * 3.4);
+      const pulse = 1 + this.contactPulse * 0.16;
+      if (this.shadow) {
+        const k = G.clamp(1 - liftPx * 0.012, 0.55, 1.25) * squash * pulse;
+        this.shadow.width = this.shadowBase.w * k;
+        this.shadow.height = this.shadowBase.w * 0.34 * k;
+        this.shadow.alpha = G.clamp(this.shadowBase.a * (1 - liftPx * 0.02) * (1 + this.contactPulse * 0.3), 0, 0.75) * (1 - dim);
+      }
+      if (this.halo) {
+        this.halo.width = this.haloBase.w * (1 + 0.04 * Math.sin(this.game.time * 2.2));
+        this.halo.alpha = this.haloBase.a * (1 - liftPx * 0.02) * (0.85 + 0.15 * Math.sin(this.game.time * 3.1)) * (1 - dim);
+      }
+    }
+
+    flash() { this.hitFlash = 0.12; }
   }
 
   /* ============================ 영웅 ============================ */
@@ -64,19 +103,42 @@
         alive: true,
         animName: '',
         lockAnim: false,
+        vx: 0,
+        vy: 0,
+        cycle: 0,
+        frameIdx: -1,
+        prevX: opts.x,
+        prevY: GROUND_Y,
+        bobPx: 0,
+        stride: 0,
+        idleT: 0,
       });
-      this.addShadow(opts.shadowW || 160, 0.5);
+      this.addHalo(opts.haloColor || 0x6fb8ff, 340, 0.15);
+      this.addShadow(opts.shadowW || 170, 0.52);
 
       const meta = G.Assets.animMeta || { bodyH: 410 };
-      this.scale = this.bodyPx / meta.bodyH;
+      this.bodyH = meta.bodyH;
       const idle = G.Assets.anim.idle;
       this.sprite = new PIXI.AnimatedSprite(idle.frames);
       this.sprite.anchor.set(idle.ax, idle.ay);
-      this.sprite.scale.set(this.scale);
       this.sprite.animationSpeed = idle.fps / 60;
       this.sprite.play();
       this.animName = 'idle';
+      this.anim = idle;
+
+      // 림라이트: 같은 프레임을 살짝 어긋나게 뒤에 깔아 가장자리만 빛나게
+      this.rim = new PIXI.AnimatedSprite(idle.frames);
+      this.rim.anchor.set(idle.ax, idle.ay);
+      this.rim.tint = opts.rimColor || 0x8fd6ff;
+      this.rim.blendMode = 'add';
+      this.rim.alpha = 0.42;
+      this.rim.animationSpeed = 0;
+      this.rim.gotoAndStop(0);
+
+      this.obj.addChild(this.rim);
       this.obj.addChild(this.sprite);
+
+      this._applyScale();
 
       this.obj.x = this.x;
       this.obj.y = this.y;
@@ -94,12 +156,24 @@
       this.obj.addChild(this.weaponGlow);
     }
 
-    get centerY() {
-      return this.y - this.bodyPx * 0.52;
+    get centerY() { return this.y - this.bodyPx * 0.52; }
+    get bodyTop() { return this.y - this.bodyPx; }
+    get persp() { return 1 + (this.y - GROUND_Y) * PERSP; }
+
+    _applyScale() {
+      const a = this.anim;
+      const s = (this.bodyPx / (a && a.pxBodyH ? a.pxBodyH : this.bodyH)) * this.persp;
+      this.sprite.scale.set(s * this.facing, s);
+      this.rim.scale.set(s * this.facing * 1.015, s * 1.015);
+      this.rim.x = this.sprite.x - 6 * this.facing;
+      this.rim.y = this.sprite.y - 7;
     }
 
-    get bodyTop() {
-      return this.y - this.bodyPx;
+    _syncRim() {
+      if (this.rim.currentFrame !== this.sprite.currentFrame) this.rim.gotoAndStop(this.sprite.currentFrame);
+      this.rim.x = this.sprite.x - 6 * this.facing;
+      this.rim.y = this.sprite.y - 7;
+      this.rim.rotation = this.sprite.rotation;
     }
 
     _useAnim(name) {
@@ -107,9 +181,13 @@
       if (!a) return null;
       if (this.animName !== name) {
         this.sprite.textures = a.frames;
+        this.rim.textures = a.frames;
         this.sprite.anchor.set(a.ax, a.ay);
+        this.rim.anchor.set(a.ax, a.ay);
         this.sprite.animationSpeed = a.fps / 60;
         this.animName = name;
+        this.anim = a;
+        this.frameIdx = -1;
       }
       return a;
     }
@@ -134,17 +212,57 @@
       if (this.sprite.currentFrame !== idx) this.sprite.gotoAndStop(idx);
     }
 
+    /* 이동 거리로 사이클을 돌려 발이 미끄러지지 않게 한다 */
+    _advanceCycle(a, dist, dt) {
+      const n = a.frames.length;
+      if (!this.cycleDist) this.cycleDist = 170;
+      const rawFps = n * (dist / Math.max(dt, 1e-4)) / this.cycleDist;
+      const fps = G.clamp(rawFps, 3.4, 24);
+      this.cycle += (fps * dt) / n;
+      const idx = ((Math.floor(this.cycle) % n) + n) % n;
+      this.sprite.loop = false;
+      this.sprite.stop();
+      if (this.sprite.currentFrame !== idx) this.sprite.gotoAndStop(idx);
+      if (idx !== this.frameIdx) {
+        const contacts = a.contacts || [];
+        if (contacts.indexOf(idx) >= 0) this._footstep(idx);
+        this.frameIdx = idx;
+      }
+      this.bobPx = (a.bob && a.bob[idx] ? a.bob[idx] : 0) * this.bodyPx;
+    }
+
+    _footstep(idx) {
+      const dir = Math.sign(this.facing) || 1;
+      this.contactPulse = 1;
+      const power = G.clamp(Math.abs(this.vx) / 260, 0.35, 1.25);
+      this.game.fx.dust(this.x - 6 * dir, this.y, dir, power);
+      if (G.chance(0.8)) G.Sfx.step(power);
+      if (power > 0.75 && G.chance(0.5)) this.game.fx.speedLines(this.x - dir * 40, this.y - 20, dir, 2, 0.7);
+    }
+
     move(vx, vy, dt) {
       if (this.state === 'cast' || this.state === 'dodge' || this.state === 'dead') return;
       const k = this.state === 'attack' ? 0.5 : 1;
-      this.moveSpeed = Math.abs(vx);
-      this.x = G.clamp(this.x + vx * k * dt, 140, 780);
-      this.y = G.clamp(this.y + vy * k * dt, 540, 640);
-      if (vx !== 0 || vy !== 0) {
+      // 가속/감속: 입력이 갑자기 바뀔 때 미끄러지는 느낌을 줄인다
+      const accel = 2600 * dt, brake = 3200 * dt;
+      this.vx = approach(this.vx, vx, vx === 0 ? brake : accel);
+      this.vy = approach(this.vy, vy, vy === 0 ? brake : accel * 0.8);
+      const turn = (vx !== 0 && Math.sign(vx) !== Math.sign(this.vx || vx) && Math.abs(this.vx) > 160);
+      if (turn) {
+        this.game.fx.dust(this.x, this.y, Math.sign(this.vx), 0.9);
+      }
+      this.moveSpeed = Math.abs(this.vx);
+      this.x = G.clamp(this.x + this.vx * k * dt, 140, 780);
+      this.y = G.clamp(this.y + this.vy * k * dt, 540, 640);
+      if (vx !== 0 && Math.abs(vx) > 24) this.facing = Math.sign(vx) >= 0 ? 1 : -1;
+      const speed = Math.hypot(this.vx, this.vy * 0.6);
+      if (speed > 16) {
         this.state = 'move';
-        this.lean = G.lerp(this.lean, G.clamp(vx / 260, -1, 1) * 0.07, 0.15);
-      } else if (this.state === 'move') {
-        this.state = 'idle';
+        const targetLean = G.clamp(this.vx / 300, -1, 1) * 0.085 + G.clamp(this.vy / 300, -1, 1) * 0.02;
+        this.lean = G.lerp(this.lean, targetLean, 1 - Math.pow(0.0015, dt));
+      } else {
+        this.lean = G.lerp(this.lean, 0, 1 - Math.pow(0.0005, dt));
+        if (this.state === 'move') this.state = 'idle';
       }
       this.obj.x = this.x;
       this.obj.y = this.y;
@@ -163,6 +281,7 @@
       this.atkCfg = COMBO[idx];
       this.weaponGlow.alpha = 0.9;
       this.weaponGlow.tint = idx === 2 ? 0x8fd0ff : 0x66aaff;
+      this.facing = 1;
       G.Sfx.slash(1 + idx * 0.09);
       return true;
     }
@@ -186,6 +305,7 @@
       this.dodgeFrom = this.x;
       this.dodgeDist = 172;
       G.Sfx.slash(0.72);
+      this.game.fx.dust(this.x, this.y, -Math.sign(this.facing), 1.1);
       return true;
     }
 
@@ -201,6 +321,7 @@
       });
       this.game.scene.shake(9, 0.22);
       this.game.fx.sparkBurst(this.x, this.centerY, 0xff5566, 10, 320);
+      this.game.fx.hitSpark(this.x, this.centerY, 0xff9aa8, 0.8, 0.2);
       this.sprite.tint = 0xffb3b3;
       if (this.hp <= 0) {
         this.state = 'dead';
@@ -211,6 +332,7 @@
 
     update(dt, time) {
       this.bobT += dt;
+      this.idleT += dt;
       if (this.invuln > 0) this.invuln -= dt;
       if (this.dodgeCD > 0) this.dodgeCD -= dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
@@ -220,13 +342,13 @@
       }
 
       this.stateT += dt;
-      let bob = Math.sin(this.bobT * 2.1) * 2.2 * (this.bodyPx / 330);
+      const prevX = this.obj.x, prevY = this.obj.y;
       let rot = this.lean;
       let dx = 0, dy = 0;
-      let sy = 1;
+      let bob = 0;
+      this.bobPx = G.lerp(this.bobPx, 0, 1 - Math.pow(0.02, dt));
 
       if (this.hurtT > 0 && this.state !== 'attack' && this.state !== 'dodge' && this.state !== 'dead') {
-        // 피격 경직: 맞은 프레임 고정
         this._frameAnim('hurt', 1 - this.hurtT / 0.30);
         this.sprite.tint = this.hurtT > 0.1 ? 0xffb3b3 : 0xffffff;
       } else if (this.state === 'attack') {
@@ -234,7 +356,6 @@
         const hitAt = a.hit;
         const p = G.clamp(this.stateT / a.dur, 0, 1);
         this._frameAnim(a.anim, p);
-        // 앞으로 파고들었다가 복귀
         const lunge = this.stateT < a.wind
           ? G.easeInQuad(this.stateT / a.wind) * -12
           : this.stateT < hitAt + 0.08
@@ -282,25 +403,53 @@
         if (this.weaponGlow.alpha > 0) this.weaponGlow.alpha = Math.max(0, this.weaponGlow.alpha - dt * 4);
         this.obj.alpha = G.lerp(this.obj.alpha || 1, 1, 0.2);
         if (this.state === 'move') {
-          this._loopAnim('run', G.clamp(Math.abs(this.moveSpeed || 210) / 210, 0.75, 1.5));
+          const speed = Math.hypot(this.vx, this.vy * 0.6);
+          const a = this._useAnim(speed < 150 ? 'walk' : 'run');
+          if (a) {
+            this.cycleDist = speed < 150 ? 116 : 172;
+            this._advanceCycle(a, speed * dt, dt);
+            rot = this.lean * 1.15 + (a.contacts && a.contacts.indexOf(this.frameIdx) >= 0 ? 0.01 : 0);
+          }
+          this.rim.alpha = 0.5;
         } else {
+          this.vx = 0; this.vy = 0;
           this._loopAnim('idle');
+          this.bobPx = 0;
+          bob = Math.sin(this.bobT * 1.5) * 1.6;
+          rot = this.lean + Math.sin(this.bobT * 0.9) * 0.006;
+          this.rim.alpha = G.lerp(this.rim.alpha, 0.34, 0.1);
         }
-        rot = this.lean + Math.sin(this.bobT * 1.1) * 0.005;
       }
 
+      // 스프라이트 배치
       if (this.state !== 'dead') {
-        this.sprite.y = bob;
+        this.sprite.y = bob - this.bobPx;
         this.sprite.rotation = rot;
-        this.sprite.scale.set(this.scale, this.scale * sy);
+        this.rim.rotation = rot;
         this.sprite.x = dx;
-        this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4;
+        this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4 - this.bobPx;
+        this.weaponGlow.x = 40 * this.facing;
       } else {
         this.obj.rotation = rot;
         this.obj.y = this.y + dy;
       }
+      this._applyScale();
+      this._syncRim();
       this.obj.x = this.x;
       this.obj.zIndex = this.y;
+
+      // 이동 거리(초당) → 먼지/그림자
+      const moved = Math.hypot(this.x - prevX, this.y - prevY);
+      const lift = Math.max(0, -this.bobPx);
+      this.updateGroundFx(dt, lift, 1, this.state === 'dodge' ? 0.4 : 0);
+      if (moved > 3.2 && this.state === 'move') {
+        this.stride += moved;
+        if (this.stride > 130) {
+          this.stride = 0;
+          if (G.chance(0.35)) this.game.fx.dust(this.x - 10 * this.facing, this.y, this.facing, 0.5);
+        }
+      }
+      this.game.scene.setFocus(this.x);
 
       this.mp = Math.min(this.mpMax, this.mp + dt * 7.5);
     }
@@ -330,7 +479,6 @@
       const o = this.obj;
       if (!o) return;
       const p = G.clamp(this.t / this.dur, 0, 1);
-      // 등장: 위에서 내려와 자리잡고, 퇴장: 위로 흩어진다
       const enter = G.clamp(this.t / 0.26, 0, 1);
       const exit = G.clamp((this.t - (this.dur - 0.34)) / 0.34, 0, 1);
       o.alpha = enter * (1 - exit);
@@ -350,7 +498,10 @@
         this.rune.rotation += dt * 2.4;
         this.rune.alpha = (0.9 - p * 0.5) * enter * (1 - exit);
       }
-      // 퇴장 완료 → 정리
+      if (this.shadow) {
+        this.shadow.alpha = 0.34 * enter * (1 - exit);
+        this.shadow.width = 160 * enter;
+      }
       if (this.t >= this.dur) {
         o.destroy({ children: true });
         this.obj = null;
@@ -358,7 +509,6 @@
         this.active = false;
         return;
       }
-      // 흩어지는 빛가루
       if (exit > 0 && G.chance(0.6)) {
         this.game.fx._particle(this.x + G.rand(60, -60), this.y - G.rand(230, 40), {
           color: 0xd9c8ff, size: G.rand(16, 6), vx: G.rand(50, -50), vy: G.rand(-30, -140),
@@ -391,12 +541,22 @@
       this.kb = 0;
       this.kbV = 0;
       this.flashT = 0;
+      this.walkT = G.rand(3);
 
-      this.addShadow(110, 0.42);
+      this.addHalo(0xa06bff, 220, 0.13);
+      this.addShadow(110, 0.44);
       this.sprite = new PIXI.Sprite(G.Assets.tex.scout);
       this.sprite.anchor.set(0.5, 1);
       this.sprite.scale.set(-this.scale, this.scale);
       this.obj.addChild(this.sprite);
+      this.rim = new PIXI.Sprite(G.Assets.tex.scout);
+      this.rim.anchor.set(0.5, 1);
+      this.rim.scale.set(-this.scale * 1.02, this.scale * 1.02);
+      this.rim.tint = 0xc79bff;
+      this.rim.blendMode = 'add';
+      this.rim.alpha = 0.3;
+      this.rim.y = -6;
+      this.obj.addChildAt(this.rim, this.obj.getChildIndex(this.sprite));
       this.flashSpr = new PIXI.Sprite(G.Assets.tex.scout);
       this.flashSpr.anchor.set(0.5, 1);
       this.flashSpr.scale.set(-this.scale, this.scale);
@@ -414,6 +574,7 @@
       this.bar = new PIXI.Container();
       const bg = new PIXI.Graphics();
       bg.roundRect(-48, -6, 96, 9, 4).fill({ color: 0x140a12, alpha: 0.85 });
+      bg.roundRect(-48, -6, 96, 9, 4).stroke({ width: 1, color: 0x8a5bff, alpha: 0.5 });
       this.barBg = bg;
       const fill = new PIXI.Graphics();
       this.barFill = fill;
@@ -430,7 +591,7 @@
       this._drawBar();
 
       this.riftT = 0;
-      this.game.fx.ring(this.x, this.y - 10, 0xa06bff, 90, 0.5, 4);
+      this.game.fx.ring(this.x, this.y - 10, 0xa06bff, 90, 0.5, 4, 0.4);
       this.game.fx.sparkBurst(this.x, this.y - 60, 0x9a6bff, 12, 260);
     }
 
@@ -442,7 +603,6 @@
 
     get centerY() { return this.y - this.baseH * 0.55; }
 
-    /* 공격 모션 프레임으로 교체 (높이 유지) */
     _setAttackTex(on) {
       const atk = G.Assets.anim.scout_atk;
       const tex = on && atk ? atk.frames[0] : G.Assets.tex.scout;
@@ -450,6 +610,8 @@
       const sc = this.baseH / tex.height;
       this.sprite.texture = tex;
       this.sprite.scale.set(-sc, sc);
+      this.rim.texture = tex;
+      this.rim.scale.set(-sc * 1.02, sc * 1.02);
       this.flashSpr.texture = tex;
       this.flashSpr.scale.set(-sc, sc);
       this._texScale = sc;
@@ -457,7 +619,7 @@
 
     knockback(power, dir = 1) {
       this.kbV = Math.max(this.kbV, power);
-      this.kbDir = -dir; // 카엘 반대(오른쪽)로 밀린다
+      this.kbDir = -dir;
     }
 
     takeDamage(amount, opts = {}) {
@@ -468,6 +630,7 @@
       this.sprite.tint = 0xffffff;
       this._drawBar();
       this.game.fx.sparkBurst(this.x, this.centerY, opts.color || 0xffd9a0, opts.crit ? 16 : 10, opts.crit ? 460 : 320);
+      this.game.fx.hitSpark(this.x + G.rand(20, -20), this.centerY, opts.crit ? 0xfff0b0 : 0xdff0ff, opts.crit ? 1.1 : 0.75, 0.2);
       this.game.fx.damage(this.x, this.centerY - 30, amount, { crit: opts.crit });
       if (opts.knock) this.knockback(opts.knock);
       if (this.hp <= 0) this.die();
@@ -479,7 +642,8 @@
       this.stateT = 0;
       this.game.onEnemyKilled(this);
       this.game.fx.sparkBurst(this.x, this.centerY, 0xb98bff, 18, 380);
-      this.game.fx.ring(this.x, this.y - 30, 0x8a5bff, 110, 0.45, 3);
+      this.game.fx.ring(this.x, this.y - 30, 0x8a5bff, 110, 0.45, 3, 0.5);
+      this.game.fx.debris(this.x, this.y - 20, 6, 0xb98bff, 0.8);
     }
 
     update(dt, time, target) {
@@ -492,7 +656,6 @@
         this.sprite.tint = 0xdddddd;
       }
 
-      // 넉백 (뒤로 밀리며 감속)
       if (this.kbV > 0.5) {
         this.x += this.kbV * dt;
         this.kbV *= Math.pow(0.0006, dt);
@@ -511,6 +674,7 @@
         const p = G.clamp(this.stateT / 0.5, 0, 1);
         this.obj.alpha = p;
         this.sprite.y = bob - 10 + 10 * p;
+        this.rim.y = this.sprite.y - 6;
         if (p >= 1) this.state = 'walk';
       } else if (this.state === 'walk') {
         this._setAttackTex(false);
@@ -518,6 +682,13 @@
         if (dist > (this.stopDist || 172)) {
           this.x -= this.speed * dt;
           this.sprite.y = bob;
+          this.rim.y = bob - 6;
+          this.walkT += dt;
+          if (this.walkT > 0.42 / (this.speed / 190)) {
+            this.walkT = 0;
+            this.contactPulse = 0.8;
+            this.game.fx.dust(this.x + 12, this.y, -1, 0.4);
+          }
         } else {
           this.state = 'windup';
           this.stateT = 0;
@@ -531,7 +702,8 @@
         this.sprite.tint = G.lerp(0, 1, p) > 0.5 ? 0xffaaaa : 0xdddddd;
         const s = this._texScale || this.scale;
         this.sprite.scale.set(-s * (1 + 0.05 * p), s * (1 - 0.03 * p));
-        // 예고 표시
+        this.rim.scale.set(-s * 1.02 * (1 + 0.05 * p), s * 1.02 * (1 - 0.03 * p));
+        this.rim.y = this.sprite.y - 6;
         if (!this.teleMark) {
           this.teleMark = new PIXI.Sprite(G.Assets.tex.ring);
           this.teleMark.anchor.set(0.5);
@@ -542,7 +714,8 @@
           this.obj.addChild(this.teleMark);
         }
         this.teleMark.alpha = 0.5 + 0.5 * Math.sin(p * 24);
-        this.teleMark.width = 40 + 22 * p; this.teleMark.height = 40 + 22 * p;
+        this.teleMark.width = 40 + 22 * p;
+        this.teleMark.height = 40 + 22 * p;
         if (p >= 1) {
           this.state = 'strike';
           this.stateT = 0;
@@ -551,12 +724,14 @@
             this.game.damageHero(this.atk, this.x);
           }
           this.game.fx.slash(this.x - 60, this.centerY, {
-            radius: 80, spread: 1.4, angle: Math.PI * 0.85, width: 10, color: 0xb45bff, scale: 0.9, dur: 0.2,
+            radius: 80, spread: 1.4, angle: Math.PI * 0.85, width: 10,
+            color: 0x8a3bff, color2: 0xc9a8ff, dur: 0.2, scale: 0.9,
           });
           this.game.fx.burst(target.x, target.centerY, { color: 0xb45bff, core: 0xf0e0ff, rays: 10, length: 90, width: 6 });
         }
       } else if (this.state === 'strike') {
         this.sprite.y = bob + 8;
+        this.rim.y = this.sprite.y - 6;
         if (this.stateT > 0.26) {
           this.state = 'recover';
           this.stateT = 0;
@@ -573,6 +748,7 @@
         this.sprite.y = bob + 14 * p;
         this.sprite.rotation = G.lerp(0, 0.9, p);
         this.sprite.scale.set(-this.scale * (1 - 0.2 * p), this.scale * (1 - 0.45 * p));
+        this.rim.alpha = 0.3 * (1 - p);
         this.bar.alpha = 0;
         if (this.teleMark) this.teleMark.alpha = 0;
         if (p >= 1) {
@@ -584,6 +760,7 @@
 
       if (this.state !== 'dying') {
         this.obj.zIndex = this.y;
+        this.updateGroundFx(dt, 0, 1, 0);
       }
     }
   }
@@ -611,10 +788,19 @@
       this.kbV = 0;
       this.flashT = 0;
 
-      this.addShadow(300, 0.55);
+      this.addHalo(0xff5a3c, 620, 0.16);
+      this.addShadow(320, 0.58);
       this.sprite = new PIXI.Sprite(G.Assets.tex.boss);
       this.sprite.anchor.set(0.5, 1);
       this.sprite.scale.set(this.scale);
+      this.rim = new PIXI.Sprite(G.Assets.tex.boss);
+      this.rim.anchor.set(0.5, 1);
+      this.rim.scale.set(this.scale * 1.015);
+      this.rim.tint = 0xff8a6a;
+      this.rim.blendMode = 'add';
+      this.rim.alpha = 0.34;
+      this.rim.y = -8;
+      this.obj.addChild(this.rim);
       this.obj.addChild(this.sprite);
       this.baseH = this.sprite.height;
       this.flashSpr = new PIXI.Sprite(G.Assets.tex.boss);
@@ -629,7 +815,6 @@
       this.obj.zIndex = this.y;
       this.obj.alpha = 0;
 
-      // 보스 오라
       this.aura = new PIXI.Sprite(G.Assets.tex.glow);
       this.aura.anchor.set(0.5);
       this.aura.blendMode = 'add';
@@ -656,6 +841,8 @@
       const sc = this.baseH / tex.height;
       this.sprite.texture = tex;
       this.sprite.scale.set(sc, sc);
+      this.rim.texture = tex;
+      this.rim.scale.set(sc * 1.015, sc * 1.015);
       this.flashSpr.texture = tex;
       this.flashSpr.scale.set(sc, sc);
     }
@@ -670,6 +857,12 @@
         this.x + G.rand(50, -50),
         this.y - G.rand(this.baseH * 0.8, 80),
         0xffc27a, opts.crit ? 20 : 12, opts.crit ? 480 : 300
+      );
+      this.game.fx.hitSpark(
+        this.x + G.rand(40, -40),
+        this.y - this.baseH * 0.6,
+        opts.crit ? 0xfff0b0 : 0xffd9c0,
+        opts.crit ? 1.5 : 1.0, 0.24
       );
       this.game.fx.damage(this.x + G.rand(60, -60), this.y - this.baseH * 0.62, amount, {
         crit: opts.crit,
@@ -714,9 +907,7 @@
         summon: { tele: 1.15, color: 0xa855f7, dmg: 0, radius: 0 },
       }[kind];
       this.cfg = cfg;
-      if (kind === 'perfect') {
-        this.game.showPrompt('회피 타이밍!', 0xffffff);
-      }
+      if (kind === 'perfect') this.game.showPrompt('회피 타이밍!', 0xffffff);
       if (kind === 'summon') {
         this.game.fx.ring(this.x, this.y - 10, 0xa855f7, 150, 0.7, 4);
         this.game.spawnAdds(2);
@@ -739,7 +930,14 @@
         this.obj.alpha = 1 - p;
         this.sprite.rotation = G.lerp(0, 0.35, p);
         this.sprite.y = 12 * p;
+        this.rim.alpha = 0.34 * (1 - p);
         this.tele.alpha = 0;
+        if (G.chance(0.35)) {
+          this.game.fx._particle(this.x + G.rand(120, -120), this.y - G.rand(this.baseH, 40), {
+            color: 0xff7a4a, size: G.rand(26, 10), vx: G.rand(60, -60), vy: -G.rand(180, 40),
+            life: 0.8, additive: true,
+          });
+        }
         if (p >= 1) {
           this.alive = false;
           this.dead = true;
@@ -748,7 +946,6 @@
         return;
       }
 
-      // 밀림
       if (this.kbV > 1) {
         this.x += this.kbV * dt;
         this.kbV *= Math.pow(0.002, dt);
@@ -764,10 +961,12 @@
         this.obj.alpha = p;
         this.obj.y = this.y + 40 * (1 - p);
         this.sprite.y = breathe;
+        this.rim.y = breathe - 8;
         if (p >= 1) {
           this.state = 'idle';
           this.stateT = 0;
         }
+        this.updateGroundFx(dt, 0, 1, 1 - p);
         return;
       }
 
@@ -775,12 +974,16 @@
         this.stagger -= dt;
         this.sprite.rotation = Math.sin(time * 22) * 0.05;
         this.sprite.y = breathe + 8;
+        this.rim.y = this.sprite.y - 8;
+        this.rim.alpha = 0.5;
         this.sprite.tint = 0x9fb8ff;
         this.tele.alpha = Math.max(0, this.tele.alpha - dt * 6);
         if (this.stagger <= 0) {
           this.sprite.tint = 0xffffff;
           this.sprite.rotation = 0;
+          this.rim.alpha = 0.34;
         }
+        this.updateGroundFx(dt, 0, 1.05);
         return;
       }
 
@@ -789,6 +992,8 @@
       if (this.state === 'idle') {
         this._setAttackTex(false);
         this.sprite.y = breathe;
+        this.rim.y = breathe - 8;
+        this.rim.rotation = 0;
         this.obj.y = this.y;
         this.atkTimer -= dt;
         const want = 715;
@@ -805,6 +1010,8 @@
         this._drawTelegraph(p, this.cfg.color);
         this.sprite.rotation = -0.05 * Math.sin(p * Math.PI);
         this.sprite.y = breathe - 6 * Math.sin(p * Math.PI);
+        this.rim.y = this.sprite.y - 8;
+        this.rim.rotation = this.sprite.rotation;
         this.aura.alpha = 0.18 + 0.25 * p;
         if (p >= 1) {
           this.state = 'strike';
@@ -815,6 +1022,8 @@
         this.tele.alpha = Math.max(0, this.tele.alpha - dt * 5);
         this.sprite.rotation = G.lerp(this.sprite.rotation, 0.06, 0.3);
         this.sprite.y = breathe + 10;
+        this.rim.y = this.sprite.y - 8;
+        this.rim.rotation = this.sprite.rotation;
         if (this.stateT > 0.45) {
           this.state = 'idle';
           this.aura.alpha = 0.18;
@@ -824,19 +1033,19 @@
       }
       this.obj.x = this.x;
       this.obj.zIndex = this.y;
+      this.updateGroundFx(dt, 0, 1, 0);
     }
 
     _strike(target) {
       const kind = this.kind;
       const dist = Math.hypot(target.x - this.teleX, target.y - this.y);
       if (kind !== 'summon') {
-        this.game.fx.ring(this.x - 40, this.y - 6, this.cfg.color, this.cfg.radius, 0.5, 7);
+        this.game.fx.shockRing(this.x - 40, this.y - 6, this.cfg.color, this.cfg.radius, 0.55);
         this.game.scene.shake(kind === 'perfect' ? 16 : 12, 0.4);
         this.game.fx.sparkBurst(this.x - 120, this.y - 20, this.cfg.color, 26, 620, Math.PI);
+        this.game.fx.debris(this.x - 60, this.y, 8, 0xff9a7a, 1.1);
         G.Sfx.hit(true);
-        if (dist < this.cfg.radius && kind !== 'perfect') {
-          this.game.damageHero(this.cfg.dmg, this.x);
-        }
+        if (dist < this.cfg.radius && kind !== 'perfect') this.game.damageHero(this.cfg.dmg, this.x);
         if (kind === 'perfect') {
           if (this.game.perfectCounter) {
             this.stagger = 2.2;
@@ -851,7 +1060,8 @@
             this.game.after(i * 0.19, () => {
               if (this.dying) return;
               this.game.fx.slash(this.x - 120, this.y - 160 + i * 30, {
-                radius: 220, spread: 2.2, angle: Math.PI + 0.4 * i, width: 16, color: 0xffd166, dur: 0.24,
+                radius: 220, spread: 2.2, angle: Math.PI + 0.4 * i, width: 16,
+                color: 0xffb03a, color2: 0xffd166, edge: 0xfff3c4, dur: 0.24,
               });
               if (Math.hypot(target.x - this.x, target.y - this.y) < this.cfg.radius) {
                 this.game.damageHero(this.cfg.dmg * 0.6, this.x);

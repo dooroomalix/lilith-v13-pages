@@ -1,23 +1,41 @@
-/* hud.js : 모바일 가로 HUD (초상화/HP/MP, 지역명/타이머/미니맵, 조이스틱, 스킬 버튼, AUTO) */
+/* hud.js : 모바일 가로 HUD — 애니 판타지 프레임 (초상화/HP·MP, 지역·타이머·미니맵, 스킬 버튼, AUTO) */
 (function () {
   const C = {
-    panel: 0x0a1626,
-    panelA: 0.62,
-    edge: 0x8fc6ff,
-    edgeA: 0.32,
+    plate: 0x0a1424,
+    plate2: 0x102238,
+    edge: 0x9fd0ff,
+    gold: 0xe8c27a,
+    goldDim: 0x8a6f3e,
     txt: 0xeaf4ff,
     sub: 0x9fc0e0,
-    hp: 0x3ce06e,
-    hpDark: 0x0f3a24,
-    mp: 0x3aa4ff,
-    mpDark: 0x0e2745,
-    gold: 0xffd166,
+    hp: 0x46e07a,
+    hpTop: 0xc8ffe0,
+    hpDark: 0x08251a,
+    mp: 0x46a8ff,
+    mpDark: 0x081c33,
+    red: 0xe23a4a,
   };
 
-  function panel(g, x, y, w, h, r = 8, alpha = C.panelA) {
-    g.roundRect(x, y, w, h, r).fill({ color: C.panel, alpha });
-    g.roundRect(x, y, w, h, r).stroke({ width: 1.4, color: C.edge, alpha: C.edgeA });
-    g.roundRect(x + 1.5, y + 1.5, w - 3, h * 0.45, r).fill({ color: 0x9fd0ff, alpha: 0.05 });
+  /* 모서리가 잘린 판타지 패널 경로 */
+  function plate(g, x, y, w, h, cut = 10, fill = C.plate, alpha = 0.72) {
+    const p = [
+      x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
+      x + w - cut, y + h, x + cut, y + h, x, y + h - cut, x, y + cut,
+    ];
+    g.poly(p).fill({ color: fill, alpha });
+    return p;
+  }
+
+  function outline(g, x, y, w, h, cut, color, alpha, width = 1.4) {
+    const p = [
+      x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
+      x + w - cut, y + h, x + cut, y + h, x, y + h - cut, x, y + cut,
+    ];
+    g.poly(p).stroke({ width, color, alpha });
+  }
+
+  function diamond(g, x, y, r, color, alpha = 1) {
+    g.poly([x, y - r, x + r * 0.72, y, x, y + r, x - r * 0.72, y]).fill({ color, alpha });
   }
 
   class Hud {
@@ -28,16 +46,18 @@
       this.root.zIndex = 100;
       this._textCache = {};
       this.buttons = {
-        attack: { x: 1178, y: 604, r: 58, press: 0 },
-        skill1: { x: 1072, y: 636, r: 40, press: 0 },
-        skill2: { x: 1112, y: 522, r: 40, press: 0 },
-        dodge: { x: 992, y: 610, r: 36, press: 0 },
-        auto: { x: 1150, y: 446, w: 132, h: 56, press: 0 },
-        pause: { x: 1198, y: 30, r: 20, press: 0 },
-        mute: { x: 1242, y: 30, r: 20, press: 0 },
+        attack: { x: 1178, y: 602, r: 58, press: 0 },
+        skill1: { x: 1070, y: 636, r: 41, press: 0 },
+        skill2: { x: 1112, y: 520, r: 41, press: 0 },
+        dodge: { x: 990, y: 612, r: 37, press: 0 },
+        auto: { x: 1148, y: 446, w: 138, h: 54, press: 0 },
+        pause: { x: 1204, y: 30, r: 20, press: 0 },
+        mute: { x: 1248, y: 30, r: 20, press: 0 },
       };
-      this.joy = { active: false, id: null, bx: 150, by: 596, r: 78, kx: 150, ky: 596, vx: 0, vy: 0 };
+      this.joy = { active: false, id: null, bx: 150, by: 600, r: 80, kx: 150, ky: 600, vx: 0, vy: 0 };
       this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false };
+      this.hpGhost = 1;
+      this.mpGhost = 1;
       this.build();
     }
 
@@ -55,289 +75,292 @@
     build() {
       const root = this.root;
 
-      // ---- 상단 그라데이션 (가독성) ----
+      // ---- 상·하단 가독성 그라데이션 ----
       const topGrad = new PIXI.Graphics();
-      for (let i = 0; i < 14; i++) {
-        topGrad.rect(0, (i * 150) / 14, G.W, 150 / 14 + 1).fill({ color: 0x03070f, alpha: 0.30 * (1 - i / 14) });
+      for (let i = 0; i < 16; i++) {
+        topGrad.rect(0, (i * 170) / 16, G.W, 170 / 16 + 1).fill({ color: 0x03070f, alpha: 0.34 * (1 - i / 16) });
       }
       root.addChild(topGrad);
       const botGrad = new PIXI.Graphics();
-      for (let i = 0; i < 12; i++) {
-        botGrad.rect(0, G.H - 160 + (i * 160) / 12, G.W, 160 / 12 + 1).fill({ color: 0x03070f, alpha: 0.26 * (i / 12) });
+      for (let i = 0; i < 14; i++) {
+        botGrad.rect(0, G.H - 180 + (i * 180) / 14, G.W, 180 / 14 + 1).fill({ color: 0x03070f, alpha: 0.30 * (i / 14) });
       }
       root.addChild(botGrad);
 
       // ---- 좌상단 상태 패널 ----
-      this.hpG = new PIXI.Graphics();
-      root.addChild(this.hpG);
-      panel(this.hpG, 16, 14, 320, 88, 10, 0.55);
+      this.panelG = new PIXI.Graphics();
+      root.addChild(this.panelG);
+      this.bars = new PIXI.Graphics();
+      root.addChild(this.bars);
 
-      // 초상화 프레임
-      this.portraitFrame = new PIXI.Graphics();
-      this.portraitFrame.roundRect(26, 24, 68, 68, 8).fill({ color: 0x0b2036, alpha: 0.9 });
-      root.addChild(this.portraitFrame);
       this.portrait = new PIXI.Sprite(G.Assets.tex.portraitKael);
-      this.portrait.width = 64; this.portrait.height = 64;
-      this.portrait.x = 28; this.portrait.y = 26;
+      this.portrait.width = 68; this.portrait.height = 68;
+      this.portrait.x = 24; this.portrait.y = 25;
       this.portrait.mask = (() => {
         const m = new PIXI.Graphics();
-        m.roundRect(28, 26, 64, 64, 7).fill({ color: 0xffffff });
+        m.roundRect(24, 25, 68, 68, 8).fill({ color: 0xffffff });
         root.addChild(m);
         return m;
       })();
       root.addChild(this.portrait);
-      const pEdge = new PIXI.Graphics();
-      pEdge.roundRect(26, 24, 68, 68, 8).stroke({ width: 2, color: 0x9ad0ff, alpha: 0.65 });
-      root.addChild(pEdge);
 
-      this.nameText = this._text('name', 'Lv.1 카엘', G.style({ fontSize: 17, fill: 0xeaf4ff, fontWeight: '800' }), root);
-      this.nameText.x = 106; this.nameText.y = 19;
+      this.nameText = this._text('name', 'Lv.1 카엘', G.style({ fontSize: 17, fill: 0xf2f8ff, fontWeight: '900' }), root);
+      this.nameText.x = 104; this.nameText.y = 19;
+      this.classText = this._text('class', '성문기사 · GUARDIAN', G.style({ fontSize: 10, fill: 0x9fc0e0, fontWeight: '800', letterSpacing: 1 }), root);
+      this.classText.x = 186; this.classText.y = 25;
 
-      this.hpNum = this._text('hpnum', '520/520', G.style({ fontSize: 13, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x0a3a1c, width: 3.5 } }), root);
-      this.hpNum.x = 318;
-
+      this.hpNum = this._text('hpnum', '520/520', G.style({ fontSize: 13, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x073a1c, width: 3.5 } }), root);
       this.mpNum = this._text('mpnum', '100/100', G.style({ fontSize: 10, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x06264a, width: 3 } }), root);
-      this.mpNum.x = 318;
 
-      // 바 그래픽 (숫자보다 아래에 깔리도록 먼저 추가)
-      this.bars = new PIXI.Graphics();
-      root.addChildAt(this.bars, root.getChildIndex(this.hpNum));
-      root.addChild(this.hpNum, this.mpNum);
-
-      // ---- 우상단 : 지역명 / 타이머 / 일시정지 / 미니맵 ----
+      // ---- 우상단 : 지역명 / 타이머 / 미니맵 ----
       this.rightG = new PIXI.Graphics();
       root.addChild(this.rightG);
 
-      this.areaText = this._text('area', '폐허의 거리', G.style({ fontSize: 18, fill: 0xf2f8ff, fontWeight: '800' }), root);
-      this.areaText.anchor.set(0, 0.5);
-      this.areaText.x = 934; this.areaText.y = 30;
+      this.areaText = this._text('area', '폐허의 거리', G.style({ fontSize: 17, fill: 0xf2f8ff, fontWeight: '900', letterSpacing: 1 }), root);
+      this.areaText.anchor.set(0.5, 0.5);
+      this.areaText.x = 966; this.areaText.y = 30;
 
-      this.timerText = this._text('timer', '01:00', G.style({ fontSize: 30, fill: 0xffffff, fontWeight: '900' }), root);
-      this.timerText.anchor.set(0, 0.5);
-      this.timerText.x = 1098; this.timerText.y = 30;
+      this.timerText = this._text('timer', '01:00', G.style({ fontSize: 30, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x061428, width: 5 } }), root);
+      this.timerText.anchor.set(0.5, 0.5);
+      this.timerText.x = 1108; this.timerText.y = 29;
 
-      // 일시정지 아이콘
-      const pg = new PIXI.Graphics();
-      pg.roundRect(this.buttons.pause.x - 7, this.buttons.pause.y - 9, 5.5, 18, 2).fill({ color: 0xffffff, alpha: 0.9 });
-      pg.roundRect(this.buttons.pause.x + 2, this.buttons.pause.y - 9, 5.5, 18, 2).fill({ color: 0xffffff, alpha: 0.9 });
-      root.addChild(pg);
+      this.mapLabel = this._text('maplabel', '폐허 · 1구역', G.style({ fontSize: 11, fill: 0x9fc0e0, fontWeight: '700' }), root);
+      this.mapLabel.anchor.set(0, 1);
+      this.mapLabel.x = 1094; this.mapLabel.y = 158;
 
-      // 음소거 아이콘
-      this.muteG = new PIXI.Graphics();
-      root.addChild(this.muteG);
-      this._drawMute();
-
-      // 미니맵
       this.minimapG = new PIXI.Graphics();
       root.addChild(this.minimapG);
       this.minimapDots = new PIXI.Graphics();
       root.addChild(this.minimapDots);
-      panel(this.minimapG, 1086, 58, 178, 104, 8, 0.5);
-      this.minimapG.rect(1086, 58, 178, 104).stroke({ width: 1, color: 0x74b6ff, alpha: 0.25 });
-      for (let i = 1; i < 4; i++) {
-        this.minimapG.moveTo(1086 + (178 / 4) * i, 58).lineTo(1086 + (178 / 4) * i, 162).stroke({ width: 0.6, color: 0x5b8fc0, alpha: 0.18 });
-        this.minimapG.moveTo(1086, 58 + (104 / 4) * i).lineTo(1264, 58 + (104 / 4) * i).stroke({ width: 0.6, color: 0x5b8fc0, alpha: 0.18 });
-      }
-      this.mapLabel = this._text('maplabel', '폐허 · 1구역', G.style({ fontSize: 11, fill: 0x9fc0e0, fontWeight: '700' }), root);
-      this.mapLabel.x = 1094; this.mapLabel.y = 145;
 
-      // ---- 보스 HP 바 (상단 중앙) ----
+      // ---- 보스 HP ----
       this.bossG = new PIXI.Graphics();
       root.addChild(this.bossG);
-      this.bossName = this._text('bossname', '', G.style({ fontSize: 17, fill: 0xffe9ec, fontWeight: '900', stroke: { color: 0x2a0408, width: 4 } }), root);
+      this.bossName = this._text('bossname', '', G.style({ fontSize: 18, fill: 0xffe9ec, fontWeight: '900', letterSpacing: 2, stroke: { color: 0x2a0408, width: 5 } }), root);
       this.bossName.anchor.set(0.5, 0);
-      this.bossName.x = 636; this.bossName.y = 44;
-      this.bossHpText = this._text('bosshp', '', G.style({ fontSize: 12, fill: 0xffd7dc, fontWeight: '700' }), root);
+      this.bossName.x = 636; this.bossName.y = 42;
+      this.bossHpText = this._text('bosshp', '', G.style({ fontSize: 12, fill: 0xffd7dc, fontWeight: '800', stroke: { color: 0x2a0408, width: 3 } }), root);
       this.bossHpText.anchor.set(1, 0.5);
       this.bossHpText.x = 908; this.bossHpText.y = 92;
 
       // ---- 조이스틱 ----
       this.joyG = new PIXI.Graphics();
       root.addChild(this.joyG);
-      this._drawJoystick();
 
-      // ---- 우하단 버튼들 ----
+      // ---- 우하단 버튼 ----
       this.btnG = new PIXI.Graphics();
       root.addChild(this.btnG);
-      this.btnLabels = new PIXI.Container();
-      root.addChild(this.btnLabels);
+      this.btnFx = new PIXI.Graphics();
+      root.addChild(this.btnFx);
       this.cdTexts = {};
       ['skill1', 'skill2', 'dodge'].forEach((k) => {
-        this.cdTexts[k] = this._text('cd_' + k, '', G.style({ fontSize: 15, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x001018, width: 4 } }), root);
+        this.cdTexts[k] = this._text('cd_' + k, '', G.style({ fontSize: 16, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x001018, width: 4 } }), root);
         this.cdTexts[k].anchor.set(0.5);
         this.cdTexts[k].visible = false;
       });
-      this.autoText = this._text('auto', 'AUTO', G.style({ fontSize: 22, fill: 0xeaf6ff, fontWeight: '900' }), root);
+      this.autoText = this._text('auto', 'AUTO', G.style({ fontSize: 20, fill: 0xeaf6ff, fontWeight: '900', letterSpacing: 1 }), root);
       this.autoText.anchor.set(0.5);
-      this.autoModeText = this._text('automode', '반격만 수동', G.style({ fontSize: 13, fill: 0xa9c9e8, fontWeight: '800' }), root);
+      this.autoModeText = this._text('automode', '반격만 수동', G.style({ fontSize: 12, fill: 0xa9c9e8, fontWeight: '800' }), root);
       this.autoModeText.anchor.set(0.5);
 
-      // ---- 콤보 카운터 / 프롬프트 ----
-      this.comboText = this._text('combo', '', G.style({ fontSize: 34, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x1a2a5a, width: 6 } }), root);
+      // ---- 콤보 / 프롬프트 / 페이즈 ----
+      this.comboText = this._text('combo', '', G.style({ fontSize: 40, fill: 0xffe9a8, fontWeight: '900', stroke: { color: 0x2a1a04, width: 7 } }), root);
       this.comboText.anchor.set(0, 0.5);
-      this.comboText.x = 40; this.comboText.y = 470;
-      this.comboSub = this._text('combosub', 'HIT', G.style({ fontSize: 16, fill: 0x9fd6ff, fontWeight: '900' }), root);
+      this.comboText.x = 40; this.comboText.y = 462;
+      this.comboSub = this._text('combosub', 'HIT', G.style({ fontSize: 17, fill: 0xffd166, fontWeight: '900', letterSpacing: 2 }), root);
       this.comboSub.anchor.set(0, 0.5);
-      this.comboSub.x = 40; this.comboSub.y = 500;
+      this.comboSub.x = 40; this.comboSub.y = 496;
       this.comboText.alpha = 0;
       this.comboSub.alpha = 0;
 
-      this.promptText = this._text('prompt', '', G.style({ fontSize: 42, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x0a1428, width: 8 } }), root);
+      this.promptText = this._text('prompt', '', G.style({ fontSize: 42, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x0a1428, width: 8 }, letterSpacing: 2 }), root);
       this.promptText.anchor.set(0.5);
-      this.promptText.x = 640; this.promptText.y = 210;
+      this.promptText.x = 640; this.promptText.y = 208;
       this.promptText.alpha = 0;
 
-      this.phaseText = this._text('phase', '', G.style({ fontSize: 26, fill: 0xffe9a8, fontWeight: '900', stroke: { color: 0x2a1a08, width: 6 }, letterSpacing: 4 }), root);
+      this.phaseText = this._text('phase', '', G.style({ fontSize: 27, fill: 0xffe9a8, fontWeight: '900', stroke: { color: 0x2a1a08, width: 6 }, letterSpacing: 5 }), root);
       this.phaseText.anchor.set(0.5);
       this.phaseText.x = 640; this.phaseText.y = 150;
       this.phaseText.alpha = 0;
 
+      this._drawStatic();
       this._drawButtons();
+      this._drawJoystick();
     }
 
-    _drawMute() {
-      const g = this.muteG;
-      const x = this.buttons.mute.x, y = this.buttons.mute.y;
+    /* 매 프레임 다시 그리지 않는 정적 프레임 */
+    _drawStatic() {
+      const g = this.panelG;
       g.clear();
-      g.poly([x - 9, y - 4, x - 4, y - 4, x + 1, y - 9, x + 1, y + 9, x - 4, y + 4, x - 9, y + 4]).fill({ color: 0xffffff, alpha: 0.85 });
-      if (this.game && this.game.muted) {
-        g.moveTo(x + 5, y - 6).lineTo(x + 13, y + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
-        g.moveTo(x + 13, y - 6).lineTo(x + 5, y + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
-      } else {
-        g.arc(x + 2, y, 7, -0.9, 0.9).stroke({ width: 2, color: 0xffffff, alpha: 0.75 });
-        g.arc(x + 2, y, 11, -0.8, 0.8).stroke({ width: 2, color: 0xffffff, alpha: 0.45 });
+      // 상태 패널
+      plate(g, 14, 12, 340, 96, 12, C.plate, 0.74);
+      outline(g, 14, 12, 340, 96, 12, C.gold, 0.55, 1.6);
+      outline(g, 18, 16, 332, 88, 10, C.edge, 0.18, 1);
+      diamond(g, 14, 60, 5, C.gold, 0.9);
+      diamond(g, 354, 60, 5, C.gold, 0.9);
+      // 초상화 프레임
+      g.roundRect(22, 23, 72, 72, 9).fill({ color: 0x0b2036, alpha: 0.95 });
+      g.roundRect(22, 23, 72, 72, 9).stroke({ width: 2, color: C.edge, alpha: 0.55 });
+      g.roundRect(25, 26, 66, 22, 7).fill({ color: 0x9fd6ff, alpha: 0.10 });
+
+      const r = this.rightG;
+      r.clear();
+      // 지역명 판
+      plate(r, 892, 10, 148, 40, 10, C.plate, 0.62);
+      outline(r, 892, 10, 148, 40, 10, C.edge, 0.35, 1.2);
+      // 타이머 판
+      plate(r, 1046, 8, 124, 44, 12, C.plate2, 0.78);
+      outline(r, 1046, 8, 124, 44, 12, C.gold, 0.5, 1.4);
+      r.circle(1066, 30, 9).stroke({ width: 1.8, color: 0xbfe0ff, alpha: 0.9 });
+      r.moveTo(1066, 25).lineTo(1066, 30).lineTo(1070, 32).stroke({ width: 1.6, color: 0xbfe0ff, alpha: 0.9 });
+      // 일시정지 / 음소거
+      const b = this.buttons;
+      [b.pause, b.mute].forEach((btn) => {
+        r.circle(btn.x, btn.y, btn.r).fill({ color: 0x08131f, alpha: 0.66 });
+        r.circle(btn.x, btn.y, btn.r).stroke({ width: 1.4, color: 0xa8ccef, alpha: 0.5 });
+      });
+      r.roundRect(b.pause.x - 6.5, b.pause.y - 9, 5, 18, 2).fill({ color: 0xffffff, alpha: 0.92 });
+      r.roundRect(b.pause.x + 1.5, b.pause.y - 9, 5, 18, 2).fill({ color: 0xffffff, alpha: 0.92 });
+      this._drawMuteIcon();
+
+      // 미니맵
+      const m = this.minimapG;
+      m.clear();
+      plate(m, 1086, 56, 178, 108, 10, C.plate, 0.66);
+      outline(m, 1086, 56, 178, 108, 10, C.gold, 0.45, 1.3);
+      for (let i = 1; i < 4; i++) {
+        m.moveTo(1086 + (178 / 4) * i, 58).lineTo(1086 + (178 / 4) * i, 162).stroke({ width: 0.6, color: 0x5b8fc0, alpha: 0.20 });
+        m.moveTo(1088, 56 + (108 / 4) * i).lineTo(1262, 56 + (108 / 4) * i).stroke({ width: 0.6, color: 0x5b8fc0, alpha: 0.20 });
       }
+      m.circle(1175, 110, 46).stroke({ width: 1, color: 0x74b6ff, alpha: 0.14 });
+      diamond(m, 1175, 56, 4, C.gold, 0.7);
+    }
+
+    _drawMuteIcon() {
+      const b = this.buttons.mute;
+      const g = this.btnFx;
+      // 아이콘은 버튼 다시 그릴 때 함께 그린다
+      this._muteAt = { x: b.x, y: b.y };
     }
 
     _drawJoystick() {
       const g = this.joyG;
       g.clear();
       const j = this.joy;
-      g.circle(j.bx, j.by, j.r).fill({ color: 0x0b1a2e, alpha: 0.28 });
-      g.circle(j.bx, j.by, j.r).stroke({ width: 1.6, color: 0x9fd0ff, alpha: 0.3 });
-      g.circle(j.bx, j.by, j.r * 0.62).stroke({ width: 1, color: 0x9fd0ff, alpha: 0.16 });
-      // 방향 눈금
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * G.TAU;
-        const x1 = j.bx + Math.cos(a) * (j.r - 6), y1 = j.by + Math.sin(a) * (j.r - 6);
-        const x2 = j.bx + Math.cos(a) * (j.r - 14), y2 = j.by + Math.sin(a) * (j.r - 14);
-        g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 2, color: 0x9fd0ff, alpha: 0.3 });
+      const t = performance.now() / 1000;
+      g.circle(j.bx, j.by, j.r).fill({ color: 0x08182c, alpha: j.active ? 0.34 : 0.20 });
+      g.circle(j.bx, j.by, j.r).stroke({ width: 1.6, color: 0x9fd0ff, alpha: j.active ? 0.55 : 0.28 });
+      g.circle(j.bx, j.by, j.r * 0.74).stroke({ width: 1, color: 0x9fd0ff, alpha: 0.14 });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * G.TAU;
+        const r1 = j.r - 5, r2 = j.r - (i % 2 ? 9 : 14);
+        g.moveTo(j.bx + Math.cos(a) * r1, j.by + Math.sin(a) * r1);
+        g.lineTo(j.bx + Math.cos(a) * r2, j.by + Math.sin(a) * r2);
+        g.stroke({ width: 1.8, color: 0x9fd0ff, alpha: 0.22 });
       }
-      g.circle(j.kx, j.ky, j.r * 0.42).fill({ color: 0xbfe2ff, alpha: j.active ? 0.4 : 0.24 });
-      g.circle(j.kx, j.ky, j.r * 0.42).stroke({ width: 1.6, color: 0xe6f4ff, alpha: j.active ? 0.8 : 0.45 });
+      const kr = j.r * 0.44;
+      g.circle(j.kx, j.ky, kr).fill({ color: 0x9fd0ff, alpha: j.active ? 0.26 : 0.14 });
+      g.circle(j.kx, j.ky, kr).stroke({ width: 1.8, color: 0xe6f4ff, alpha: j.active ? 0.85 : 0.45 });
+      g.circle(j.kx, j.ky - kr * 0.3, kr * 0.62).fill({ color: 0xffffff, alpha: j.active ? 0.16 : 0.07 });
+      if (j.active) {
+        g.circle(j.bx, j.by, j.r + 4 + Math.sin(t * 6) * 2).stroke({ width: 1.4, color: 0x9fd0ff, alpha: 0.25 });
+      }
     }
 
     _drawButtons() {
       const g = this.btnG;
       g.clear();
       const b = this.buttons;
+      const t = performance.now() / 1000;
 
-      const ring = (btn, color, inner) => {
+      const ring = (btn, color, icon) => {
         const press = btn.press > 0 ? 1 - btn.press / 0.16 : 0;
-        const r = btn.r * (1 - press * 0.07);
-        g.circle(btn.x, btn.y, r + 4).fill({ color, alpha: 0.12 });
-        g.circle(btn.x, btn.y, r).fill({ color: 0x061424, alpha: 0.55 });
-        g.circle(btn.x, btn.y, r).stroke({ width: 2.4, color, alpha: 0.85 });
-        g.circle(btn.x, btn.y, r * 0.82).stroke({ width: 1, color, alpha: 0.28 });
-        g.circle(btn.x, btn.y - r * 0.35, r * 0.6).fill({ color, alpha: 0.07 });
-        this['_icon_' + btn.name] && this['_icon_' + btn.name](btn, r, color);
+        const r = btn.r * (1 + press * 0.04);
+        g.circle(btn.x, btn.y, r + 7).fill({ color, alpha: 0.10 });
+        g.circle(btn.x, btn.y, r + 3).stroke({ width: 1.2, color, alpha: 0.35 });
+        g.circle(btn.x, btn.y, r).fill({ color: 0x061424, alpha: 0.62 });
+        g.circle(btn.x, btn.y, r).stroke({ width: 2.4, color, alpha: 0.9 });
+        g.circle(btn.x, btn.y, r * 0.84).stroke({ width: 1, color, alpha: 0.22 });
+        g.circle(btn.x, btn.y - r * 0.42, r * 0.72).fill({ color, alpha: 0.06 + press * 0.08 });
+        icon(btn, r, color);
       };
-      b.attack.name = 'attack';
-      b.skill1.name = 'skill1';
-      b.skill2.name = 'skill2';
-      b.dodge.name = 'dodge';
 
-      ring(b.attack, 0xbfe0ff);
-      ring(b.skill1, 0x5fb6ff);
-      ring(b.skill2, 0xb98bff);
-      ring(b.dodge, 0xffffff);
-
-      // 공격 아이콘(검)
-      this._icon_attack = (btn, r) => {
-        const x = btn.x, y = btn.y;
-        const s = r / 58;
+      ring(b.attack, 0xbfe0ff, (btn, r) => {
+        const x = btn.x, y = btn.y, s = r / 58;
         g.poly([
-          x - 16 * s, y + 20 * s,
-          x + 12 * s, y - 8 * s,
-          x + 22 * s, y - 18 * s,
-          x + 24 * s, y - 24 * s,
-          x + 18 * s, y - 22 * s,
-          x + 8 * s, y - 12 * s,
+          x - 16 * s, y + 20 * s, x + 12 * s, y - 8 * s, x + 22 * s, y - 18 * s,
+          x + 24 * s, y - 24 * s, x + 18 * s, y - 22 * s, x + 8 * s, y - 12 * s,
           x - 20 * s, y + 16 * s,
-        ]).fill({ color: 0xffffff, alpha: 0.95 });
-        g.moveTo(x - 22 * s, y + 8 * s).lineTo(x - 8 * s, y + 22 * s).stroke({ width: 4 * s, color: 0xffffff, alpha: 0.95 });
+        ]).fill({ color: 0xffffff, alpha: 0.96 });
+        g.moveTo(x - 22 * s, y + 8 * s).lineTo(x - 8 * s, y + 22 * s).stroke({ width: 4 * s, color: 0xffffff, alpha: 0.96 });
         g.circle(x - 20 * s, y + 22 * s, 3.2 * s).fill({ color: 0xffffff, alpha: 0.9 });
-      };
-      this._icon_attack(b.attack, b.attack.r);
-
-      // 스킬1 아이콘(3연 검기)
-      this._icon_skill1 = (btn, r) => {
-        const x = btn.x, y = btn.y, s = r / 40;
+      });
+      ring(b.skill1, 0x5fb6ff, (btn, r) => {
+        const x = btn.x, y = btn.y, s = r / 41;
         for (let i = 0; i < 3; i++) {
           const off = (i - 1) * 9 * s;
-          g.moveTo(x - 14 * s, y + 10 * s + off).lineTo(x + 14 * s, y - 6 * s + off).stroke({ width: 3.4 * s, color: 0xdff0ff, alpha: 0.95 });
+          g.moveTo(x - 15 * s, y + 10 * s + off).lineTo(x + 15 * s, y - 6 * s + off)
+            .stroke({ width: 3.4 * s, color: 0xdff0ff, alpha: 0.95 });
         }
-        g.moveTo(x + 10 * s, y - 14 * s).lineTo(x + 16 * s, y - 8 * s).stroke({ width: 2 * s, color: 0x9fd0ff, alpha: 0.7 });
-      };
-      this._icon_skill1(b.skill1, b.skill1.r);
-
-      // 스킬2 아이콘(마법 별)
-      this._icon_skill2 = (btn, r) => {
-        const x = btn.x, y = btn.y, s = r / 40;
+        g.moveTo(x + 10 * s, y - 14 * s).lineTo(x + 17 * s, y - 7 * s).stroke({ width: 2 * s, color: 0x9fd0ff, alpha: 0.75 });
+      });
+      ring(b.skill2, 0xb98bff, (btn, r) => {
+        const x = btn.x, y = btn.y, s = r / 41;
         const pts = [];
         for (let i = 0; i < 8; i++) {
           const a = (i / 8) * G.TAU - Math.PI / 2;
-          const rad = i % 2 === 0 ? 15 * s : 6 * s;
+          const rad = (i % 2 === 0 ? 15 : 6) * s;
           pts.push(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
         }
-        g.poly(pts).fill({ color: 0xe6d6ff, alpha: 0.95 });
-        g.circle(x, y, 3 * s).fill({ color: 0xffffff, alpha: 0.9 });
-      };
-      this._icon_skill2(b.skill2, b.skill2.r);
-
-      // 회피 아이콘(곡선 화살표)
-      this._icon_dodge = (btn, r) => {
-        const x = btn.x, y = btn.y, s = r / 36;
+        g.poly(pts).fill({ color: 0xe6d6ff, alpha: 0.96 });
+        g.circle(x, y, 3 * s).fill({ color: 0xffffff, alpha: 0.95 });
+      });
+      ring(b.dodge, 0xffffff, (btn, r) => {
+        const x = btn.x, y = btn.y, s = r / 37;
         const a0 = Math.PI * 0.25, a1 = Math.PI * 1.55;
         g.beginPath();
         g.moveTo(x + Math.cos(a0) * 11 * s, y + 2 * s + Math.sin(a0) * 11 * s);
         g.arc(x, y + 2 * s, 11 * s, a0, a1);
-        g.stroke({ width: 3.2 * s, color: 0xffffff, alpha: 0.9 });
-        g.poly([
-          x + 9 * s, y - 12 * s,
-          x + 16 * s, y - 6 * s,
-          x + 6 * s, y - 3 * s,
-        ]).fill({ color: 0xffffff, alpha: 0.9 });
-      };
-      this._icon_dodge(b.dodge, b.dodge.r);
+        g.stroke({ width: 3.2 * s, color: 0xffffff, alpha: 0.92 });
+        g.poly([x + 9 * s, y - 12 * s, x + 16 * s, y - 6 * s, x + 6 * s, y - 3 * s])
+          .fill({ color: 0xffffff, alpha: 0.92 });
+      });
 
       // AUTO 토글
       const a = b.auto;
       const on = this.game && this.game.autoMode !== 'manual';
-      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 16).fill({ color: on ? 0x123a5c : 0x0a1626, alpha: on ? 0.82 : 0.6 });
-      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 16).stroke({ width: 2, color: on ? 0x7fd8ff : 0x6a8aa8, alpha: 0.9 });
-      // 작은 검 아이콘
-      const ix = a.x - a.w / 2 + 22, iy = a.y - 8;
-      g.moveTo(ix - 8, iy + 8).lineTo(ix + 8, iy - 8).stroke({ width: 3, color: 0xdff0ff, alpha: 0.9 });
+      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
+        .fill({ color: on ? 0x14395c : 0x0a1626, alpha: on ? 0.88 : 0.66 });
+      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
+        .stroke({ width: 2, color: on ? 0x7fd8ff : 0x6a8aa8, alpha: 0.9 });
+      g.roundRect(a.x - a.w / 2 + 3, a.y - a.h / 2 + 2.5, a.w - 6, a.h * 0.38, 10)
+        .fill({ color: 0xbfe8ff, alpha: on ? 0.10 : 0.04 });
+      const ix = a.x - a.w / 2 + 22, iy = a.y - 6;
+      g.moveTo(ix - 8, iy + 8).lineTo(ix + 8, iy - 8).stroke({ width: 3, color: 0xdff0ff, alpha: 0.92 });
       g.moveTo(ix - 10, iy + 3).lineTo(ix - 2, iy + 11).stroke({ width: 2, color: 0xdff0ff, alpha: 0.7 });
       this.autoText.x = a.x + 16;
       this.autoText.y = a.y - 6;
       this.autoModeText.x = a.x + 16;
       this.autoModeText.y = a.y + 17;
 
-      // 일시정지/음소거 원
-      g.circle(b.pause.x, b.pause.y, b.pause.r).fill({ color: 0x08131f, alpha: 0.55 });
-      g.circle(b.pause.x, b.pause.y, b.pause.r).stroke({ width: 1.6, color: 0xa8ccef, alpha: 0.55 });
-      g.circle(b.mute.x, b.mute.y, b.mute.r).fill({ color: 0x08131f, alpha: 0.55 });
-      g.circle(b.mute.x, b.mute.y, b.mute.r).stroke({ width: 1.6, color: 0xa8ccef, alpha: 0.55 });
-
-      // 타이머 pill
-      panel(g, 1056, 8, 132, 44, 22, 0.5);
-      // 시계 아이콘
-      g.circle(1074, 30, 9).stroke({ width: 1.8, color: 0xbfe0ff, alpha: 0.9 });
-      g.moveTo(1074, 25).lineTo(1074, 30).lineTo(1078, 32).stroke({ width: 1.6, color: 0xbfe0ff, alpha: 0.9 });
-      // 지역명 패널
-      panel(g, 920, 8, 128, 44, 22, 0.42);
+      // 음소거 아이콘 (버튼 위)
+      const mx = b.mute.x, my = b.mute.y;
+      g.poly([mx - 9, my - 4, mx - 4, my - 4, mx + 1, my - 9, mx + 1, my + 9, mx - 4, my + 4, mx - 9, my + 4])
+        .fill({ color: 0xffffff, alpha: 0.85 });
+      if (this.game && this.game.muted) {
+        g.moveTo(mx + 5, my - 6).lineTo(mx + 13, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
+        g.moveTo(mx + 13, my - 6).lineTo(mx + 5, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
+      } else {
+        g.arc(mx + 2, my, 7, -0.9, 0.9).stroke({ width: 2, color: 0xffffff, alpha: 0.75 });
+        g.arc(mx + 2, my, 11, -0.8, 0.8).stroke({ width: 2, color: 0xffffff, alpha: 0.45 });
+      }
+      // 퍼펙트 회피 창: 회피 버튼 발광
+      if (this.game && this.game.perfectWindow) {
+        const pulse = 0.5 + 0.5 * Math.sin(t * 18);
+        const db = b.dodge;
+        g.circle(db.x, db.y, db.r + 10 + pulse * 8).stroke({ width: 3, color: 0xffffff, alpha: 0.35 + 0.45 * pulse });
+        g.circle(db.x, db.y, db.r + 2).fill({ color: 0xffffff, alpha: 0.08 + 0.12 * pulse });
+      }
     }
 
     /* ---------- 입력 ---------- */
@@ -354,12 +377,11 @@
       if (hit(b.skill1, 8)) { this.input.skill1 = true; b.skill1.press = 0.16; return; }
       if (hit(b.skill2, 8)) { this.input.skill2 = true; b.skill2.press = 0.16; return; }
       if (hit(b.dodge, 8)) { this.input.dodge = true; b.dodge.press = 0.16; return; }
-      // 조이스틱 (좌측 영역)
       if (x < G.W * 0.52 && y > G.H * 0.35) {
         const j = this.joy;
         j.active = true; j.id = id;
-        j.bx = G.clamp(x, 90, 300);
-        j.by = G.clamp(y, 420, 660);
+        j.bx = G.clamp(x, 92, 300);
+        j.by = G.clamp(y, 430, 660);
         j.kx = j.bx; j.ky = j.by;
         this._drawJoystick();
       }
@@ -407,37 +429,51 @@
         if (b[k].press > 0) b[k].press = Math.max(0, b[k].press - dt);
       });
 
-      // HP/MP 바
       const kael = game.kael;
       const g = this.bars;
       g.clear();
-      const bx = 106, by = 46, bw = 176, bh = 16;
-      g.roundRect(bx, by, bw, bh, 5).fill({ color: C.hpDark, alpha: 0.95 });
+      const bx = 104, bw = 224;
+      const by = 46, bh = 15;
+
+      // HP: 늦게 따라오는 잔상(피해량) 위에 실제 HP
       const hpP = G.clamp(kael.hp / kael.hpMax, 0, 1);
-      g.roundRect(bx + 1, by + 1, (bw - 2) * hpP, bh - 2, 4).fill({ color: C.hp, alpha: 0.95 });
-      g.roundRect(bx + 1, by + 1, (bw - 2) * hpP, (bh - 2) * 0.45, 3).fill({ color: 0xc8ffd8, alpha: 0.35 });
-      g.roundRect(bx, by, bw, bh, 5).stroke({ width: 1.2, color: 0x9fe8b8, alpha: 0.5 });
-      // 세그먼트
+      this.hpGhost = Math.max(hpP, this.hpGhost - dt * 0.55);
+      g.roundRect(bx, by, bw, bh, 5).fill({ color: C.hpDark, alpha: 0.95 });
+      g.roundRect(bx + 1, by + 1, (bw - 2) * this.hpGhost, bh - 2, 4).fill({ color: 0xff8fa0, alpha: 0.55 });
+      g.roundRect(bx + 1, by + 1, (bw - 2) * hpP, bh - 2, 4).fill({ color: C.hp, alpha: 0.98 });
+      g.roundRect(bx + 1, by + 1, (bw - 2) * hpP, (bh - 2) * 0.46, 3).fill({ color: C.hpTop, alpha: 0.45 });
+      g.roundRect(bx + 1, by + bh - 5, (bw - 2) * hpP, 3, 2).fill({ color: 0x0a5b2c, alpha: 0.5 });
+      g.roundRect(bx, by, bw, bh, 5).stroke({ width: 1.2, color: 0x9fe8b8, alpha: 0.55 });
       for (let i = 1; i < 6; i++) {
-        g.rect(bx + (bw / 6) * i, by + 1, 1, bh - 2).fill({ color: 0x03140b, alpha: 0.45 });
+        g.rect(bx + (bw / 6) * i, by + 1, 1, bh - 2).fill({ color: 0x03140b, alpha: 0.5 });
+      }
+      // 저체력 경고
+      if (hpP < 0.3) {
+        const pulse = 0.5 + 0.5 * Math.sin(game.time * 9);
+        g.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 6).stroke({ width: 2, color: 0xff5b6e, alpha: 0.25 + 0.5 * pulse });
       }
 
-      const my = 70, mh = 10;
-      g.roundRect(bx, my, bw, mh, 4).fill({ color: C.mpDark, alpha: 0.95 });
+      // MP
+      const my = 70, mh = 9;
       const mpP = G.clamp(kael.mp / kael.mpMax, 0, 1);
+      this.mpGhost = G.lerp(this.mpGhost, mpP, 1 - Math.pow(0.002, dt));
+      g.roundRect(bx, my, bw, mh, 4).fill({ color: C.mpDark, alpha: 0.95 });
       g.roundRect(bx + 1, my + 1, (bw - 2) * mpP, mh - 2, 3).fill({ color: C.mp, alpha: 0.95 });
-      g.roundRect(bx, my, bw, mh, 4).stroke({ width: 1, color: 0x9fd0ff, alpha: 0.45 });
+      g.roundRect(bx + 1, my + 1, (bw - 2) * mpP, (mh - 2) * 0.45, 2).fill({ color: 0xbfe3ff, alpha: 0.5 });
+      g.roundRect(bx, my, bw, mh, 4).stroke({ width: 1, color: 0x9fd0ff, alpha: 0.5 });
+      // 흐르는 빛
+      const sweep = ((game.time * 0.35) % 1) * bw;
+      g.rect(bx + sweep, my + 1, 12, mh - 2).fill({ color: 0xffffff, alpha: 0.10 });
 
-      // 숫자
       if (this.hpNum.text !== `${Math.ceil(kael.hp)}/${kael.hpMax}`) this.hpNum.text = `${Math.ceil(kael.hp)}/${kael.hpMax}`;
-      this.hpNum.x = 330 - this.hpNum.width; this.hpNum.y = by + 1;
+      this.hpNum.x = bx + bw - this.hpNum.width; this.hpNum.y = by;
       if (this.mpNum.text !== `${Math.floor(kael.mp)}/${kael.mpMax}`) this.mpNum.text = `${Math.floor(kael.mp)}/${kael.mpMax}`;
-      this.mpNum.x = 330 - this.mpNum.width; this.mpNum.y = my - 0.5;
+      this.mpNum.x = bx + bw - this.mpNum.width; this.mpNum.y = my - 2;
 
       // 타이머
       const tStr = G.fmtTime(game.timeLeft);
       if (this.timerText.text !== tStr) this.timerText.text = tStr;
-      this.timerText.style.fill = game.phase === 'boss' ? 0xffd0d6 : 0xffffff;
+      this.timerText.style.fill = game.phase === 'boss' ? 0xffc2ca : (game.timeLeft < 11 ? 0xffd166 : 0xffffff);
 
       // 지역명
       const area = game.phase === 'boss' ? '폐허의 왕좌' : '폐허의 거리';
@@ -446,33 +482,40 @@
       // 보스 HP
       this.bossG.clear();
       if (game.boss && game.boss.alive) {
-        panel(this.bossG, 356, 70, 560, 24, 8, 0.55);
         const p = G.clamp(game.boss.hp / game.boss.hpMax, 0, 1);
-        this.bossG.roundRect(359, 73, 554, 18, 6).fill({ color: 0x2a0a10, alpha: 0.9 });
-        this.bossG.roundRect(360, 74, 552 * p, 16, 5).fill({ color: 0xd8233a, alpha: 0.95 });
-        this.bossG.roundRect(360, 74, 552 * p, 7, 4).fill({ color: 0xff9aa6, alpha: 0.35 });
+        const bx2 = 356, by2 = 68, bw2 = 560, bh2 = 26;
+        plate(this.bossG, bx2, by2, bw2, bh2, 9, C.plate, 0.66);
+        this.bossG.roundRect(bx2 + 3, by2 + 3, bw2 - 6, bh2 - 6, 6).fill({ color: 0x2a0a10, alpha: 0.92 });
+        this.bossG.roundRect(bx2 + 4, by2 + 4, (bw2 - 8) * this.bossGhost(), bh2 - 8, 5).fill({ color: 0xff9aa6, alpha: 0.4 });
+        this.bossG.roundRect(bx2 + 4, by2 + 4, (bw2 - 8) * p, bh2 - 8, 5).fill({ color: C.red, alpha: 0.96 });
+        this.bossG.roundRect(bx2 + 4, by2 + 4, (bw2 - 8) * p, (bh2 - 8) * 0.45, 4).fill({ color: 0xff9aa6, alpha: 0.45 });
         for (let i = 1; i < 10; i++) {
-          this.bossG.rect(360 + (552 / 10) * i, 74, 1, 16).fill({ color: 0x1a0408, alpha: 0.5 });
+          this.bossG.rect(bx2 + 4 + ((bw2 - 8) / 10) * i, by2 + 4, 1, bh2 - 8).fill({ color: 0x1a0408, alpha: 0.45 });
         }
-        this.bossG.roundRect(356, 70, 560, 24, 8).stroke({ width: 1.6, color: 0xff8a99, alpha: 0.5 });
+        outline(this.bossG, bx2, by2, bw2, bh2, 9, 0xff8a99, 0.55, 1.6);
+        diamond(this.bossG, bx2, by2 + bh2 / 2, 7, C.gold, 0.9);
+        diamond(this.bossG, bx2 + bw2, by2 + bh2 / 2, 7, C.gold, 0.9);
         this.bossName.text = game.boss.name;
         this.bossName.alpha = 1;
         this.bossHpText.text = `${G.num(game.boss.hp)} / ${G.num(game.boss.hpMax)}`;
         this.bossHpText.alpha = 1;
-        this.bossHpText.y = 90;
+        this.bossHpText.y = 92;
       } else {
         this.bossName.alpha = 0;
         this.bossHpText.alpha = 0;
+        this._bossGhostP = 1;
       }
 
       // 콤보
       const combo = game.combo;
       if (combo >= 2) {
         this.comboText.text = String(combo);
-        this.comboText.alpha = Math.min(1, this.comboT || 1);
-        this.comboSub.alpha = this.comboText.alpha;
-        this.comboSub.x = 46 + this.comboText.width;
-        this.comboText.style.fontSize = 30 + Math.min(18, combo);
+        const a = Math.min(1, (game.comboT || 1) * 1.6);
+        this.comboText.alpha = a;
+        this.comboSub.alpha = a * 0.9;
+        this.comboSub.x = 42 + this.comboText.width;
+        this.comboText.style.fontSize = 34 + Math.min(20, combo * 1.2);
+        this.comboText.style.fill = combo >= 20 ? 0xfff2b0 : 0xffe9a8;
       } else {
         this.comboText.alpha = 0;
         this.comboSub.alpha = 0;
@@ -484,7 +527,7 @@
         this.promptText.text = game.promptMsg;
         const p = 1 - game.promptT / game.promptMax;
         this.promptText.alpha = p < 0.15 ? p / 0.15 : p > 0.7 ? (1 - p) / 0.3 : 1;
-        this.promptText.scale.set(1 + 0.12 * Math.sin(p * Math.PI * 3));
+        this.promptText.scale.set(1 + 0.1 * Math.sin(p * Math.PI * 3));
       } else {
         this.promptText.alpha = 0;
       }
@@ -496,40 +539,34 @@
         this.phaseText.alpha = Math.min(1, game.phaseBanner);
       } else this.phaseText.alpha = 0;
 
-      // 쿨다운
+      // 쿨다운 (부채꼴 스윕)
       const cd = game.cooldowns;
-      const setCd = (key, btn, cur, max) => {
-        const t = this.cdTexts[key];
+      this.btnFx.clear();
+      const sweepCd = (key, btn, cur, max) => {
+        const t2 = this.cdTexts[key];
         if (cur > 0) {
-          t.visible = true;
-          t.text = cur >= 1 ? String(Math.ceil(cur)) : cur.toFixed(1);
-          t.x = btn.x; t.y = btn.y;
           const p = G.clamp(cur / max, 0, 1);
-          this.btnG.circle(btn.x, btn.y, btn.r * 0.98).fill({ color: 0x02060c, alpha: 0.55 * p });
-        } else t.visible = false;
+          t2.visible = cur > 0.35;
+          t2.text = cur >= 1 ? String(Math.ceil(cur)) : cur.toFixed(1);
+          t2.x = btn.x; t2.y = btn.y;
+          this.btnFx.moveTo(btn.x, btn.y);
+          this.btnFx.arc(btn.x, btn.y, btn.r * 0.98, -Math.PI / 2, -Math.PI / 2 + G.TAU * p);
+          this.btnFx.closePath();
+          this.btnFx.fill({ color: 0x02060c, alpha: 0.55 });
+        } else t2.visible = false;
       };
-      setCd('skill1', b.skill1, cd.skill1, game.skillMax.skill1);
-      setCd('skill2', b.skill2, cd.skill2, game.skillMax.skill2);
-      setCd('dodge', b.dodge, kael.dodgeCD, 2.4);
+      sweepCd('skill1', b.skill1, cd.skill1, game.skillMax.skill1);
+      sweepCd('skill2', b.skill2, cd.skill2, game.skillMax.skill2);
+      sweepCd('dodge', b.dodge, kael.dodgeCD, 2.4);
 
-      // 퍼펙트 회피 창: 회피 버튼 발광
-      if (game.perfectWindow) {
-        const t = performance.now() / 1000;
-        const pulse = 0.5 + 0.5 * Math.sin(t * 18);
-        const b = this.buttons.dodge;
-        this.btnG.circle(b.x, b.y, b.r + 10 + pulse * 8).stroke({ width: 3, color: 0xffffff, alpha: 0.35 + 0.45 * pulse });
-        this.btnG.circle(b.x, b.y, b.r + 2).fill({ color: 0xffffff, alpha: 0.08 + 0.12 * pulse });
-      }
-
-      // AUTO 상태
       this._drawAuto(game);
       this._drawButtons();
-      this._drawMute();
+      this._drawJoystick();
 
       // 미니맵 점
       const m = this.minimapDots;
       m.clear();
-      const mx = 1086, my2 = 58, mw = 178, mh2 = 104;
+      const mx = 1086, my2 = 56, mw = 178, mh2 = 108;
       const toMap = (wx, wy) => [mx + G.clamp((wx - 100) / 1250, 0, 1) * (mw - 16) + 8, my2 + G.clamp((wy - 480) / 190, 0, 1) * (mh2 - 26) + 16];
       game.enemies.forEach((e) => {
         if (!e.alive) return;
@@ -542,20 +579,25 @@
         m.circle(px, py, 9).stroke({ width: 1.5, color: 0xffb03a, alpha: 0.6 });
       }
       const dots = [[game.kael, 0x6fdcff]];
-      // 리아는 소환 중일 때만 미니맵에 표시
       if (game.lia && game.lia.active && game.lia.obj) dots.push([game.lia.obj, 0xcf9bff]);
       dots.forEach(([h, col]) => {
         const [px, py] = toMap(h.x, h.y);
         m.circle(px, py, 3.6).fill({ color: col, alpha: 1 });
         m.circle(px, py, 6.5).stroke({ width: 1.2, color: col, alpha: 0.5 });
       });
-      // 시야 콘
       const [kx, ky] = toMap(game.kael.x, game.kael.y);
       m.moveTo(kx, ky).lineTo(kx + 22, ky - 10).lineTo(kx + 22, ky + 10).closePath().fill({ color: 0x9fe0ff, alpha: 0.18 });
     }
 
+    bossGhost() {
+      const game = this.game;
+      if (!game || !game.boss) return 1;
+      const p = G.clamp(game.boss.hp / game.boss.hpMax, 0, 1);
+      this._bossGhostP = Math.max(p, (this._bossGhostP === undefined ? p : this._bossGhostP) - 0.006);
+      return this._bossGhostP;
+    }
+
     _drawAuto(game) {
-      const b = this.buttons.auto;
       const label = { full: '완전 오토', counter: '반격만 수동', manual: '완전 수동' }[game.autoMode];
       if (this.autoModeText.text !== label) this.autoModeText.text = label;
       const color = { full: 0x7fe9b0, counter: 0x7fd8ff, manual: 0xffb0a0 }[game.autoMode];
