@@ -191,6 +191,7 @@
       bt.x = G.W / 2; bt.y = by + bh / 2;
       c.addChild(bt);
       this.introBtn = { g: btn, t: bt, y: by };
+      c.zIndex = 120;              // HUD 위에 올려 타이틀 화면이 깔끔하게 덮이도록
       const hint = new PIXI.Text({
         text: '음악은 시작한 뒤 잠시 후 흐릅니다 · 가로 화면 권장',
         style: { fontFamily: G.FONT, fontSize: 13, fill: 0x6f8fb0, letterSpacing: 1 },
@@ -198,7 +199,7 @@
       hint.anchor.set(0.5);
       hint.x = G.W / 2; hint.y = G.H / 2 + 164;
       c.addChild(hint);
-      this.overlay.addChild(c);
+      this.root.addChild(c);
     }
 
     /* ---------------- 입력 ---------------- */
