@@ -411,6 +411,11 @@ Step 4-3은 두 축을 한 번에 올렸습니다. **전투 조작 체계는 한
 ### 17-4. 배포 · 라이브 실측
 - `dooroomalix/lilith-v13-pages` `guardian/battle_v2/`에 `index.html`·`js/`(신규 `stages.js`)·`assets/`·`audio/`·`vendor_pixi.min.js`·`README.md` 동기화.
   `assets/src_art/`와 미참조 원본 PNG는 계속 제외(저장소 9.4MB 유지). `guardian/battle_v2/` 외 경로는 건드리지 않습니다.
-- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/` — `G.VERSION = v5.6.0-build460`, 응답 전건 200, 콘솔·페이지 오류 0,
-  실제 클릭으로 스테이지 전환 → 출격 → 협동 발동 → 구역 진행 → 보스 확인 (`tools_sd/verify_workflow_step4_3_live.py`).
+- 커밋 **`e4693e0`**(부모 `18041ce`) — `guardian/battle_v2/` 안 9개 파일(+847/−50, `js/stages.js` 신규). 다른 경로 변경 0건.
+  GitHub Actions `pages build and deployment` run **`45409849835`** → `completed / success`.
+- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/` — `G.VERSION = v5.6.0-build460`,
+  응답 **55건 전부 200**(신규 `js/stages.js` 포함), 콘솔·페이지 오류 0, `window.__errors` 0.
+  실제 클릭으로 스테이지 카드 전환(1↔2) → [전투 출격] → 1스테이지 1구역(적 스폰·`1스테이지 · 1구역`) →
+  R 협동 발동(컷인 `리아 · 성광 협공`·회복 62·보이스) → 성광 호응타 → 구역 2 진입 → 보스 아르카논(24,000·`폐허의 왕좌`)까지 확인.
+  라이브 검증 **18항목 true** (`tools_sd/verify_workflow_step4_3_live.py`).
 - 증빙: `../evidence/workflow_step4_3_live_lobby.png`, `_battle.png`, `_coop.png`, `workflow_step4_3_live.json`.
