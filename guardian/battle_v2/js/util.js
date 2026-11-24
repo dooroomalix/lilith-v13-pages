@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.6.0-build460';
+G.VERSION = 'v5.6.1-build461';
 G.ASSET_V = 'a5.4.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;

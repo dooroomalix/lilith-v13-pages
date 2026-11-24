@@ -224,6 +224,7 @@
       this.coopCd = 0;
       this.coopGauge = 0;
       this.coopCutT = 0;
+      this.coopUses = 0;          // 판마다 집계를 새로 센다 (재도전 시 이전 횟수가 남지 않게)
       this.coopLog.length = 0;
       this._coopFollowT = -9;
       this.enemies.forEach((e) => { if (e.obj) e.obj.destroy({ children: true }); });
@@ -630,7 +631,7 @@
           this.fx.popText(e.x, e.centerY - 146, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
         }
         this.fx.debris(e.x, e.centerY, 5, 0xffe0a0, 1.0);
-        G.Sfx.hit(true);
+        // 크리티컬 타격음은 공격 1회당 한 번만 — _doAttack()에서 critHit로 울린다.
       }
       // 성광 결계 중이면 리아의 호응타가 따라붙는다
       this._coopFollow(e, hero, false);
@@ -651,7 +652,7 @@
           this._critPop = this.time;
           this.fx.popText(this.boss.x - 40, this.boss.centerY - 165, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
         }
-        G.Sfx.hit(true);
+        // 크리티컬 타격음은 _doAttack() 한 곳에서만 (중복 재생 제거)
       }
       this._coopFollow(this.boss, hero, true);
       return crit;

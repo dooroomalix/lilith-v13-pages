@@ -3,7 +3,7 @@
 v4.1.0-build320을 SD 벨트스크롤 액션으로 개조한 빌드입니다. v4는 `../battle_v2_gfx_v4/`에 그대로 보존했습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
-- 스크립트 버전: `5.6.0-build460`
+- 스크립트 버전: `5.6.1-build461`
 - 코드: `js/` 12개 파일(`lobby.js`·`stages.js` 포함), 엔진 PixiJS v8
 
 ## 이번에 바뀐 것
@@ -419,3 +419,21 @@ Step 4-3은 두 축을 한 번에 올렸습니다. **전투 조작 체계는 한
   R 협동 발동(컷인 `리아 · 성광 협공`·회복 62·보이스) → 성광 호응타 → 구역 2 진입 → 보스 아르카논(24,000·`폐허의 왕좌`)까지 확인.
   라이브 검증 **18항목 true** (`tools_sd/verify_workflow_step4_3_live.py`).
 - 증빙: `../evidence/workflow_step4_3_live_lobby.png`, `_battle.png`, `_coop.png`, `workflow_step4_3_live.json`.
+
+## 18. 소규모 결함 보완 (v5.6.1-build461, 2026-11-25 07:05)
+
+품질관리 감사·내부 점검에서 나온 두 가지만 손봤습니다. 조작·연출·수치·밸런스는 그대로입니다.
+
+| # | 위치 | 내용 |
+|---|---|---|
+| 1 | `js/battle.js` `_teardownBattle()` | `this.coopUses = 0;` 추가 — 재도전·로비 복귀 때 협동 사용 횟수가 이전 판에서 넘어오지 않습니다(게이지·쿨·로그는 이미 초기화 중이었습니다). |
+| 2 | `js/battle.js` `_hitEnemy()`·`_hitBoss()` | 크리티컬 분기 안의 `G.Sfx.hit(true)` 두 줄 제거 — 타격음은 `_doAttack()`에서 공격 1회당 한 번(크리티컬이면 무거운 소리)만 울립니다. 데미지·히트스톱·셰이크·CRITICAL 팝업·호응타는 그대로입니다. |
+
+- `node --check js/*.js` 12/12 OK.
+- **기존 검증 36항목 ALL PASS** — `tools_sd/verify_workflow_step4_3.py`(약 2분 40초).
+- **보완 전용 검증 14항목 ALL PASS** — 신규 `tools_sd/verify_workflow_step461_patch.py`(약 45초):
+  협동 1회 → 2회 → `restart()` 직후 `coopState().uses === 0`(게이지·쿨·로그도 0) → 재도전 후 다시 쓰면 `uses === 1`,
+  크리티컬·일반 각 4회 스윙당 `G.Sfx.hit` 호출 **1회**(크리티컬은 무거운 소리), 콘솔·페이지·HTTP 오류 0.
+  증빙 `../evidence/workflow_step461_patch.json`.
+- 회귀: `verify_workflow_step2.py`(오류 0) · `verify_workflow_step4_1.py`(19항목) · `verify_workflow_step4_2.py`(22항목) 전부 PASS.
+- 버전 문자열·캐시 쿼리 일괄 갱신: `G.VERSION = v5.6.1-build461`, `index.html` 13개 `?v=5.6.1-build461&r=12`.
