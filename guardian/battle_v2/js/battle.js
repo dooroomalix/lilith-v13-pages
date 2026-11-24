@@ -54,6 +54,18 @@
       this.overlay.zIndex = 20;
       this.root.addChild(this.overlay);
 
+      // 로비(성문 대기실) — 타이틀과 전투 사이의 허브. 로비가 root 에 자기를 붙인다.
+      this.lobby = new G.Lobby(this);
+
+      // 화면 전환 페이드 (로비→전투, 결과→로비)
+      this.fadeG2 = new PIXI.Graphics();
+      this.fadeG2.rect(0, 0, G.W, G.H).fill({ color: 0x02040a, alpha: 1 });
+      this.fadeG2.zIndex = 26;
+      this.fadeG2.visible = false;
+      this.fadeG2.alpha = 0;
+      this.root.addChild(this.fadeG2);
+      this._fade = null;
+
       this.flashG = new PIXI.Graphics();
       this.flashG.alpha = 1;
       this.flashG.zIndex = 30;
@@ -158,6 +170,126 @@
       G.Sfx.resume();
     }
 
+    /* ---------------- 로비 ↔ 전투 ----------------
+     * 타이틀 → 로비 → (출격) 전투 → 결과 → 로비 … 의 닫힌 고리.
+     * 전투 조작 체계는 이 전환에서도 건드리지 않는다. */
+    /* 필드에 남은 전투 요소를 모두 걷어낸다 — 재도전·로비 복귀 공통 */
+    _teardownBattle() {
+      this._clearOverlay();
+      this.overlay.alpha = 1;
+      this.enemies.forEach((e) => { if (e.obj) e.obj.destroy({ children: true }); });
+      this.enemies = [];
+      if (this.boss && this.boss.obj) this.boss.obj.destroy({ children: true });
+      // 보스 예고 그래픽은 actorLayer 밖에 있으므로 별도로 정리한다.
+      for (const tele of this.bossTeleLayer.removeChildren()) tele.destroy();
+      this.boss = null;
+      this.bossSpawned = false;
+      this.projectiles.forEach((p) => p.spr.destroy());
+      this.projectiles = [];
+      this.fx.clear();
+      this.actorLayer.removeChildren();
+      this.stats = { damage: 0, maxCombo: 0, kills: 0 };
+      this.feelLog.length = 0;
+      this._skillFeelT = -9;
+      this.cooldowns = { skill1: 0, skill2: 0 };
+      this.timers.length = 0;
+      if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
+      if (this.bossCutin) { this.bossCutin.destroy({ children: true }); this.bossCutin = null; this.bossCutPor = null; }
+      this.bossCutCD = 0;
+      this.bossCutT = 0;
+      if (this.support) this.support.reset();
+      this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
+      this.combo = 0; this.comboT = 0;
+      this.kael = null; this.lia = null;
+      this._initActors();
+      this.perfectWindow = false;
+      this.perfectCounter = false;
+      this._perfectHintShown = false;
+      this.hitStop = 0;
+      this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = false;
+      // 이전 판의 일회성 입력(공격/스킬/점프)과 잡고 있던 조이스틱이 따라오지 않게 비운다.
+      if (this.hud) {
+        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute']) {
+          this.hud.input[key] = false;
+        }
+        const j = this.hud.joy;
+        if (j) { j.active = false; j.id = null; j.vx = 0; j.vy = 0; }
+      }
+      this.potions = 3; this.buffTime = 0; this.potionPulse = 0;
+      this.slowT = 0;
+      this.timeLeft = 60;
+      this.time = 0;
+      this.waveIndex = -1;
+      this.waveQueue = [];
+      this.nextWaveDelay = 0.8;
+      this.promptT = 0;
+      this.phaseBanner = 0;
+      this.phaseMsg = '';
+      this.paused = false;
+    }
+
+    /* 성문 대기실(로비)로 들어간다 — 타이틀 / 결과 화면 [로비로] */
+    enterLobby() {
+      this._teardownBattle();
+      this.phase = 'lobby';
+      this.phaseT = 0;
+      this.kael.hp = this.kael.hpMax;
+      this.hud.root.visible = false;
+      this.vignette.visible = false;
+      // 전투 카메라 줌이 남아 있으면 다음 출격이 어긋난다
+      this.scene.zoom = 1;
+      this.scene._zoomDur = 0;
+      this.scene.focus = 0;
+      this.scene._focusTarget = 0;
+      G.Sfx.resume();
+      this.lobby.enter();
+    }
+
+    /* 로비 [전투 출격] → 웨이브 1부터 */
+    sortie() {
+      if (this.phase !== 'lobby') return;
+      this.lobby.exit();
+      this.hud.root.visible = true;
+      this.vignette.visible = true;
+      if (this.hud) { this.hud.hpGhost = 1; this.hud.mpGhost = 1; this.hud._bossGhostP = 1; }
+      this.kael.hp = this.kael.hpMax;
+      this.phase = 'wave';
+      this.phaseT = 0;
+      this.start();
+    }
+
+    sortieWithFade() { if (this.phase === 'lobby') this._fadeTransition(() => this.sortie()); }
+    enterLobbyWithFade() { if (this.phase !== 'lobby') this._fadeTransition(() => this.enterLobby()); }
+
+    /* 짧은 암전으로 화면을 바꿔 전환의 이질감을 없앤다.
+     * 페이드인이 끝나기 전에 다음 화면 버튼을 눌러도 입력이 먹히지 않게(묻히지 않게)
+     * '밝아지는 중'일 때는 새 전환을 받아들인다. 목적지 함수들은 스스로 중복 호출을 막는다. */
+    _fadeTransition(fn, dur = 0.3) {
+      if (this._fade && this._fade.stage === 'out') return;
+      this._fade = { t: 0, dur, fn, stage: 'out' };
+      this.fadeG2.visible = true;
+      this.fadeG2.alpha = 0;
+    }
+
+    _updateFade(dt) {
+      const f = this._fade;
+      if (!f) return;
+      f.t += dt;
+      if (f.stage === 'out') {
+        const p = Math.min(1, f.t / f.dur);
+        this.fadeG2.alpha = p;
+        if (p >= 1) {
+          f.stage = 'in';
+          f.t = 0;
+          try { f.fn(); } catch (e) { console.error('fade', e); }
+        }
+      } else {
+        const p = Math.min(1, f.t / (f.dur * 1.15));
+        this.fadeG2.alpha = 1 - p;
+        if (p >= 1) { this.fadeG2.visible = false; this.fadeG2.alpha = 0; this._fade = null; }
+      }
+    }
+
     _buildWaves() {
       this.waves = [
         { count: 4, hp: 240, atk: 14 },
@@ -195,7 +327,7 @@
       t.x = G.W / 2; t.y = G.H / 2 - 34;
       c.addChild(t);
       const sub = new PIXI.Text({
-        text: 'THE LAST GATEKEEPER   ·   전투 ' + G.VERSION.split('-')[0],
+        text: 'THE LAST GATEKEEPER   ·   ' + G.VERSION.split('-')[0],
         style: { fontFamily: G.FONT, fontSize: 18, fontWeight: '700', fill: 0x8fb8e0, letterSpacing: 3 },
       });
       sub.anchor.set(0.5);
@@ -221,7 +353,7 @@
       this.hud.root.visible = false;
       this.vignette.visible = false;
       const hint = new PIXI.Text({
-        text: '음악은 시작한 뒤 잠시 후 흐릅니다 · 가로 화면 권장',
+        text: '시작하면 성문 대기실에서 동료를 만납니다 · 가로 화면 권장',
         style: { fontFamily: G.FONT, fontSize: 13, fill: 0x6f8fb0, letterSpacing: 1 },
       });
       hint.anchor.set(0.5);
@@ -235,6 +367,10 @@
       G.Sfx.resume();
       if (this.introC) {
         this._dismissIntro();
+        return;
+      }
+      if (this.phase === 'lobby') {
+        this.lobby.pointerDown(x, y, id);
         return;
       }
       if (this.resultActive) {
@@ -257,18 +393,23 @@
       G.Sfx.ui(true);
       const c = this.introC;
       this.introC = null;
-      this.hud.root.visible = true;
-      this.vignette.visible = true;
       if (this.introBtn) this.introBtn = null;
       this.introT = 0;
-      this.introFade = c;
-      this.start();
+      this.introFade = c;          // 타이틀이 걷히듯 로비로 넘어간다
+      this.enterLobby();
     }
 
-    handlePointerMove(x, y, id) { this.hud.pointerMove(x, y, id); }
-    handlePointerUp(x, y, id) { this.hud.pointerUp(x, y, id); }
+    handlePointerMove(x, y, id) {
+      if (this.phase === 'lobby') return;
+      this.hud.pointerMove(x, y, id);
+    }
+    handlePointerUp(x, y, id) {
+      if (this.phase === 'lobby') return;
+      this.hud.pointerUp(x, y, id);
+    }
 
     togglePause() {
+      if (this.phase === 'lobby') return;          // 로비에는 일시정지가 없다
       if (this.phase === 'victory' || this.phase === 'defeat') return;
       this.paused = !this.paused;
       if (this.paused) this._buildPauseOverlay();
@@ -276,6 +417,7 @@
     }
 
     cycleAuto() {
+      if (this.phase === 'lobby') return;
       const i = AUTO_CYCLE.indexOf(this.autoMode);
       this.autoMode = AUTO_CYCLE[(i + 1) % AUTO_CYCLE.length];
       const msg = { full: 'AUTO · 완전 자동', counter: 'AUTO · 반격만 수동', manual: 'MANUAL · 완전 수동' }[this.autoMode];
@@ -907,6 +1049,14 @@
         if (this.flashT <= 0) this.flashG.clear();
       }
 
+      this._updateFade(realDt);
+
+      // 로비는 전투 연산을 타지 않는다 (장판·웨이브·HUD 모두 쉼)
+      if (this.phase === 'lobby') {
+        this.lobby.update(realDt);
+        return;
+      }
+
       if (this.paused || this.introC) {
         this.scene.update(realDt * 0.2);
         return;
@@ -1394,14 +1544,28 @@
       });
 
       const btnY = 496;
-      const bg2 = new PIXI.Graphics();
-      platePath(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0x2a3f1f : 0x14304d, 0.95);
-      plateEdge(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0xffd166 : 0x7fb8e8, 0.85, 2);
-      c.addChild(bg2);
-      const bt = new PIXI.Text({ text: '다시 도전', style: G.style({ fontSize: 22, fontWeight: '900', fill: 0xf2f8ff }) });
-      bt.anchor.set(0.5); bt.x = G.W / 2; bt.y = btnY + 28;
-      c.addChild(bt);
-      this.overlayButtons = [{ x: G.W / 2 - 150, y: btnY, w: 300, h: 56, fn: () => this.restart() }];
+      const mkResultBtn = (label, x, w, fill, edgeColor) => {
+        const bg2 = new PIXI.Graphics();
+        platePath(bg2, x, btnY, w, 56, 12, fill, 0.95);
+        plateEdge(bg2, x, btnY, w, 56, 12, edgeColor, 0.85, 2);
+        c.addChild(bg2);
+        const bt = new PIXI.Text({ text: label, style: G.style({ fontSize: 21, fontWeight: '900', fill: 0xf2f8ff }) });
+        bt.anchor.set(0.5); bt.x = x + w / 2; bt.y = btnY + 28;
+        c.addChild(bt);
+        return { x, y: btnY, w, h: 56 };
+      };
+      const bRetry = mkResultBtn('다시 도전', G.W / 2 - 286, 268, win ? 0x2a3f1f : 0x14304d, win ? 0xffd166 : 0x7fb8e8);
+      bRetry.fn = () => this.restart();
+      const bLobby = mkResultBtn('로비로', G.W / 2 + 18, 268, 0x1b2334, 0xc9a86a);
+      bLobby.fn = () => this.enterLobbyWithFade();
+      this.overlayButtons = [bRetry, bLobby];
+
+      const foot = new PIXI.Text({
+        text: '대기실로 돌아가 동료를 만나거나, 다시 도전할 수 있습니다',
+        style: G.style({ fontSize: 12, fill: 0x7f9bba }),
+      });
+      foot.anchor.set(0.5); foot.x = G.W / 2; foot.y = btnY + 74;
+      c.addChild(foot);
 
       this.overlay.addChild(c);
       this.resultActive = true;
@@ -1409,57 +1573,15 @@
     }
 
     restart() {
-      this._clearOverlay();
-      this.overlay.alpha = 1;
-      // 액터 정리
-      this.enemies.forEach((e) => { if (e.obj) e.obj.destroy({ children: true }); });
-      this.enemies = [];
-      if (this.boss && this.boss.obj) this.boss.obj.destroy({ children: true });
-      // 보스 예고 그래픽은 actorLayer 밖에 있으므로 재시작 시 별도로 정리한다.
-      for (const tele of this.bossTeleLayer.removeChildren()) tele.destroy();
-      this.boss = null;
-      this.bossSpawned = false;
-      this.projectiles.forEach((p) => p.spr.destroy());
-      this.projectiles = [];
-      this.fx.clear();
-      this.actorLayer.removeChildren();
-      this.stats = { damage: 0, maxCombo: 0, kills: 0 };
-      this.feelLog.length = 0;
-      this._skillFeelT = -9;
-      this.cooldowns = { skill1: 0, skill2: 0 };
-      this.timers.length = 0;
-      if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
-      if (this.bossCutin) { this.bossCutin.destroy({ children: true }); this.bossCutin = null; this.bossCutPor = null; }
-      this.bossCutCD = 0;
-      if (this.support) this.support.reset();
-      this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
-      this.kael = null; this.lia = null;
-      this._initActors();
+      this._teardownBattle();
+      this.lobby.exit();
+      this.hud.root.visible = true;
+      this.vignette.visible = true;
       this.kael.hp = this.kael.hpMax;
-      this.phase = 'wave';
-      this.phaseT = 0;
-      this.timeLeft = 60;
       this.scene.zoomTo(1, 0.4);
       this.scene.focus = 0;
       this.scene._focusTarget = 0;
       if (this.hud) { this.hud.hpGhost = 1; this.hud.mpGhost = 1; this.hud._bossGhostP = 1; }
-      this.perfectWindow = false;
-      this.perfectCounter = false;
-      this.hitStop = 0;
-      this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = false;
-      // 재도전 직후 이전 판의 일회성 입력(공격/스킬/점프)과 잡고 있던 조이스틱이 따라오지 않게 비운다.
-      if (this.hud) {
-        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute']) {
-          this.hud.input[key] = false;
-        }
-        const j = this.hud.joy;
-        if (j) { j.active = false; j.id = null; j.vx = 0; j.vy = 0; }
-      }
-      this.bossCutT = 0;
-      this._perfectHintShown = false;
-      this.potions = 3; this.buffTime = 0; this.potionPulse = 0;
-      this.slowT = 0;
-      this.time = 0;
       this.start();
       this.showPrompt('WAVE 1', 0xbfe0ff, 1.2);
     }

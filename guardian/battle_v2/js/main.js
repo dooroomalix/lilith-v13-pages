@@ -25,6 +25,8 @@
   async function boot() {
     const res = Math.min(window.devicePixelRatio || 1, 2);
     const app = new PIXI.Application();
+    // 검증(스크린샷) 세션에서만 프레임 버퍼를 보존한다 — ?capture=1
+    const capture = typeof location !== 'undefined' && /[?&]capture=1/.test(location.search);
     await app.init({
       canvas,
       width: G.W,
@@ -34,6 +36,7 @@
       antialias: true,
       background: 0x05070d,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: capture,
     });
     fit();
     window.addEventListener('resize', fit);
@@ -95,6 +98,14 @@
       game.keys[k] = true;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
       G.Sfx.resume();
+      // 로비에서는 전투 키가 먹지 않는다 — 소리 토글과 Enter(출격)만
+      if (game.phase === 'lobby') {
+        if (!e.repeat) {
+          if (k === 'm') game.lobby.toggleSound();
+          else if (k === 'Enter') game.sortieWithFade();
+        }
+        return;
+      }
       if (k === 'j' && !e.repeat) game.hud.input.attack = true;
       if (k === ' ' && !e.repeat) game.hud.input.jump = true;
       if (k === 'ArrowUp' && !e.repeat) game.hud.input.jump = true;
@@ -149,6 +160,9 @@
         autoMode: game.autoMode,
         combo: game.combo,
         errors: window.__errors,
+        lobbyActive: !!(game.lobby && game.lobby.root.visible),
+        lobbyChar: game.lobby ? game.lobby.state().char : null,
+        fading: !!game._fade,
         kaelState: game.kael.state,
         anim: game.kael.animName,
         frame: game.kael.sprite.currentFrame,
@@ -194,6 +208,12 @@
       supportCd: (sec) => { Object.keys(game.support.ally).forEach((k) => { game.support.ally[k].cd = Math.max(0, sec); }); },
       setKaelHp: (ratio) => { game.kael.hp = Math.max(1, Math.round(game.kael.hpMax * ratio)); },
       attack: () => game.hud.input.attack = true,
+      // ---- 로비(성문 대기실) ----
+      lobbyInfo: () => game.lobby.state(),
+      lobbyHits: () => game.lobby.hits(),
+      sortie: () => { if (game.phase === 'lobby') game.sortie(); },
+      enterLobby: () => game.enterLobby(),
+      result: (win) => { if (win) game._victory(); else game._defeat('검증'); },
       jump: () => game.kael.jump(),
       summon: () => game.useSkill2(),
       skill1: () => game.useSkill1(),
