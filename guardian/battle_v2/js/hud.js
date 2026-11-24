@@ -55,9 +55,10 @@
         mute: { x: 1248, y: 30, r: 20, press: 0 },
         potion: { x: 916, y: 630, r: 32, press: 0 },
         jump: { x: 850, y: 602, r: 32, press: 0 },
+        coop: { x: 826, y: 512, r: 40, press: 0 },
       };
       this.joy = { active: false, id: null, bx: 150, by: 600, r: 80, kx: 150, ky: 600, vx: 0, vy: 0 };
-      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false };
+      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false, coop: false };
       this.potionLabel = new PIXI.Text({ text: '3', style: G.style({ fontSize: 15, fill: 0xffffff, fontWeight: '900' }) });
       this.potionLabel.zIndex = 8; this.root.addChild(this.potionLabel);
       this.buffG = new PIXI.Graphics(); this.root.addChild(this.buffG);
@@ -167,6 +168,16 @@
       this.autoText.anchor.set(0.5);
       this.autoModeText = this._text('automode', '반격만 수동', G.style({ fontSize: 12, fill: 0xa9c9e8, fontWeight: '800' }), root);
       this.autoModeText.anchor.set(0.5);
+
+      // ---- 리아 협동 버튼 (R / C · 터치) — 게이지 링 ----
+      this.coopGlyph = this._text('coopglyph', 'R', G.style({ fontSize: 20, fill: 0xfff2c8, fontWeight: '900', stroke: { color: 0x3a2404, width: 4 } }), root);
+      this.coopGlyph.anchor.set(0.5);
+      this.coopGlyph.x = this.buttons.coop.x;
+      this.coopGlyph.y = this.buttons.coop.y - 3;
+      this.coopLabel = this._text('cooplabel', '협동', G.style({ fontSize: 11, fill: 0xa9c9e8, fontWeight: '800', letterSpacing: 0.5 }), root);
+      this.coopLabel.anchor.set(0.5, 0);
+      this.coopLabel.x = this.buttons.coop.x;
+      this.coopLabel.y = this.buttons.coop.y + this.buttons.coop.r + 2;
 
       // ---- 콤보 / 프롬프트 / 페이즈 ----
       this.comboText = this._text('combo', '', G.style({ fontSize: 40, fill: 0xffe9a8, fontWeight: '900', stroke: { color: 0x2a1a04, width: 7 } }), root);
@@ -344,6 +355,17 @@
           .fill({ color: 0xffffff, alpha: 0.92 });
       });
 
+      // 협동(리아 · 성광 협공) — 게이지 링은 btnFx 에서 매 프레임 그린다
+      const cb = b.coop;
+      const cpress = cb.press > 0 ? 1 - cb.press / 0.16 : 0;
+      g.circle(cb.x, cb.y, cb.r + 8).fill({ color: 0xffd166, alpha: 0.08 });
+      g.circle(cb.x, cb.y, cb.r).fill({ color: 0x140f04, alpha: 0.86 });
+      g.circle(cb.x, cb.y, cb.r).stroke({ width: 2.4, color: 0xc9a86a, alpha: 0.85 });
+      g.circle(cb.x, cb.y, cb.r * 0.84).stroke({ width: 1, color: 0xffe9a8, alpha: 0.2 });
+      g.circle(cb.x, cb.y - cb.r * 0.42, cb.r * 0.7).fill({ color: 0xffe9a8, alpha: 0.05 + cpress * 0.12 });
+      g.poly([cb.x, cb.y - cb.r - 6, cb.x + 4, cb.y - cb.r - 12, cb.x, cb.y - cb.r - 18, cb.x - 4, cb.y - cb.r - 12])
+        .fill({ color: 0xffd166, alpha: 0.85 });
+
       // AUTO 토글
       const a = b.auto;
       const on = this.game && this.game.autoMode !== 'manual';
@@ -392,6 +414,7 @@
         this.input.auto = true; ax.press = 0.16; return;
       }
       if (hit(b.attack, 10)) { this.input.attack = true; b.attack.press = 0.16; return; }
+      if (hit(b.coop, 10)) { this.input.coop = true; b.coop.press = 0.16; return; }
       if (hit(b.jump, 8)) { this.input.jump = true; b.jump.press = 0.16; return; }
       if (hit(b.potion, 8)) { this.input.potion = true; b.potion.press = 0.16; return; }
       if (hit(b.skill1, 8)) { this.input.skill1 = true; b.skill1.press = 0.16; return; }
@@ -435,17 +458,17 @@
       const i = this.input;
       const out = {
         attack: i.attack, skill1: i.skill1, skill2: i.skill2, dodge: i.dodge,
-        auto: i.auto, pause: i.pause, mute: i.mute, potion: i.potion, jump: i.jump,
+        auto: i.auto, pause: i.pause, mute: i.mute, potion: i.potion, jump: i.jump, coop: i.coop,
         moveX: this.joy.vx, moveY: this.joy.vy,
       };
-      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = i.potion = i.jump = false;
+      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = i.potion = i.jump = i.coop = false;
       return out;
     }
 
     /* ---------- 갱신 ---------- */
     update(dt, game) {
       const b = this.buttons;
-      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute', 'potion', 'jump'].forEach((k) => {
+      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute', 'potion', 'jump', 'coop'].forEach((k) => {
         if (b[k].press > 0) b[k].press = Math.max(0, b[k].press - dt);
       });
 
@@ -496,8 +519,13 @@
       this.timerText.style.fill = game.phase === 'boss' ? 0xffc2ca : (game.timeLeft < 11 ? 0xffd166 : 0xffffff);
 
       // 지역명
-      const area = (game.phase === 'boss' || game.phase === 'bossIntro' || game.phase === 'victory') ? '폐허의 왕좌' : '폐허의 거리';
+      const zi = game.zoneInfo ? game.zoneInfo() : null;
+      const area = zi ? zi.area : ((game.phase === 'boss' || game.phase === 'bossIntro' || game.phase === 'victory') ? '폐허의 왕좌' : '폐허의 거리');
       if (this.areaText.text !== area) this.areaText.text = area;
+      if (zi) {
+        const lbl = zi.order + '스테이지 · ' + zi.zoneName;
+        if (this.mapLabel.text !== lbl) this.mapLabel.text = lbl;
+      }
 
       // 보스 HP
       this.bossG.clear();
@@ -578,6 +606,7 @@
       sweepCd('skill1', b.skill1, cd.skill1, game.skillMax.skill1);
       sweepCd('skill2', b.skill2, cd.skill2, game.skillMax.skill2);
       sweepCd('dodge', b.dodge, kael.dodgeCD, 2.4);
+      this._drawCoop(game);
 
       // 물약 수량 및 버프 잔여시간 게이지
       this.potionLabel.text = String(game.potions);
@@ -615,6 +644,20 @@
       });
       const [kx, ky] = toMap(game.kael.x, game.kael.y);
       m.moveTo(kx, ky).lineTo(kx + 22, ky - 10).lineTo(kx + 22, ky + 10).closePath().fill({ color: 0x9fe0ff, alpha: 0.18 });
+
+      // 구역 진행 바 — 몇 구역 · 몇 웨이브를 지나고 있는지 한눈에
+      if (zi) {
+        const px = 1090, py = 168, pw = 170, ph = 6;
+        m.roundRect(px, py, pw, ph, 3).fill({ color: 0x0a1626, alpha: 0.9 });
+        const done = zi.waveCount ? G.clamp((zi.waveIndex + 1) / zi.waveCount, 0, 1) : 0;
+        if (done > 0) m.roundRect(px, py, Math.max(5, pw * done), ph, 3).fill({ color: 0xffd166, alpha: 0.9 });
+        (game.zones || []).forEach((z) => {
+          if (!z.from || !zi.waveCount) return;
+          const tx = px + pw * (z.from / zi.waveCount);
+          m.rect(tx - 0.7, py - 2, 1.4, ph + 4).fill({ color: 0xdfeaff, alpha: 0.55 });
+        });
+        m.roundRect(px, py, pw, ph, 3).stroke({ width: 1, color: 0x9fc0e0, alpha: 0.35 });
+      }
     }
 
     bossGhost() {
@@ -623,6 +666,43 @@
       const p = G.clamp(game.boss.hp / game.boss.hpMax, 0, 1);
       this._bossGhostP = Math.max(p, (this._bossGhostP === undefined ? p : this._bossGhostP) - 0.006);
       return this._bossGhostP;
+    }
+
+    /* 협동 게이지 링 · 준비/지속/대기 상태 (매 프레임) */
+    _drawCoop(game) {
+      const b = this.buttons.coop;
+      const g = this.btnFx;
+      const max = game.coopMax || G.COOP.max;
+      const p = G.clamp((game.coopGauge || 0) / max, 0, 1);
+      const active = (game.coopActive || 0) > 0;
+      const cooling = (game.coopCd || 0) > 0;
+      const ready = p >= 0.999 && !active && !cooling;
+      const t = performance.now() / 1000;
+      const col = active ? 0xffe9a8 : ready ? 0xffd166 : 0x94a8c4;
+
+      // 테두리 링(게이지) — 지속 중에는 남은 시간을 보여 준다
+      const pp = active ? G.clamp(game.coopActive / G.COOP.dur, 0, 1) : p;
+      if (pp > 0.002) {
+        g.arc(b.x, b.y, b.r + 4, -Math.PI / 2, -Math.PI / 2 + G.TAU * pp)
+          .stroke({ width: 5, color: col, alpha: ready || active ? 0.95 : 0.7 });
+      }
+      if (ready) {
+        const pulse = 0.5 + 0.5 * Math.sin(t * 7);
+        g.circle(b.x, b.y, b.r + 9 + pulse * 7).stroke({ width: 2.4, color: 0xffe9a8, alpha: 0.2 + 0.4 * pulse });
+        g.circle(b.x, b.y, b.r).fill({ color: 0xffd166, alpha: 0.08 + 0.1 * pulse });
+      }
+      if (active) {
+        g.circle(b.x, b.y, b.r + 7).stroke({ width: 2, color: 0xffe9a8, alpha: 0.55 });
+      }
+
+      const label = active ? String(Math.ceil(game.coopActive))
+        : ready ? 'R'
+          : (cooling ? String(Math.ceil(game.coopCd)) : 'R');
+      if (this.coopGlyph.text !== label) this.coopGlyph.text = label;
+      this.coopGlyph.style.fill = active ? 0xfff6e0 : ready ? 0xfff2c8 : 0xbcd0e8;
+      const sub = active ? '협동 중' : ready ? '준비' : (cooling ? '대기' : Math.round(p * 95) + '%');
+      if (this.coopLabel.text !== sub) this.coopLabel.text = sub;
+      this.coopLabel.style.fill = active ? 0xffe9a8 : ready ? 0xffd166 : 0x8fa8c4;
     }
 
     _drawAuto(game) {

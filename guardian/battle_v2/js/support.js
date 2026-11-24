@@ -140,6 +140,7 @@
       const g = this.game;
       if (this.banner) return;
       if (g.cutin) return;                       // 리아 컷인 중에는 비켜 준다
+      if (g.coopCutin) return;                   // 협동(성광 협공) 컷인 중에도 비켜 준다
       if (g.time - this.lastFire < GAP) return;
       for (const k of ORDER) {
         if (this.ally[k].cd > 0) continue;

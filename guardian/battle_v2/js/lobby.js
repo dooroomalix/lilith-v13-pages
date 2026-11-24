@@ -43,6 +43,10 @@
         '출격하기 전엔 숨 한 번 크게 쉬어. 그게 제일 중요해.',
         '네가 여기 서 있다는 것만으로도, 이 문은 조금 단단해진다.',
       ],
+      resultLines: {
+        victory: '문이 아직 서 있어. 이건 네가 있어서야. 고맙다고 말해 두고 싶었어.',
+        defeat: '미안해, 이번엔 내가 물러났어. 다음엔 문 앞에서 한 발도 안 물러나.',
+      },
     },
     {
       key: 'lia', name: '리아', role: '마도사', en: "LIGHT'S VERDICT",
@@ -55,6 +59,10 @@
         '빛은 아껴 쓰는 거예요. 넘치게 쓰면 그 틈으로 어둠이 들어와요.',
         '당신이 잊은 걸 제가 기억하고 있으니, 두 사람 몫을 하면 되잖아요.',
       ],
+      resultLines: {
+        victory: '오늘 일은 다 적어 뒀어요. 마지막 줄에 당신 이름을 제일 크게 썼고요.',
+        defeat: '이번 건 연필로 적었어요. 지우고 다시 쓰면 되니까, 너무 상심 마요.',
+      },
     },
     {
       key: 'ara', name: '아라', role: '등불지기', en: "LAMPBEARER'S WARMTH",
@@ -67,6 +75,10 @@
         '싸울 때는 제 뒤에 있으면 따뜻할 거예요.',
         '조금만 쉬었다 가요. 등불은 그동안 제가 지키고 있을게요.',
       ],
+      resultLines: {
+        victory: '등불이 아직 환해요. 오늘은 아무도 길을 잃지 않았네요.',
+        defeat: '불을 조금 낮춰 뒀어요. 다시 나가실 때 제가 밝혀 드릴게요.',
+      },
     },
     {
       key: 'born', name: '보른', role: '대장장이', en: 'IRON VERDICT',
@@ -79,6 +91,10 @@
         '돌아오면 어깨 좀 주무르게. 나보다 맞은 놈이 더 많아 보이니까.',
         '이 쇠소리 들리나? 저게 아직 살아 있다는 소리다.',
       ],
+      resultLines: {
+        victory: '검 상태 좋다. 손 볼 데 없어. 오늘은 앉아서 한 잔 하지.',
+        defeat: '쇠는 다시 벼리면 된다고 했지. 앉아 봐, 어깨부터 풀자.',
+      },
     },
     {
       key: 'sena', name: '세나', role: '기록관', en: 'SEAL OF RECORDS',
@@ -91,6 +107,10 @@
         '잊는 건 기록이 없어서야. 그래서 나는 절대 안 지워.',
         '지금 이 순간도 적고 있어. 나중에 웃을 일이 하나쯤은 생기겠지.',
       ],
+      resultLines: {
+        victory: '승리는 짧게 적어. 대신 날짜는 정확하게.',
+        defeat: '패배도 기록이야. 지우진 않아. 다음 줄이 기다리고 있을 뿐이지.',
+      },
     },
   ];
 
@@ -111,6 +131,7 @@
     ['↑   /   Space', '점프'],
     ['J', '공격 (3연타)'],
     ['K   /   L', '스킬 · 궁극기'],
+    ['R   /   C', '리아 협동 · 성광 협공'],
     ['Shift', '회피 (퍼펙트 반격)'],
     ['Q   /   P', '물약 · 일시정지'],
     ['M', '소리 켜기 · 끄기'],
@@ -120,10 +141,11 @@
   const P = {
     headerH: 56,
     sound: { x: 1148, y: 11, w: 110, h: 38 },
+    stageSel: { x0: 432, y: 9, w: 334, h: 38, gap: 12 },
     infoX: 20,
     infoW: 390,
     support: { x: 20, y: 60, w: 390, h: 252 },
-    keys: { x: 20, y: 324, w: 390, h: 276 },
+    keys: { x: 20, y: 324, w: 390, h: 304 },
     keyToggle: { x: 232, y: 332, w: 124, h: 30 },
     stage: { x: 566, y: 62, w: 340, h: 340 },
     name: { x: 566, y: 342, w: 340, h: 60 },
@@ -177,11 +199,91 @@
     _build() {
       this._buildBackdrop();
       this._buildHeader();
+      this._buildStageSelect();
       this._buildSupportPanel();
       this._buildKeyPanel();
       this._buildStage();
       this._buildRail();
       this._buildSortie();
+    }
+
+    /* ---- 스테이지 선택 (상단 · 1/2 스테이지) ---- */
+    _buildStageSelect() {
+      const c = new PIXI.Container();
+      this.stageSelC = c;
+      this.root.addChild(c);
+      this.stagePills = G.STAGES.map((st, i) => {
+        const S = {
+          x: P.stageSel.x0 + i * (P.stageSel.w + P.stageSel.gap),
+          y: P.stageSel.y, w: P.stageSel.w, h: P.stageSel.h,
+        };
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+
+        const num = new PIXI.Text({ text: String(st.order), style: G.style({ fontSize: 14, fontWeight: '900', fill: 0x1a1206 }) });
+        num.anchor.set(0.5);
+        num.x = S.x + 20; num.y = S.y + S.h / 2;
+        c.addChild(num);
+
+        const nm = new PIXI.Text({ text: st.name, style: G.style({ fontSize: 14, fontWeight: '900', fill: 0xeaf4ff, letterSpacing: 0.8 }) });
+        nm.x = S.x + 38; nm.y = S.y + 5;
+        c.addChild(nm);
+
+        const en = new PIXI.Text({ text: st.en, style: G.style({ fontSize: 8.5, fill: 0x8fb0cc, letterSpacing: 1.1 }) });
+        en.x = S.x + 39; en.y = S.y + 23;
+        c.addChild(en);
+
+        const zone = new PIXI.Text({ text: st.zones.length + '구역', style: G.style({ fontSize: 11, fontWeight: '800', fill: 0x8fb0cc }) });
+        zone.anchor.set(1, 0.5);
+        zone.x = S.x + S.w - 13; zone.y = S.y + S.h / 2;
+        c.addChild(zone);
+
+        return { r: S, bg, num, nm, en, zone, stage: st };
+      });
+      this._drawStageSel();
+    }
+
+    _drawStageSel() {
+      const cur = (this.game.stageIndex | 0);
+      (this.stagePills || []).forEach((p, i) => {
+        const on = i === cur;
+        const R = p.r;
+        const g = p.bg;
+        g.clear();
+        plate(g, R.x, R.y, R.w, R.h, 11, on ? 0x241b06 : COL.plate, on ? 0.96 : 0.66);
+        edge(g, R.x, R.y, R.w, R.h, 11, on ? COL.gold : 0x6f8fb0, on ? 0.95 : 0.32, on ? 2.2 : 1.2);
+        g.roundRect(R.x + 9, R.y + 7, 23, 24, 6).fill({ color: on ? COL.gold : 0x16283c, alpha: on ? 0.95 : 0.9 });
+        if (on) gem(g, R.x + R.w - 13, R.y + 9, 4, COL.goldSoft, 0.9);
+        p.num.style.fill = on ? 0x1a1206 : 0x9fc0e0;
+        p.nm.style.fill = on ? 0xfff2c8 : 0xbcd6ec;
+        p.en.style.fill = on ? 0xffd9a0 : 0x7f9bba;
+        p.zone.style.fill = on ? 0xffe9a8 : 0x7f9bba;
+        p.zone.text = on ? '선택됨' : p.stage.zones.length + '구역';
+      });
+      const st = G.STAGES[cur] || G.STAGES[0];
+      if (this.sortieSub) {
+        this.sortieSub.text = st.order + '스테이지 · ' + st.zones.length + '구역 · 보스 아르카논';
+      }
+    }
+
+    /* 스테이지 선택 (버튼 · 1/2 키 · __debug.setStage 가 모두 이 함수를 촌다) */
+    selectStage(i) {
+      if (!G.STAGES[i]) return false;
+      const changed = this.game.stageIndex !== i;
+      this.game.setStage(i);
+      this._drawStageSel();
+      if (changed) {
+        const st = G.STAGES[i];
+        this.hintText.text = st.tag;
+        this.hintText.style.fill = 0xffd9a0;
+        this._hintRevert = 3.2;
+        G.Sfx.ui(true);
+      }
+      return true;
+    }
+
+    syncStage() {
+      this._drawStageSel();
     }
 
     /* ---- 배경 · 대기 조명 ---- */
@@ -692,6 +794,17 @@
       s.anchor.set(0.5, 0);
       s.x = B.x + B.w / 2; s.y = B.y + B.h + 6;
       c.addChild(s);
+      this.sortieSub = s;
+
+      // 직전 전투 결과 배지 — 로비 첫 대사·구역 표시와 함께 결과를 상기시킨다
+      this.resultBadge = new PIXI.Text({
+        text: '',
+        style: G.style({ fontSize: 12.5, fontWeight: '800', fill: 0xffd166, letterSpacing: 0.6 }),
+      });
+      this.resultBadge.anchor.set(1, 0);
+      this.resultBadge.x = 1116; this.resultBadge.y = 552;
+      this.resultBadge.visible = false;
+      c.addChild(this.resultBadge);
     }
 
     /* ================================================================ 상태 전환 */
@@ -703,9 +816,21 @@
       this.bubbleT = 0.001;
       this.tips = 0;
       this.lineIdx = 0;
+      this._hintRevert = 0;
+      this.hintText.text = '캐릭터를 누르면 대사가 바뀝니다';
+      this.hintText.style.fill = COL.dim;
+      // 직전 전투 결과를 로비 첫 대사·배지로 이어 받는다 (Step 4-3)
+      this.resultEcho = this.game.lastResult || null;
       this._applyChar(true);
       this._drawSound();
       this._applyControls();
+      this._drawStageSel();
+      if (this.resultBadge) {
+        const win = this.resultEcho === 'victory';
+        this.resultBadge.visible = !!this.resultEcho;
+        this.resultBadge.text = win ? '직전 전투 · 승리' : '직전 전투 · 패배';
+        this.resultBadge.style.fill = win ? 0xffd166 : 0xff8091;
+      }
       // 로비는 전투보다 조용하게 — BGM 을 낮춰 깔고, 출격하면 원래대로 올린다
       G.Sfx.bgmVolume = 0.22;
       if (G.Sfx.bgm && !G.Sfx.muted) G.Sfx.bgm.volume = 0.22;
@@ -755,7 +880,12 @@
 
     _showLine(withVoice) {
       const cast = CAST[this.sel];
-      const line = cast.lines[this.lineIdx % cast.lines.length];
+      let line = cast.lines[this.lineIdx % cast.lines.length];
+      // 직전 전투 결과(승/패)에 반응하는 첫 대사 — 한 번 누르면 평소 대사로 돌아간다
+      if (this.resultEcho && this.lineIdx === 0 && cast.resultLines) {
+        const echo = cast.resultLines[this.resultEcho];
+        if (echo) line = echo;
+      }
       this.bubbleText.text = line;
       this.bubbleT = 0.001;
       this.playLog.push({ t: +this.game.time.toFixed(2), char: cast.key, line: this.lineIdx, text: line, voice: !!withVoice });
@@ -798,6 +928,9 @@
     /* ================================================================ 입력 */
     pointerDown(x, y, id) {
       const inRect = (r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+      for (let i = 0; i < (this.stagePills || []).length; i++) {
+        if (inRect(this.stagePills[i].r)) { this.selectStage(i); return true; }
+      }
       if (inRect(P.sound)) { this.toggleSound(); return true; }
       if (inRect(P.keyToggle)) { this.toggleControls(); return true; }
       if (inRect(P.sortie)) { this.game.sortieWithFade(); return true; }
@@ -877,8 +1010,17 @@
         this.bubbleC.position.set(P.bubble.x + P.bubble.w / 2, P.bubble.y + P.bubble.h / 2 + (1 - p) * 12);
       }
 
-      // 힌트 깜빡임
-      if (this.hintText) this.hintText.alpha = 0.5 + Math.sin(t * 2.6) * 0.25;
+      // 힌트 깜빡임 (스테이지 선택 안내가 떠 있으면 그것을 먼저 보여 준다)
+      if (this._hintRevert > 0) {
+        this._hintRevert -= dt;
+        this.hintText.alpha = 0.92;
+        if (this._hintRevert <= 0) {
+          this.hintText.text = '캐릭터를 누르면 대사가 바뀝니다';
+          this.hintText.style.fill = COL.dim;
+        }
+      } else if (this.hintText) {
+        this.hintText.alpha = 0.5 + Math.sin(t * 2.6) * 0.25;
+      }
 
       // 출격 버튼 숨쉬기
       if (this.sortieText) {
@@ -913,6 +1055,12 @@
         pressT: +this.pressT.toFixed(2),
         sdFootY: +this.sdSpr.y.toFixed(1),
         portraits: CAST.map((c) => c.portrait),
+        stage: this.game.stage ? this.game.stage.key : null,
+        stageIndex: this.game.stageIndex | 0,
+        stageName: G.STAGES[this.game.stageIndex | 0].name,
+        stageCount: G.STAGES.length,
+        resultEcho: this.resultEcho || null,
+        resultBadge: this.resultBadge && this.resultBadge.visible ? this.resultBadge.text : null,
         log: this.playLog.slice(-6),
       };
     }
@@ -924,6 +1072,7 @@
         controls: { ...P.keyToggle },
         sortie: { ...P.sortie },
         stage: { ...P.stageHit },
+        stages: (this.stagePills || []).map((p) => ({ ...p.r, key: p.stage.key })),
         chars: this.thumbs.map((th) => ({
           key: th.cast.key, x: th.cx - R.r, y: th.cy - R.r, w: R.r * 2, h: R.r * 2,
         })),

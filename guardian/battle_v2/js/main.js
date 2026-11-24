@@ -98,11 +98,12 @@
       game.keys[k] = true;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
       G.Sfx.resume();
-      // 로비에서는 전투 키가 먹지 않는다 — 소리 토글과 Enter(출격)만
+      // 로비에서는 전투 키가 먹지 않는다 — 소리 토글과 Enter(출격), 1/2(스테이지 선택)만
       if (game.phase === 'lobby') {
         if (!e.repeat) {
           if (k === 'm') game.lobby.toggleSound();
           else if (k === 'Enter') game.sortieWithFade();
+          else if (k === '1' || k === '2') game.lobby.selectStage(Number(k) - 1);
         }
         return;
       }
@@ -111,6 +112,7 @@
       if (k === 'ArrowUp' && !e.repeat) game.hud.input.jump = true;
       if (k === 'k' && !e.repeat) game.hud.input.skill1 = true;
       if (k === 'l' && !e.repeat) game.hud.input.skill2 = true;
+      if ((k === 'r' || k === 'c') && !e.repeat) game.hud.input.coop = true;   // 리아 협동 (Step 4-3)
       if (k === 'q' && !e.repeat) game.hud.input.potion = true;
       if (k === 'Shift' && !e.repeat) game.hud.input.dodge = true;
       // 길게 누르는 동안 keydown 반복으로 토글이 여러 번 실행되지 않도록 제한
@@ -131,11 +133,11 @@
       for (const [id, pos] of active) game.handlePointerUp(pos.x, pos.y, id);
       active.clear();
       // 히트스톱에 보관된 공격/스킬도 화면 복귀 후 뒤늦게 발동하지 않도록 비운다.
-      for (const key of ['queuedAttack', 'queuedSkill1', 'queuedSkill2', 'queuedDodge', 'queuedPotion', 'queuedJump']) {
+      for (const key of ['queuedAttack', 'queuedSkill1', 'queuedSkill2', 'queuedDodge', 'queuedPotion', 'queuedJump', 'queuedCoop']) {
         game[key] = false;
       }
       // 화면 복귀 후 이전 프레임의 일회성 공격/스킬 입력이 실행되지 않도록 제거.
-      for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute']) {
+      for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop']) {
         game.hud.input[key] = false;
       }
     }
@@ -187,6 +189,9 @@
         hitStop: +game.hitStop.toFixed(3),
         shakeAmp: +(game.scene.shakeAmp || 0).toFixed(1),
         audio: G.Sfx.mixState ? G.Sfx.mixState() : null,
+        stage: game.stage ? { key: game.stage.key, order: game.stage.order, name: game.stage.name } : null,
+        zone: game.zoneInfo ? game.zoneInfo() : null,
+        coop: game.coopState ? game.coopState() : null,
       }),
       animInfo: () => Object.fromEntries(Object.entries(G.Assets.anim).map(([k, v]) => [k, { n: v.frames.length, fw: v.fw, fh: v.fh }])),
       dismissIntro: () => game._dismissIntro(),
@@ -213,6 +218,40 @@
       lobbyHits: () => game.lobby.hits(),
       sortie: () => { if (game.phase === 'lobby') game.sortie(); },
       enterLobby: () => game.enterLobby(),
+      // ---- 스테이지 · 구역 (Step 4-3) ----
+      setStage: (i) => { game.setStage(i); if (game.lobby) game.lobby.syncStage(); return game.stage.key; },
+      stages: () => G.STAGES.map((s) => ({ key: s.key, order: s.order, name: s.name, zones: s.zones.map((z) => z.name) })),
+      zoneInfo: () => game.zoneInfo(),
+      forceZone: (zi) => {
+        // 검증용: n번째 구역의 첫 웨이브로 건너뛴다
+        const z = game.zones[zi];
+        if (!z) return false;
+        game.enemies.forEach((e) => { if (e.alive) e.die(); });
+        game.waveIndex = z.from - 1;
+        game.zoneIndex = zi;
+        game.phaseT = 2.0;
+        game.nextWaveDelay = 0;
+        return true;
+      },
+      clearWave: () => { game.enemies.forEach((e) => { if (e.alive && !e.dying) e.die(); }); game.phaseT = 2.0; game.nextWaveDelay = 0; },
+      // ---- 리아 협동 (Step 4-3) ----
+      coopState: () => game.coopState(),
+      setCoopGauge: (v) => { game.coopGauge = G.clamp(v, 0, game.coopMax); return game.coopGauge; },
+      fillCoop: () => { game.coopGauge = game.coopMax; game.coopCd = 0; return game.coopState(); },
+      useCoop: () => game.useCoop(),
+      coopCutInTexts: () => {
+        const out = [];
+        const walk = (n) => { if (!n) return; if (typeof n.text === 'string') out.push(n.text); if (n.children) n.children.forEach(walk); };
+        walk(game.coopCutin);
+        return out;
+      },
+      hudTexts: () => {
+        const out = [];
+        const walk = (n) => { if (!n) return; if (typeof n.text === 'string' && n.visible) out.push(n.text); if (n.children) n.children.forEach(walk); };
+        walk(game.hud.root);
+        return out;
+      },
+      hudHits: () => ({ coop: { ...game.hud.buttons.coop } }),
       result: (win) => { if (win) game._victory(); else game._defeat('검증'); },
       jump: () => game.kael.jump(),
       summon: () => game.useSkill2(),

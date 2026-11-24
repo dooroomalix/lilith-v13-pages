@@ -123,6 +123,28 @@
       this.time = 0;
       this.timers = [];
 
+      // ---- 스테이지 · 구역 진행 (Step 4-3) ----
+      // 기본은 1스테이지(성문 외곽 수비전) — 웨이브 표가 v5.5.0 까지와 완전히 같다.
+      this.stageIndex = 0;
+      this.stage = G.STAGES[0];
+      this.waves = [];
+      this.zones = [];
+      this.zoneIndex = 0;
+      this.lastResult = null;        // 직전 전투 결과 — 로비 첫 대사가 반응한다
+
+      // ---- 리아 협동 · 성광 협공 (Step 4-3) — R/C 또는 HUD 협동 버튼 ----
+      this.coopMax = G.COOP.max;
+      this.coopGauge = 0;
+      this.coopActive = 0;           // 남은 지속(초)
+      this.coopCd = 0;               // 재사용 대기(초)
+      this.coopUses = 0;
+      this.coopLog = [];             // 검증용: 발동 · 호응타 기록
+      this.coopLia = null;           // 필드에 합류한 리아 SD
+      this.coopShield = null;        // 카엘을 감싸는 성문 빛의 결계
+      this.coopCutin = null;         // 협동 전용 사선 컷인 (궁극기 cutin 과 별개)
+      this.coopCutT = 0;
+      this._coopFollowT = -9;
+
       // 아라·보른·세나 지원 시스템 (쿨타임 자동 등장 + 컷인 + 보이스)
       this.support = new G.Support(this);
 
@@ -156,18 +178,35 @@
     }
 
     /* ---------------- 시작 ---------------- */
+    /* 스테이지 선택 (로비 · 검증 훅) */
+    setStage(i) {
+      const idx = typeof i === 'number' ? i : G.STAGES.indexOf(G.stageByKey(i));
+      if (!(idx >= 0 && idx < G.STAGES.length)) return false;
+      this.stageIndex = idx;
+      this.stage = G.STAGES[idx];
+      return true;
+    }
+
     start() {
       this.phase = 'wave';
       this.phaseT = 0;
-      this.phaseBanner = 2.4;
-      this.phaseMsg = 'STAGE 1 · 폐허의 거리';
-      this.timeLeft = 60;
+      this.phaseBanner = 2.6;
+      this.phaseMsg = 'STAGE ' + this.stage.order + ' · ' + this.stage.name;
+      this.timeLeft = this.stage.timeLimit;
       this.waveIndex = -1;
       this.waveQueue = [];
       this.nextWaveDelay = 0.8;
+      this.zoneIndex = 0;
       this._buildWaves();
+      this._applyStageLook();
       this.spawnWave();
       G.Sfx.resume();
+    }
+
+    /* 스테이지별 배경 색온도 — 결전(2스테이지)은 노을·핏빛으로 물든다 */
+    _applyStageLook() {
+      const st = this.stage;
+      if (this.scene && this.scene.bg) this.scene.bg.tint = st.bgTint || 0xffffff;
     }
 
     /* ---------------- 로비 ↔ 전투 ----------------
@@ -177,6 +216,16 @@
     _teardownBattle() {
       this._clearOverlay();
       this.overlay.alpha = 1;
+      // 협동 연출·게이지 정리 (Step 4-3)
+      if (this.coopShield) { this.coopShield.obj.destroy({ children: true }); this.coopShield = null; }
+      if (this.coopLia && this.coopLia.obj) { this.coopLia.obj.destroy({ children: true }); this.coopLia = null; }
+      if (this.coopCutin) { this.coopCutin.destroy({ children: true }); this.coopCutin = null; }
+      this.coopActive = 0;
+      this.coopCd = 0;
+      this.coopGauge = 0;
+      this.coopCutT = 0;
+      this.coopLog.length = 0;
+      this._coopFollowT = -9;
       this.enemies.forEach((e) => { if (e.obj) e.obj.destroy({ children: true }); });
       this.enemies = [];
       if (this.boss && this.boss.obj) this.boss.obj.destroy({ children: true });
@@ -206,10 +255,10 @@
       this.perfectCounter = false;
       this._perfectHintShown = false;
       this.hitStop = 0;
-      this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = false;
+      this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = this.queuedCoop = false;
       // 이전 판의 일회성 입력(공격/스킬/점프)과 잡고 있던 조이스틱이 따라오지 않게 비운다.
       if (this.hud) {
-        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute']) {
+        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop']) {
           this.hud.input[key] = false;
         }
         const j = this.hud.joy;
@@ -222,6 +271,7 @@
       this.waveIndex = -1;
       this.waveQueue = [];
       this.nextWaveDelay = 0.8;
+      this.zoneIndex = 0;
       this.promptT = 0;
       this.phaseBanner = 0;
       this.phaseMsg = '';
@@ -291,12 +341,33 @@
     }
 
     _buildWaves() {
-      this.waves = [
-        { count: 4, hp: 240, atk: 14 },
-        { count: 5, hp: 280, atk: 16 },
-        { count: 6, hp: 320, atk: 18 },
-        { count: 6, hp: 360, atk: 20 },
-      ];
+      const built = G.buildStageWaves(this.stage);
+      this.waves = built.waves;
+      this.zones = built.zones;
+    }
+
+    /* 구역 배너 문구 — 지금 몇 구역 몇 웨이브인지 */
+    _waveLabel() {
+      const z = this.zones[this.zoneIndex] || null;
+      return (z ? z.short + ' · ' : '') + 'WAVE ' + (this.waveIndex + 1);
+    }
+
+    /* HUD 미니맵·진행 표시용 현재 위치 */
+    zoneInfo() {
+      const z = this.zones[this.zoneIndex] || null;
+      const boss = this.phase === 'boss' || this.phase === 'bossIntro' || this.phase === 'victory';
+      return {
+        stage: this.stage.key,
+        stageName: this.stage.name,
+        order: this.stage.order,
+        zoneIndex: this.zoneIndex,
+        zoneCount: this.zones.length,
+        zoneName: boss ? '결전' : (z ? z.short : '1구역'),
+        zoneFull: boss ? this.stage.bossArea : (z ? z.name : ''),
+        area: boss ? this.stage.bossArea : this.stage.area,
+        waveIndex: this.waveIndex,
+        waveCount: this.waves.length,
+      };
     }
 
     _buildIntro() {
@@ -540,8 +611,10 @@
 
     _hitEnemy(e, hero, mult, cfg, idx = 0, air = false) {
       const crit = G.chance(0.24);
-      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
+      const coopMul = this.coopActive > 0 ? G.COOP.atkMul : 1;
+      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * coopMul * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
       this.stats.damage += dmg;
+      this._coopGain(G.COOP.hitGain);
       const knock = air ? G.FEEL.air.knock : ((G.FEEL.combo[idx] || G.FEEL.combo[0]).knock);
       const dir = Math.sign(e.x - hero.x) || (hero.facing || 1);   // 때린 쪽 반대로 밀린다
       e.takeDamage(dmg, { crit, knock, dir });
@@ -559,13 +632,17 @@
         this.fx.debris(e.x, e.centerY, 5, 0xffe0a0, 1.0);
         G.Sfx.hit(true);
       }
+      // 성광 결계 중이면 리아의 호응타가 따라붙는다
+      this._coopFollow(e, hero, false);
       return crit;
     }
 
     _hitBoss(hero, mult, cfg, idx = 0, air = false) {
       const crit = G.chance(0.24);
-      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
+      const coopMul = this.coopActive > 0 ? G.COOP.atkMul : 1;
+      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * coopMul * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
       this.stats.damage += dmg;
+      this._coopGain(G.COOP.hitGain);
       const kb = air ? 110 : (idx === 2 ? 90 : 45);
       this.boss.takeDamage(dmg, { crit, kb, dir: Math.sign(this.boss.x - hero.x) || 1 });
       if (crit) {
@@ -576,15 +653,18 @@
         }
         G.Sfx.hit(true);
       }
+      this._coopFollow(this.boss, hero, true);
       return crit;
     }
 
     damageHero(amount, fromX) {
       if (this.phase === 'victory' || this.phase === 'defeat') return;
       const kael = this.kael;
-      if (kael.hurt(amount, fromX)) {
+      // 성광 결계 중에는 받는 피해가 줄어든다 (리아가 앞에서 빛을 받아낸다)
+      const dealt = this.coopActive > 0 ? Math.max(1, Math.round(amount * G.COOP.dmgTakenMul)) : amount;
+      if (kael.hurt(dealt, fromX)) {
         // 피해량에 따라 가벼운 피격 / 강한 피격을 구분한다 (보스 강타는 묵직하게)
-        const heavyHurt = amount >= G.FEEL.hurt.heavyAt;
+        const heavyHurt = dealt >= G.FEEL.hurt.heavyAt;
         const H = heavyHurt ? G.FEEL.hurt.heavy : G.FEEL.hurt.light;
         this._feel(heavyHurt ? 'hurt-heavy' : 'hurt-light', { stop: H.stop, shake: H.shake, shakeDur: H.shakeDur });
         this.flashG.clear();
@@ -601,6 +681,22 @@
     spawnWave() {
       this.waveIndex++;
       const cfg = this.waves[Math.min(this.waveIndex, this.waves.length - 1)];
+      // 구역이 바뀌면 구역 배너를 띄운다 (1구역 → 2구역 진입의 신호)
+      const zi = cfg.zone || 0;
+      if (zi !== this.zoneIndex) {
+        this.zoneIndex = zi;
+        const z = this.zones[zi];
+        if (z) {
+          this.phaseBanner = 2.2;
+          this.phaseMsg = z.name;
+          this.flashImpact(0.10, 0xffe9a8);
+          if (this.kael) {
+            this.fx.ring(this.kael.x, this.kael.y - 8, 0xffd166, 260, 0.6, 6, 0.4);
+            this.fx.sparkBurst(this.kael.x, this.kael.y - 90, 0xffe9a8, 16, 320);
+          }
+          G.Sfx.ui(true);
+        }
+      }
       for (let i = 0; i < cfg.count; i++) {
         const delay = i * G.rand(0.28, 0.12) + G.rand(0.2, 0);
         this.after(delay, () => {
@@ -638,14 +734,16 @@
       this.phase = 'bossIntro';
       this.phaseT = 0;
       this.phaseBanner = 2.6;
-      this.phaseMsg = 'BOSS · 그림자 군주 아르카논';
+      this.phaseMsg = 'BOSS · ' + (this.stage.bossTitle || '그림자 군주 아르카논');
+      this.zoneIndex = Math.max(0, this.zones.length - 1);
       G.Sfx.bossRoar();
       this.scene.shake(14, 0.9);
       this.scene.zoomTo(1.06, 1.4);
       // 남은 잡몹 정리
       this.enemies.forEach((e) => { if (e.alive && !e.dying) e.die(); });
       this.after(0.7, () => {
-        this.boss = new G.Boss(this, { hp: 24000, x: 820 });
+        this.boss = new G.Boss(this, { hp: this.stage.bossHp || 24000, x: 820 });
+        this.boss.name = this.stage.bossName || '그림자 군주 아르카논';
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
         if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { priority: 3 });
@@ -655,13 +753,14 @@
       });
       this.after(2.1, () => {
         this.phase = 'boss';
-        this.timeLeft = 180;
+        this.timeLeft = this.stage.bossTime || 180;
         this.showPrompt('보스 등장!', 0xff8a99, 1.6);
       });
     }
 
     onEnemyKilled(e) {
       this.stats.kills++;
+      this._coopGain(G.COOP.killGain);
       this.combo += 1;
       this.comboT = 2.4;
       this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
@@ -799,6 +898,297 @@
       });
       this.after(1.9, () => { this.summonActive = false; });
       return true;
+    }
+
+    /* ---------------- 리아 협동 · 성광 협공 (Step 4-3) ----------------
+     * 궁극기(L · 빛의 심판)와는 다른 축의 기믹이다.
+     *   L : 리아를 잠깐 소환해 한 번 크게 내려찍는 광역 폭딜 (리아 MP 40, 13초 쿨)
+     *   R : 게이지를 모아 8초짜리 '성광 결계'를 두르는 지속 협동 (리아가 필드에 합류)
+     * 같은 리아의 힘을 쓰지만 자원·연출·지속이 달라서, 둘을 섞어 쓰면 서로를 보완한다.
+     * 조작은 R(또는 C) 키와 HUD 협동 버튼 두 길만 추가했고 기존 키는 건드리지 않았다. */
+    coopState() {
+      return {
+        gauge: +this.coopGauge.toFixed(1),
+        max: this.coopMax,
+        pct: +(this.coopGauge / this.coopMax).toFixed(3),
+        ready: this.coopGauge >= this.coopMax && this.coopActive <= 0 && this.coopCd <= 0,
+        active: +this.coopActive.toFixed(2),
+        cd: +this.coopCd.toFixed(2),
+        uses: this.coopUses,
+        shield: !!this.coopShield,
+        companion: !!(this.coopLia && this.coopLia.obj),
+        cutin: !!this.coopCutin,
+        atkMul: this.coopActive > 0 ? G.COOP.atkMul : 1,
+        dmgTakenMul: this.coopActive > 0 ? G.COOP.dmgTakenMul : 1,
+        log: this.coopLog.slice(-8),
+      };
+    }
+
+    _coopGain(n) {
+      this.coopGauge = G.clamp(this.coopGauge + n, 0, this.coopMax);
+    }
+
+    useCoop() {
+      if (this.phase !== 'wave' && this.phase !== 'boss' && this.phase !== 'bossIntro') return false;
+      if (!this.kael || this.kael.state === 'dead') return false;
+      if (this.coopActive > 0 || this.coopCd > 0) return false;
+      if (this.coopGauge < this.coopMax) {
+        this.showPrompt('협동 게이지 부족', 0xa9c9e8, 0.8);
+        return false;
+      }
+      this.coopGauge = 0;
+      this.coopActive = G.COOP.dur;
+      this.coopCd = G.COOP.cd;
+      this.coopUses++;
+      const kael = this.kael;
+      const before = kael.hp;
+      const heal = Math.max(1, Math.round(kael.hpMax * G.COOP.healPct));
+      kael.hp = Math.min(kael.hpMax, kael.hp + heal);
+      this.coopLog.push({ t: +this.time.toFixed(2), kind: 'activate', heal: Math.round(kael.hp - before), dur: G.COOP.dur });
+
+      // 1) 리아 사선 컷인 (성광 = 금빛)
+      this._liaCoopCutIn();
+      this.flashImpact(0.6, 0xfff2c8);
+      this.fx.cinematicCross();
+      this.scene.zoomTo(1.05, 0.22);
+      this.after(0.5, () => { if (this.phase === 'wave' || this.phase === 'boss') this.scene.zoomTo(1, 0.45); });
+      if (G.Sfx.playVoice) G.Sfx.playVoice('lia_ult', { min: 2600, chance: 1, priority: 2 });
+      G.Sfx.magic();
+      this.showPrompt('리아 · 성광 협공', 0xffe9a8, 1.5);
+
+      // 2) 발동 순간: 빛기둥 + 성문 빛의 결계
+      this.after(0.16, () => {
+        if (!this.kael || this.kael.state === 'dead') return;
+        this.fx.pillar(kael.x, kael.y - 8, 0xffe9a8, 540, 0.72, 150);
+        this.fx.ring(kael.x, kael.y - 8, 0xffd166, 330, 0.72, 8, 0.42);
+        this.fx.rune(kael.x, kael.y - 10, 0xffd166, 128, 0.9);
+        this.fx.sparkBurst(kael.x, kael.y - 110, 0xffe9a8, 26, 460);
+        this.fx.popText(kael.x, kael.y - 168, '성광 결계', { color: 0xffe9a8, size: 26, dur: 1.1, stroke: 0x3a2404 });
+        this._spawnCoopLia();
+        this._spawnCoopShield();
+      });
+      return true;
+    }
+
+    /* 결계 종료 — 필드의 리아가 서서히 사라진다 */
+    _endCoop() {
+      this.coopLog.push({ t: +this.time.toFixed(2), kind: 'end' });
+      if (this.coopLia) this.coopLia.ending = 0;
+      if (this.kael) this.fx.ring(this.kael.x, this.kael.y - 96, 0xffd166, 250, 0.5, 5, 0.5);
+    }
+
+    /* 성광 호응타 — 카엘이 적을 맞히면 리아의 빛이 반 박자 늦게 따라 꽂힌다 */
+    _coopFollow(target, hero, isBoss) {
+      if (this.coopActive <= 0 || !target) return;
+      if (this.time - this._coopFollowT < G.COOP.followGap) return;
+      this._coopFollowT = this.time;
+      const dmg = Math.max(1, Math.round((hero.atk || 150) * G.COOP.followMul * G.rand(1.08, 0.92)));
+      const tx = target.x;
+      const ty = target.centerY;
+      const dir = Math.sign(target.x - hero.x) || (hero.facing || 1);
+      this.after(G.COOP.followDelay, () => {
+        // 맞은 적이 그 사이 쓰러졌으면 근처에 남은 적에게 빛이 대신 꽂힌다
+        let tgt = target;
+        if (!tgt || !tgt.alive || tgt.dying) {
+          tgt = null;
+          if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - tx) < 220) tgt = this.boss;
+          if (!tgt) tgt = this.enemies.find((e) => e.alive && !e.dying && Math.abs(e.x - tx) < 190) || null;
+        }
+        if (!tgt) return;
+        this.stats.damage += dmg;
+        if (tgt === this.boss) tgt.takeDamage(dmg, { crit: false, kb: 12, dir });
+        else tgt.takeDamage(dmg, { crit: false, color: 0xffe9a8, knock: 26, dir });
+        this.fx.slash(tx, ty - 10, {
+          radius: 132, spread: 0.9, angle: -1.15, width: 13,
+          color: 0xffd166, color2: 0xfff2c8, edge: 0xffffff, dur: 0.19,
+        });
+        this.fx.sparkBurst(tx, ty - 30, 0xffe9a8, 9, 300);
+        const L = this.coopLia;
+        if (L && L.obj) this.fx.ring(L.obj.x, L.obj.y - 150, 0xffe9a8, 110, 0.32, 3, 0.4);
+        this.combo += 1;
+        this.comboT = 2.4;
+        this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
+        this.coopLog.push({ t: +this.time.toFixed(2), kind: 'follow', dmg, boss: !!isBoss });
+      });
+    }
+
+    /* 필드에 합류한 리아 SD — 카엘 옆을 따라다니며 성광을 쏜다 */
+    _spawnCoopLia() {
+      const prev = this.coopLia;
+      if (prev && prev.obj) { prev.obj.destroy({ children: true }); this.coopLia = null; }
+      const kael = this.kael;
+      if (!kael) return;
+      const sd = G.Assets.sd && G.Assets.sd.lia_sd_idle;
+      const o = new PIXI.Container();
+      const sh = new PIXI.Sprite(G.Assets.tex.shadow);
+      sh.anchor.set(0.5); sh.width = 150; sh.height = 52; sh.alpha = 0.34; sh.tint = 0x000000;
+      o.addChild(sh);
+      const glow = new PIXI.Sprite(G.Assets.tex.glow);
+      glow.anchor.set(0.5); glow.blendMode = 'add'; glow.tint = 0xffd166;
+      glow.width = 400; glow.height = 400; glow.y = -180; glow.alpha = 0.3;
+      o.addChild(glow);
+      let spr = null;
+      if (sd && sd.texture) {
+        spr = new PIXI.Sprite(sd.texture);
+        spr.anchor.set(sd.ax, sd.ay);
+        spr.scale.set(236 / (sd.bodyH || sd.h));
+        o.addChild(spr);
+      } else {
+        const a = G.Assets.anim && G.Assets.anim.lia;
+        if (a) {
+          spr = new PIXI.AnimatedSprite(a.frames);
+          spr.anchor.set(a.ax, a.ay);
+          spr.scale.set(236 / (a.fh || 465));
+          spr.animationSpeed = (a.fps || 12) / 60;
+          spr.play();
+          o.addChild(spr);
+        }
+      }
+      // 발밑 성광 문양
+      const rune = new PIXI.Graphics();
+      rune.y = -6;
+      rune.ellipse(0, 0, 96, 30).stroke({ width: 2.4, color: 0xffd166, alpha: 0.8 });
+      rune.ellipse(0, 0, 70, 21).stroke({ width: 1.4, color: 0xfff2c8, alpha: 0.6 });
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * G.TAU;
+        rune.moveTo(Math.cos(ang) * 70, Math.sin(ang) * 21);
+        rune.lineTo(Math.cos(ang) * 96, Math.sin(ang) * 30);
+      }
+      rune.stroke({ width: 1.2, color: 0xffe9a8, alpha: 0.55 });
+      o.addChild(rune);
+
+      const f = kael.facing || 1;
+      o.x = G.clamp(kael.x - 150 * f, 120, 1120);
+      o.y = kael.y + 6;
+      o.zIndex = o.y;
+      o.alpha = 0;
+      this.actorLayer.addChild(o);
+      this.coopLia = { obj: o, spr, glow, rune, alpha: 0, ending: -1, t: 0 };
+      this.fx.rune(o.x, o.y - 8, 0xffd166, 120, 0.8);
+      this.fx.sparkBurst(o.x, o.y - 140, 0xffe9a8, 20, 380);
+    }
+
+    /* 카엘을 감싸는 성문 빛의 결계 (지속이 끝나면 옅어지며 사라진다) */
+    _spawnCoopShield() {
+      if (this.coopShield) { this.coopShield.obj.destroy({ children: true }); this.coopShield = null; }
+      const kael = this.kael;
+      if (!kael) return;
+      const c = new PIXI.Container();
+      const dome = new PIXI.Graphics();
+      dome.ellipse(0, 0, 116, 152).fill({ color: 0xffd166, alpha: 0.05 });
+      dome.ellipse(0, 0, 116, 152).stroke({ width: 3, color: 0xffd166, alpha: 0.55 });
+      dome.ellipse(0, 0, 98, 128).stroke({ width: 1.4, color: 0xfff2c8, alpha: 0.32 });
+      for (let i = 0; i < 6; i++) {
+        const a = -Math.PI / 2 + (i / 6) * Math.PI;
+        dome.moveTo(Math.cos(a) * 116, Math.sin(a) * 152);
+        dome.lineTo(Math.cos(a) * 116 * 0.84, Math.sin(a) * 152 * 0.84);
+      }
+      dome.stroke({ width: 1.6, color: 0xffe9a8, alpha: 0.3 });
+      dome.blendMode = 'add';
+      c.addChild(dome);
+      c.x = kael.x;
+      c.y = kael.y - 148;         // 반원 결계의 바닥이 카엘 발치에 닿는다
+      c.zIndex = kael.y - 1;      // 카엘 뒤에 깔려 검을 가리지 않는다
+      c.alpha = 0.8;
+      this.actorLayer.addChild(c);
+      this.coopShield = { obj: c, dome, t: 0, fade: 1 };
+    }
+
+    _updateCoop(dt) {
+      const kael = this.kael;
+      const S = this.coopShield;
+      if (S && kael) {
+        S.t += dt;
+        const target = this.coopActive > 0 ? 1 : 0;
+        S.fade = G.lerp(S.fade, target, 1 - Math.pow(0.02, dt));
+        S.obj.x = kael.x;
+        S.obj.y = kael.y - 148;
+        S.obj.zIndex = kael.y - 1;
+        S.obj.alpha = (0.72 + Math.sin(S.t * 6) * 0.14) * S.fade;
+        S.dome.rotation = Math.sin(S.t * 0.8) * 0.03;
+        if (S.fade < 0.02) { S.obj.destroy({ children: true }); this.coopShield = null; }
+      }
+      const L = this.coopLia;
+      if (L && L.obj && kael) {
+        L.t += dt;
+        const f = kael.facing || 1;
+        const tx = G.clamp(kael.x - 148 * f, 120, 1120);
+        const ty = kael.y + 4;
+        L.obj.x = G.lerp(L.obj.x, tx, 1 - Math.pow(0.0025, dt));
+        L.obj.y = G.lerp(L.obj.y, ty, 1 - Math.pow(0.01, dt)) - Math.sin(L.t * 3.4) * 0.6;
+        L.obj.zIndex = L.obj.y;
+        L.alpha = Math.min(1, L.alpha + dt * 6);
+        if (L.ending >= 0) {
+          L.ending += dt;
+          L.obj.alpha = Math.max(0, 1 - L.ending / 0.35);
+          if (L.ending >= 0.35) { L.obj.destroy({ children: true }); this.coopLia = null; }
+        } else {
+          L.obj.alpha = L.alpha * (0.92 + Math.sin(L.t * 8) * 0.08);
+        }
+        if (L.glow) L.glow.alpha = 0.26 + Math.sin(L.t * 9) * 0.08;
+        if (L.rune) L.rune.rotation += dt * 1.4;
+        if (L.spr && 'rotation' in L.spr) L.spr.rotation = Math.sin(L.t * 7) * 0.02;
+        if (this.coopActive > 0 && G.chance(0.3)) {
+          this.fx._particle(L.obj.x + G.rand(50, -50), L.obj.y - G.rand(200, 20), {
+            color: 0xffe9a8, size: G.rand(14, 5), vx: G.rand(40, -40), vy: G.rand(-10, -90),
+            life: 0.5, additive: true,
+          });
+        }
+      }
+    }
+
+    /* 협동 전용 사선 컷인 — 궁극기의 보랏빛 컷인과 색·문구로 구분된다 */
+    _liaCoopCutIn() {
+      if (this.coopCutin) {
+        this.coopCutin.destroy({ children: true });
+        this.coopCutin = null;
+      }
+      const c = new PIXI.Container();
+      c.zIndex = 15;
+      const band = new PIXI.Graphics();
+      band.poly([-30, 168, 512, 78, 626, 322, -30, 448]).fill({ color: 0x241703, alpha: 0.88 });
+      band.poly([-30, 196, 512, 106, 604, 304, -30, 420]).fill({ color: 0xffb030, alpha: 0.20 });
+      band.poly([-30, 438, 210, 348, 252, 362, -30, 466]).fill({ color: 0xffe9a8, alpha: 0.34 });
+      band.moveTo(-30, 168).lineTo(512, 78).stroke({ width: 3, color: 0xffd166, alpha: 0.85 });
+      band.moveTo(512, 78).lineTo(626, 322).stroke({ width: 1.8, color: 0xffe9a8, alpha: 0.6 });
+      c.addChild(band);
+
+      const por = new PIXI.Sprite(G.Assets.tex.portraitLia);
+      por.anchor.set(0.5);
+      por.width = 288; por.height = 288;
+      por.x = 172; por.y = 276;
+      c.addChild(por);
+
+      const g = new PIXI.Sprite(G.Assets.tex.glow);
+      g.anchor.set(0.5);
+      g.blendMode = 'add';
+      g.tint = 0xffd166;
+      g.width = 520; g.height = 520;
+      g.x = 172; g.y = 286;
+      g.alpha = 0.36;
+      c.addChild(g);
+
+      const name = new PIXI.Text({
+        text: '리아 · 성광 협공',
+        style: G.style({ fontSize: 38, fontWeight: '900', fill: 0xfff6e0, letterSpacing: 3, stroke: { color: 0x3a2404, width: 8 } }),
+      });
+      name.anchor.set(0, 0.5);
+      name.x = 330; name.y = 248;
+      c.addChild(name);
+
+      const sub = new PIXI.Text({
+        text: 'CO-OP  ·  성문 빛의 결계',
+        style: G.style({ fontSize: 17, fill: 0xffd9a0, fontWeight: '800', letterSpacing: 2 }),
+      });
+      sub.anchor.set(0, 0.5);
+      sub.x = 334; sub.y = 296;
+      c.addChild(sub);
+
+      c.x = -660;
+      c.alpha = 0;
+      this.root.addChild(c);
+      this.coopCutin = c;
+      this.coopCutT = 0;
     }
 
     /* ---------------- 보스 스킬 컷인 ---------------- */
@@ -1104,11 +1494,13 @@
         if (inp.dodge) this.queuedDodge = true;
         if (inp.potion) this.queuedPotion = true;
         if (inp.jump) this.queuedJump = true;
+        if (inp.coop) this.queuedCoop = true;
         this.hud.update(realDt, this);
         this.support.update(0, realDt);   // 히트스톱 중에도 컷인 배너는 부드럽게
         return;
       }
       if (this.queuedJump) { inp.jump = true; this.queuedJump = false; }
+      if (this.queuedCoop) { inp.coop = true; this.queuedCoop = false; }
       if (inp.jump) this.kael.jump();
       if (this.queuedAttack) { inp.attack = true; this.queuedAttack = false; }
       if (this.queuedSkill1) { inp.skill1 = true; this.queuedSkill1 = false; }
@@ -1124,6 +1516,7 @@
       }
       if (inp.skill1) this.useSkill1();
       if (inp.skill2) this.useSkill2();
+      if (inp.coop) this.useCoop();
       if (inp.dodge) this._tryDodge();
 
       if (this.autoMode !== 'manual') this._autoAI(dt);
@@ -1154,6 +1547,21 @@
       this.kael.update(dt, this.time);
       this.lia.update(dt);
 
+      // 협동 게이지 · 결계 지속 (Step 4-3)
+      this.coopCd = Math.max(0, this.coopCd - dt);
+      if (this.phase === 'wave' || this.phase === 'boss' || this.phase === 'bossIntro') {
+        const wasActive = this.coopActive > 0;
+        if (wasActive) {
+          this.coopActive = Math.max(0, this.coopActive - dt);
+          if (this.coopActive <= 0) this._endCoop();
+        }
+        if (this.kael && this.kael.state !== 'dead') this._coopGain(G.COOP.fill * dt);
+      } else if (this.coopActive > 0) {
+        this.coopActive = 0;
+        this._endCoop();
+      }
+      this._updateCoop(dt);
+
       // 컷인 연출
       if (this.cutin) {
         this.cutT += realDt;
@@ -1164,6 +1572,19 @@
         if (this.cutT > 1.14) {
           this.cutin.destroy({ children: true });
           this.cutin = null;
+        }
+      }
+
+      // 협동 사선 컷인 (궁극기 컷인과 별개로 움직인다)
+      if (this.coopCutin) {
+        this.coopCutT += realDt;
+        const tin = G.clamp(this.coopCutT / 0.17, 0, 1);
+        const tout = G.clamp((this.coopCutT - 0.82) / 0.28, 0, 1);
+        this.coopCutin.x = -660 * (1 - G.easeOutCubic(tin)) - 340 * G.easeInCubic(tout);
+        this.coopCutin.alpha = (this.coopCutT < 0.82 ? G.clamp(this.coopCutT / 0.11, 0, 1) : 1 - tout);
+        if (this.coopCutT > 1.12) {
+          this.coopCutin.destroy({ children: true });
+          this.coopCutin = null;
         }
       }
 
@@ -1204,8 +1625,11 @@
               this.spawnWave();
               this.kael.hp = Math.min(this.kael.hpMax, this.kael.hp + 55);
               this.nextWaveDelay = 1.2;
-              this.phaseBanner = 1.4;
-              this.phaseMsg = `WAVE ${this.waveIndex + 1}`;
+              // 구역 배너가 떴으면 덮어쓰지 않는다
+              if (this.phaseBanner <= 0) {
+                this.phaseBanner = 1.4;
+                this.phaseMsg = this._waveLabel();
+              }
             }
           }
         }
@@ -1501,6 +1925,9 @@
 
     _buildResult(win, reason = '') {
       this._clearOverlay();
+      // 로비 첫 대사가 직전 전투 결과에 반응한다 (Step 4-3)
+      this.lastResult = win ? 'victory' : 'defeat';
+      if (this.lobby) this.lobby.resultEcho = this.lastResult;
       const c = new PIXI.Container();
       const bg = new PIXI.Graphics();
       bg.rect(0, 0, G.W, G.H).fill({ color: 0x02060d, alpha: 0.88 });
