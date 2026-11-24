@@ -96,10 +96,11 @@
   }
 
   /* ============================ 영웅 ============================ */
+  /* 히트스톱·셰이크·넉백은 G.FEEL(util.js)에서 한곳에 관리한다 (Step 4-1) */
   const COMBO = [
-    { anim: 'atk1', wind: 0.055, dur: 0.27, hit: 0.095, reach: 252, dmg: 1.00, radius: 132, spread: 1.30, ang: -0.34, lunge: 34, advance: 16, hitStop: 0.035, shake: 5 },
-    { anim: 'atk2', wind: 0.050, dur: 0.26, hit: 0.100, reach: 258, dmg: 1.12, radius: 138, spread: 1.24, ang: 0.26, lunge: 42, advance: 20, hitStop: 0.045, shake: 6 },
-    { anim: 'atk3', wind: 0.085, dur: 0.44, hit: 0.235, reach: 300, dmg: 1.85, radius: 172, spread: 1.52, ang: -0.08, lunge: 62, advance: 30, hitStop: 0.060, shake: 10 },
+    { anim: 'atk1', wind: 0.055, dur: 0.27, hit: 0.095, reach: 252, dmg: 1.00, radius: 132, spread: 1.30, ang: -0.34, lunge: 34, advance: 16 },
+    { anim: 'atk2', wind: 0.050, dur: 0.26, hit: 0.100, reach: 258, dmg: 1.12, radius: 138, spread: 1.24, ang: 0.26, lunge: 42, advance: 20 },
+    { anim: 'atk3', wind: 0.085, dur: 0.44, hit: 0.235, reach: 300, dmg: 1.85, radius: 172, spread: 1.52, ang: -0.08, lunge: 62, advance: 30 },
   ];
 
   class Hero extends Unit {
@@ -366,7 +367,7 @@
         color: 0xff6b7a,
         size: 34,
       });
-      this.game.scene.shake(9, 0.22);
+      // 피격 셰이크·히트스톱은 game.damageHero()가 G.FEEL 기준으로 한 번만 건다
       this.game.fx.sparkBurst(this.x, this.centerY, 0xff5566, 10, 320);
       this.game.fx.hitSpark(this.x, this.centerY, 0xff9aa8, 0.8, 0.2);
       this.sprite.tint = 0xffb3b3;
@@ -643,6 +644,7 @@
       this.dead = false;
       this.kb = 0;
       this.kbV = 0;
+      this.kbDir = 1;
       this.flashT = 0;
       this.walkT = G.rand(3);
       this.stunT = 0;      // 보른 — 기절
@@ -726,9 +728,10 @@
       this._texScale = sc;
     }
 
+    /* dir = 밀려나는 방향(1: 오른쪽, -1: 왼쪽). 때린 쪽 반대 방향을 넘긴다. */
     knockback(power, dir = 1) {
       this.kbV = Math.max(this.kbV, power);
-      this.kbDir = -dir;
+      this.kbDir = dir >= 0 ? 1 : -1;
     }
 
     /* 기절: 예고·공격을 끊고 1.8초 동안 별이 도는 상태로 멈춘다 */
@@ -768,7 +771,7 @@
       this.game.fx.sparkBurst(this.x, this.centerY, opts.color || 0xffd9a0, opts.crit ? 16 : 10, opts.crit ? 460 : 320);
       this.game.fx.hitSpark(this.x + G.rand(20, -20), this.centerY, opts.crit ? 0xfff0b0 : 0xdff0ff, opts.crit ? 1.1 : 0.75, 0.2);
       this.game.fx.damage(this.x, this.centerY - 30, amount, { crit: opts.crit });
-      if (opts.knock) this.knockback(opts.knock * 1.2);
+      if (opts.knock) this.knockback(opts.knock * 1.2, opts.dir === undefined ? 1 : opts.dir);
       if (this.hp <= 0) this.die();
     }
 
@@ -807,7 +810,8 @@
       }
 
       if (this.kbV > 0.5) {
-        this.x += this.kbV * dt;
+        // 넉백 방향: 때린 쪽 반대(kbDir). 이전에는 항상 오른쪽으로 밀려 왼쪽에서 맞힌 타격이 어색했다
+        this.x = G.clamp(this.x + this.kbV * (this.kbDir || 1) * dt, 60, 1240);
         this.kbV *= Math.pow(0.0006, dt);
         if (this.kbV < 2) this.kbV = 0;
       }
@@ -937,6 +941,7 @@
       this.facing = -1;
       this.lv = 8;
       this.kbV = 0;
+      this.kbDir = 1;   // 보스는 맞은 방향으로 살짝 밀린다
       this.flashT = 0;
       this.defDown = 0;
       this.defSpr = null;
@@ -1009,6 +1014,7 @@
       this.hitFlash = 0.1;
       this.flashT = 0.1;
       this.kbV = Math.max(this.kbV, opts.kb || 60);
+      if (opts.dir !== undefined) this.kbDir = opts.dir >= 0 ? 1 : -1;
       this.game.fx.sparkBurst(
         this.x + G.rand(50, -50),
         this.y - G.rand(this.baseH * 0.8, 80),
@@ -1082,7 +1088,7 @@
     }
 
     startAttack(kind) {
-      if (G.Sfx.playVoice && kind === 'perfect') G.Sfx.playVoice('boss_roar');
+      if (G.Sfx.playVoice && kind === 'perfect') G.Sfx.playVoice('boss_roar', { priority: 3 });
       this.kind = kind;
       this.state = 'windup';
       this.stateT = 0;
@@ -1147,7 +1153,7 @@
       }
 
       if (this.kbV > 1) {
-        this.x += this.kbV * dt;
+        this.x = G.clamp(this.x + this.kbV * (this.kbDir || 1) * dt, 300, 1180);
         this.kbV *= Math.pow(0.002, dt);
         if (this.kbV < 3) this.kbV = 0;
       }

@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.4.1-build441';
+G.VERSION = 'v5.4.2-build442';
 G.ASSET_V = 'a5.4.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
@@ -34,6 +34,40 @@ G.FONT = '"Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, 
 G.FONT_NUM = '"Noto Sans CJK KR", "Noto Sans KR", "Arial Black", system-ui, sans-serif';
 
 G.style = (o) => Object.assign({ fontFamily: G.FONT, fill: 0xffffff, fontWeight: '700' }, o || {});
+
+/* ------------------------------------------------------------------
+ * 타격감 규격 (Step 4-1) — 히트스톱·넉백·카메라 셰이크의 단일 기준표.
+ * 애니메이션 타이밍(COMBO.dur/hit)은 actors.js, "손맛" 수치는 여기서만 관리한다.
+ *   stop : 히트스톱(초). 0.03 = 2프레임 정지, 0.085 = 막타 5프레임 정지
+ *   shake: 카메라 셰이크 진폭(px), shakeDur: 흔들림 감쇠 시간
+ *   knock: 적에게 주는 넉백 초기 속도(px/s)
+ * ------------------------------------------------------------------ */
+G.FEEL = {
+  cap: 0.17,                       // 히트스톱 상한 — 이 이상은 조작감이 끊긴다
+  combo: [
+    { stop: 0.030, shake: 4.5, shakeDur: 0.14, knock: 220 },   // 1타: 가볍고 빠르게
+    { stop: 0.048, shake: 6.5, shakeDur: 0.17, knock: 300 },   // 2타: 조금 묵직하게
+    { stop: 0.085, shake: 11.0, shakeDur: 0.24, knock: 470 },  // 3타(막타): 확실히 무겁게
+  ],
+  air: { stop: 0.058, shake: 7.5, shakeDur: 0.20, knock: 390 },// 공중 공격: 내려찍는 무게
+  bossHit: { stopScale: 1.7, shakeScale: 1.5 },                // 보스를 맞혔을 때
+  crit: { stopScale: 1.35, shakeScale: 1.3 },                  // 크리티컬
+  multiFinisher: { stopScale: 1.12, shakeScale: 1.12 },         // 막타 다중 히트
+  killBoss: { stop: 0.18, shake: 18, shakeDur: 1.2 },
+  perfect: { stop: 0.14, shake: 18, shakeDur: 0.6 },
+  skillTick: { stop: 0.026, shake: 5, shakeDur: 0.16, minGap: 0.20, knock: 130 },
+  ult: { stop: 0.075, shake: 20, shakeDur: 0.55, knock: 520, bossKb: 120 },
+  support: {
+    ara: { stop: 0.030, shake: 5, shakeDur: 0.2, knock: 600 },   // 등불의 온기: 부드러운 파동
+    born: { stop: 0.075, shake: 13, shakeDur: 0.32, knock: 620 },// 강철의 일격: 가장 묵직
+    sena: { stop: 0.040, shake: 6, shakeDur: 0.26, knock: 0 },   // 기록의 인장: 마법적
+  },
+  hurt: {                          // 카엘이 맞았을 때
+    heavyAt: 60,                   // 이 피해량 이상이면 강한 피격 연출
+    light: { stop: 0.045, shake: 7, shakeDur: 0.20 },
+    heavy: { stop: 0.085, shake: 12, shakeDur: 0.30 },
+  },
+};
 
 G.fmtTime = (sec) => {
   sec = Math.max(0, Math.ceil(sec));

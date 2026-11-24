@@ -87,6 +87,8 @@
       this.phaseBanner = 0;
       this.phaseMsg = '';
       this.stats = { damage: 0, maxCombo: 0, kills: 0 };
+      this.feelLog = [];      // 검증용: 타격감(히트스톱·셰이크) 적용 기록
+      this._skillFeelT = -9;
       this.perfectCounter = false;
       this.perfectWindow = false;
       this.keys = {};
@@ -250,6 +252,9 @@
 
     _dismissIntro() {
       if (!this.introC) return;
+      // 첫 제스처에서 오디오 잠금을 풀고 체험음(UI)을 바로 울린다
+      G.Sfx.resume();
+      G.Sfx.ui(true);
       const c = this.introC;
       this.introC = null;
       this.hud.root.visible = true;
@@ -286,12 +291,27 @@
     }
 
     /* ---------------- 데미지 ---------------- */
+    /* 타격감 적용: G.FEEL(util.js) 기준표의 값을 히트스톱·셰이크에 반영하고 검증용 로그를 남긴다.
+       stop 은 상한(cap)을 넘지 않게 잘라 조작감이 끊기지 않도록 한다. */
+    _feel(kind, o = {}) {
+      const stop = Math.max(0, Math.min(o.stop === undefined ? 0 : o.stop, G.FEEL.cap));
+      const shake = o.shake === undefined ? 0 : o.shake;
+      if (stop > 0) this.hitStop = Math.max(this.hitStop, stop);
+      if (shake > 0) this.scene.shake(shake, o.shakeDur || 0.2);
+      const rec = { t: +this.time.toFixed(3), kind, stop: +stop.toFixed(3), shake: +shake.toFixed(1), combo: this.combo };
+      this.feelLog.push(rec);
+      if (this.feelLog.length > 200) this.feelLog.shift();
+      return rec;
+    }
+
     heroStrike(hero, cfg, idx = 0) {
       const near = this._nearestEnemy();
       const reachDist = near ? G.clamp(Math.abs(near.x - hero.x) * 0.55, 110, 260) : 170;
       const cx = hero.x + 78 * hero.facing;
       const cy = hero.centerY;
       const heavy = idx === 2;
+      const air = hero.z > 40;                      // 공중 공격은 내려찍는 무게로 따로 튜닝
+      const F = air ? G.FEEL.air : (G.FEEL.combo[idx] || G.FEEL.combo[0]);
       const f = hero.facing || 1;
       // 검궤적: 바깥 잔광 + 골드 테두리 + 시안 + 백색 코어 (2색 검기)
       this.fx.slash(cx, cy, {
@@ -328,24 +348,27 @@
         const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
         if (inFront && inRange) {
           hits++;
-          if (this._hitEnemy(e, hero, cfg.dmg, cfg)) critHit = true;
+          if (this._hitEnemy(e, hero, cfg.dmg, cfg, idx, air)) critHit = true;
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying) {
         if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 125) {
           if ((this.boss.x - hero.x) * f > -60) {
             hits++;
-            if (this._hitBoss(hero, cfg.dmg, cfg)) critHit = true;
+            if (this._hitBoss(hero, cfg.dmg, cfg, idx, air)) critHit = true;
           }
         }
       }
       if (hits > 0) {
-        // 콤보 고유 히트스톱 유지: 크리티컬 1.8배, 보스 2.5배, 최대 150ms.
+        // 콤보·공중·보스·크리티컬별로 히트스톱·셰이크 강도를 구분한다 (G.FEEL 기준표)
         const bossHit = !!(this.boss && this.boss.alive && Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && (this.boss.x - hero.x) * f > -60);
-        const multiFinisher = idx >= 2 && hits > 1 ? 1.15 : 1;
-        this.hitStop = Math.max(this.hitStop, Math.min(0.15, cfg.hitStop * (bossHit ? 2.5 : critHit ? 1.8 : 1) * multiFinisher));
-        this.scene.shake(cfg.shake * (bossHit ? 1.7 : critHit ? 1.4 : 1), 0.16 + idx * 0.03);
-        this.flashImpact(heavy ? 0.55 : 0.07);
+        const multi = idx >= 2 && hits > 1 ? G.FEEL.multiFinisher : { stopScale: 1, shakeScale: 1 };
+        const sStop = F.stop * (bossHit ? G.FEEL.bossHit.stopScale : critHit ? G.FEEL.crit.stopScale : 1) * multi.stopScale;
+        const sShake = F.shake * (bossHit ? G.FEEL.bossHit.shakeScale : critHit ? G.FEEL.crit.shakeScale : 1) * multi.shakeScale;
+        this._feel((air ? 'air-' : 'combo-') + (idx + 1), {
+          stop: sStop, shake: sShake, shakeDur: F.shakeDur + (bossHit ? 0.04 : 0),
+        });
+        this.flashImpact(heavy ? 0.55 : air ? 0.2 : 0.07);
         if (heavy) {
           this.fx.shockRing(hx, cy, 0xe6efff, 570, 0.48);
           this.fx.sparkBurst(hx, cy, 0xd7baff, 76, 850);
@@ -373,12 +396,18 @@
       this.flashG.alpha = 1;
     }
 
-    _hitEnemy(e, hero, mult, cfg) {
+    _hitEnemy(e, hero, mult, cfg, idx = 0, air = false) {
       const crit = G.chance(0.24);
       const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
       this.stats.damage += dmg;
-      const knock = cfg ? (cfg.advance > 24 ? 420 : cfg.advance > 18 ? 300 : 230) : 200;
-      e.takeDamage(dmg, { crit, knock });
+      const knock = air ? G.FEEL.air.knock : ((G.FEEL.combo[idx] || G.FEEL.combo[0]).knock);
+      const dir = Math.sign(e.x - hero.x) || (hero.facing || 1);   // 때린 쪽 반대로 밀린다
+      e.takeDamage(dmg, { crit, knock, dir });
+      if (air) {
+        // 공중 공격은 적을 아래로 눌러 찍는 느낌을 더한다
+        this.fx.debris(e.x, e.centerY + e.baseH * 0.3, 5, 0xbfe4ff, 0.9);
+        this.fx.sparkBurst(e.x, e.centerY + 40, 0xcfeaff, 10, 300, Math.PI / 2);
+      }
       if (crit) {
         this.fx.impactFrame(e.x, e.centerY, e);
         if (this.time - (this._critPop || -9) > 0.3) {
@@ -391,11 +420,12 @@
       return crit;
     }
 
-    _hitBoss(hero, mult, cfg) {
+    _hitBoss(hero, mult, cfg, idx = 0, air = false) {
       const crit = G.chance(0.24);
       const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
       this.stats.damage += dmg;
-      this.boss.takeDamage(dmg, { crit, kb: cfg && cfg.advance > 24 ? 90 : 40 });
+      const kb = air ? 110 : (idx === 2 ? 90 : 45);
+      this.boss.takeDamage(dmg, { crit, kb, dir: Math.sign(this.boss.x - hero.x) || 1 });
       if (crit) {
         this.fx.impactFrame(this.boss.x, this.boss.centerY, this.boss);
         if (this.time - (this._critPop || -9) > 0.3) {
@@ -411,7 +441,10 @@
       if (this.phase === 'victory' || this.phase === 'defeat') return;
       const kael = this.kael;
       if (kael.hurt(amount, fromX)) {
-        this.scene.shake(11, 0.3);
+        // 피해량에 따라 가벼운 피격 / 강한 피격을 구분한다 (보스 강타는 묵직하게)
+        const heavyHurt = amount >= G.FEEL.hurt.heavyAt;
+        const H = heavyHurt ? G.FEEL.hurt.heavy : G.FEEL.hurt.light;
+        this._feel(heavyHurt ? 'hurt-heavy' : 'hurt-light', { stop: H.stop, shake: H.shake, shakeDur: H.shakeDur });
         this.flashG.clear();
         this.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xff1a2a, alpha: 0.16 });
         this.flashT = 0.14;
@@ -473,7 +506,7 @@
         this.boss = new G.Boss(this, { hp: 24000, x: 820 });
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
-        if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar');
+        if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { priority: 3 });
         this.fx.shockRing(820, G.GROUND_Y - 10, 0xff3355, 300, 0.9);
         this.fx.sparkBurst(820, G.GROUND_Y - 180, 0xff6b4a, 34, 620);
         this.fx.debris(820, G.GROUND_Y - 6, 12, 0xff8a6a, 1.3);
@@ -494,19 +527,17 @@
 
     onBossKilled() {
       this.stats.kills++;
-      this.scene.shake(18, 1.2);
+      this._feel('killBoss', { stop: G.FEEL.killBoss.stop, shake: G.FEEL.killBoss.shake, shakeDur: G.FEEL.killBoss.shakeDur });
       this.scene.zoomTo(1.12, 1.6);
-      this.hitStop = 0.18;
       G.Sfx.counter();
       this.after(1.6, () => this._victory());
     }
 
     onPerfectCounter(boss) {
       this.perfectCounter = false;
-      this.hitStop = 0.14;
       this.slowT = 0.85;
+      this._feel('perfect', { stop: G.FEEL.perfect.stop, shake: G.FEEL.perfect.shake, shakeDur: G.FEEL.perfect.shakeDur });
       this.scene.zoomTo(1.09, 0.4);
-      this.scene.shake(18, 0.6);
       this.flashImpact(0.22, 0xfff2c0);
       this.fx.popText(640, 300, 'PERFECT COUNTER', { color: 0xffe9a8, size: 52, dur: 1.4, stroke: 0x3a2404, letter: 4 });
       // 카엘 주변에서 보스로 뻗는 골드 충격파
@@ -597,23 +628,23 @@
         this.fx.sparkBurst(tx, ty - 80, 0xf2e3ff, 90, 950);
         this.scene.zoomTo(1.06, 0.11);
         this.after(0.14, () => this.scene.zoomTo(1, 0.34));
-        this.scene.shake(18, 0.62);
-        this.hitStop = 0.06;
+        this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur });
         let n = 0;
         this.enemies.forEach((e) => {
           if (e.alive && !e.dying && Math.abs(e.x - tx) < 260) {
             const dmg = Math.round(this.lia.atk * 3.4 * G.rand(1.05, 0.95));
             this.stats.damage += dmg;
             const delay = n++ * 0.06;
+            const dir = Math.sign(e.x - tx) || 1;
             this.after(delay, () => {
-              if (e.alive && !e.dying) e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: 520 });
+              if (e.alive && !e.dying) e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: G.FEEL.ult.knock, dir });
             });
           }
         });
         if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - tx) < 320) {
           const dmg = Math.round(this.lia.atk * 3.2);
           this.stats.damage += dmg;
-          this.boss.takeDamage(dmg, { crit: true, kb: 70 });
+          this.boss.takeDamage(dmg, { crit: true, kb: G.FEEL.ult.bossKb, dir: Math.sign(this.boss.x - tx) || 1 });
         }
         G.Sfx.hit(true);
         this.combo += 3;
@@ -647,7 +678,7 @@
       this.scene.zoomTo(1.03, 0.18);
       this.after(0.45, () => { if (this.phase === 'boss') this.scene.zoomTo(1, 0.42); });
       G.Sfx.bossRoar();
-      if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 6000, chance: 0.85 });
+      if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 6000, chance: 0.85, priority: 3 });
     }
 
     _bossCutIn(info) {
@@ -902,7 +933,10 @@
       const manualMove = Math.abs(mx) > 0.12 || Math.abs(my) > 0.12;
 
       if (inp.pause) this.togglePause();
-      if (inp.mute) { this.muted = G.Sfx.toggleMute(); }
+      if (inp.mute) {
+        this.muted = G.Sfx.toggleMute();
+        if (!this.muted) G.Sfx.ui(true);   // 소리를 다시 켰을 때 확인음
+      }
       if (inp.auto) this.cycleAuto();
 
       if (this.phase === 'wave' || this.phase === 'boss' || this.phase === 'bossIntro') {
@@ -1058,22 +1092,27 @@
             color: 0xffffff, color2: 0xffffff, dur: 0.17,
           });
           this.fx.speedLines(h.x + 120, h.centerY, 1, 4, 1.1);
-          this.scene.shake(7, 0.2);
-          [this.enemies, this.boss && this.boss.alive ? [this.boss] : []].forEach(() => {});
+          let tickHit = false;
           this.enemies.forEach((e) => {
             if (e.alive && !e.dying && e.x > h.x && Math.abs(e.x - h.x) < 340) {
               const dmg = Math.round(h.atk * 1.35 * G.rand(1.05, 0.95));
               this.stats.damage += dmg;
-              e.takeDamage(dmg, { crit: G.chance(0.3) });
+              e.takeDamage(dmg, { crit: G.chance(0.3), knock: G.FEEL.skillTick.knock, dir: 1 });
+              tickHit = true;
             }
           });
           if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - h.x) < 470) {
             const dmg = Math.round(h.atk * 1.2);
             this.stats.damage += dmg;
-            this.boss.takeDamage(dmg, {});
+            this.boss.takeDamage(dmg, { kb: 30, dir: 1 });
+            tickHit = true;
           }
           G.Sfx.slash(1.3);
-          this.hitStop = 0.035;
+          // 다단히트(0.11초 간격): 히트스톱은 0.2초에 한 번만 걸어 3초 스킬이 끊겨 보이지 않게 한다
+          if (tickHit && this.time - this._skillFeelT >= G.FEEL.skillTick.minGap) {
+            this._skillFeelT = this.time;
+            this._feel('skill-tick', { stop: G.FEEL.skillTick.stop, shake: G.FEEL.skillTick.shake, shakeDur: G.FEEL.skillTick.shakeDur });
+          }
         }
       }
 
@@ -1290,6 +1329,7 @@
       mkBtn('계속하기', 296, () => this.togglePause());
       mkBtn(this.muted ? '소리 켜기' : '소리 끄기', 362, () => {
         this.muted = G.Sfx.toggleMute();
+        if (!this.muted) G.Sfx.ui(true);
         this._buildPauseOverlay();
       });
       mkBtn('처음부터', 428, () => { this.togglePause(); this._defeat('처음부터'); });
@@ -1384,7 +1424,8 @@
       this.fx.clear();
       this.actorLayer.removeChildren();
       this.stats = { damage: 0, maxCombo: 0, kills: 0 };
-      this.combo = 0;
+      this.feelLog.length = 0;
+      this._skillFeelT = -9;
       this.cooldowns = { skill1: 0, skill2: 0 };
       this.timers.length = 0;
       if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }

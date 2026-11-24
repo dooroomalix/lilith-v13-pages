@@ -193,7 +193,7 @@
       this._spawnActor(k, { x0, xCast, y, facingCast: f, persp: kael.persp });
       this._cutIn(k);
 
-      if (G.Sfx.playVoice) G.Sfx.playVoice(card.voice, { min: 2500, chance: 1 });
+      if (G.Sfx.playVoice) G.Sfx.playVoice(card.voice, { min: 2500, chance: 1, priority: 2 });
       if (k === 'ara') G.Sfx.magic();
       else if (k === 'born') G.Sfx.slash(0.8);
       else G.Sfx.magic();
@@ -233,14 +233,16 @@
       g.enemies.forEach((e) => {
         if (!e.alive || e.dying) return;
         if (Math.abs(e.x - k.x) > 330 || Math.abs(e.y - k.y) > 170) return;
-        e.knockback(600, e.x >= k.x ? -1 : 1);
+        e.knockback(600, e.x >= k.x ? 1 : -1);
         g.fx.ring(e.x, e.y - 6, 0xffd166, 90, 0.45, 4, 0.42);
         g.fx.sparkBurst(e.x, e.centerY, 0xffe0a0, 10, 300);
         if (e.teleMark) e.teleMark.alpha = 0;
       });
       if (g.boss && g.boss.alive && !g.boss.dying && Math.abs(g.boss.x - k.x) < 360) {
         g.boss.kbV = Math.max(g.boss.kbV, 90);
+        g.boss.kbDir = g.boss.x >= k.x ? 1 : -1;
       }
+      g._feel('support-ara', { stop: G.FEEL.support.ara.stop, shake: G.FEEL.support.ara.shake, shakeDur: G.FEEL.support.ara.shakeDur });
       g.flashImpact(0.08, 0xffc247);
       g.scene.zoomTo(1.025, 0.16);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
@@ -260,8 +262,7 @@
       g.fx.sparkBurst(cx, k.centerY, 0xffc27a, 30, 700);
       g.fx.debris(cx, k.y - 4, 9, 0xffa56a, 1.15);
       g.fx.groundBurst(cx, k.y);
-      g.hitStop = Math.max(g.hitStop, 0.07);
-      g.scene.shake(13, 0.32);
+      g._feel('support-born', { stop: G.FEEL.support.born.stop, shake: G.FEEL.support.born.shake, shakeDur: G.FEEL.support.born.shakeDur });
       g.flashImpact(0.16, 0xffd0a0);
       g.scene.zoomTo(1.03, 0.14);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
@@ -277,7 +278,7 @@
         g.after(delay, () => {
           if (!e.alive || e.dying) return;
           e.takeDamage(dmg, { crit: false, color: 0xffc27a });
-          e.knockback(620, -f);
+          e.knockback(620, f);
           e.stun(1.8);
           e.applyDefDown(5);
           g.fx.popText(e.x, e.centerY - 70, '기절', { color: 0xffd9a8, size: 15, dur: 0.7, stroke: 0x2a1404 });
@@ -315,6 +316,7 @@
         g.fx.sparkBurst(e.x, e.centerY - 40, 0xd9c8ff, 6, 200);
       });
       if (g.boss && g.boss.alive && !g.boss.dying) g.fx.ring(g.boss.x, g.boss.y - 12, 0xb98bff, 180, 0.8, 5, 0.4);
+      g._feel('support-sena', { stop: G.FEEL.support.sena.stop, shake: G.FEEL.support.sena.shake, shakeDur: G.FEEL.support.sena.shakeDur });
       g.flashImpact(0.12, 0xb98bff);
       g.scene.zoomTo(1.02, 0.16);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
