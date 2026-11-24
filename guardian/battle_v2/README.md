@@ -3,7 +3,7 @@
 v4.1.0-build320을 SD 벨트스크롤 액션으로 개조한 빌드입니다. v4는 `../battle_v2_gfx_v4/`에 그대로 보존했습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
-- 스크립트 버전: `5.4.1-build441`
+- 스크립트 버전: `5.4.2-build442`
 - 코드: `js/` 10개 파일, 엔진 PixiJS v8
 
 ## 이번에 바뀐 것
@@ -240,3 +240,49 @@ ChatGPT 통합본 `guardian_sd_1124_portraits_restored_modified.zip`(11-24 16:32
   - `restart()` 잔류 장판 0·`queuedJump` 0·점프 z 0·조이스틱 해제, 오토 3모드 각 300프레임 무오류
 - 증빙: `../evidence/workflow_step2_qa.png`(22컷), `../evidence/workflow_step2/`, `../evidence/workflow_step2_qa.json`.
 - 참고: 헤드리스 swiftshader는 한 페이지에서 스크린샷을 많이 뜨면 WebGL 컨텍스트를 잃어 화면이 검게 나옵니다(게임 오류 아님). 검증 스크립트는 세션을 4개로 나눠 이 문제를 피합니다.
+
+## 15. v5.4.2-build442 — 사운드·타격감 튜닝(Step 4-1), 2026-11-24
+
+히트스톱·넉백·셰이크를 한 표로 모으고, 맞는 쪽(적·보스)의 타격까지 손맛을 구분했습니다. 조작 체계는 그대로입니다.
+
+### 15-1. 타격감 기준표 (`js/util.js` `G.FEEL`)
+| 구분 | 히트스톱 | 셰이크 | 넉백 |
+|---|---|---|---|
+| 콤보 1타 / 2타 / 3타(막타) | 30 / 48 / 85ms | 4.5 / 6.5 / 11 | 220 / 300 / 470 |
+| 공중 공격 | 58ms | 7.5 | 390 |
+| 스킬(K) 다단히트 | 26ms (0.2초에 1회) | 5 | 130 |
+| 리아 궁극기(L) | 75ms | 20 | 520 (보스 120) |
+| 지원 아라 / 보른 / 세나 | 30 / 75 / 40ms | 5 / 13 / 6 | 600 / 620 / 0 |
+| 보스 피격 | ×1.7 (최대 145ms) | ×1.5 | 45 / 90 / 110 |
+| 크리티컬 | ×1.35 | ×1.3 | — |
+| 카엘 피격(경 / 60 이상) | 45 / 85ms | 7 / 12 | — |
+
+- 상한 0.17초 — 막타·보스·궁극기가 겹쳐도 조작이 끊기지 않게 자릅니다.
+- `battle.js`의 `_feel(kind, {stop, shake, shakeDur})`가 유일한 적용 지점이라, 손맛 조정은 표의 숫자만 바꾸면 됩니다.
+- 3연타 콤보 프레임(`COMBO.hitStop/shake`)은 표로 옮겼고 애니메이션 타이밍(`dur`·`hit`)만 `actors.js`에 남았습니다.
+
+### 15-2. 고친 버그
+- **넉백 방향**: `kbDir`을 계산만 하고 적용하지 않아 적이 항상 오른쪽으로 밀렸습니다. 이제 때린 쪽 반대로 밀리고, 좌우 경계(60~1240)로 클램프합니다. 보스도 같은 규칙(300~1180).
+- **음소거가 보이스에 안 걸리던 문제**: master gain은 WebAudio만 제어하므로 `playVoice`의 HTMLAudio가 계속 났습니다. 이제 음소거가 SFX·BGM·보이스 전부에 적용됩니다.
+- **피격 셰이크 중복**: `Hero.hurt()`와 `Game.damageHero()`가 각각 셰이크를 걸어 두 번 흔들리던 것을 `_feel` 한 곳으로 정리했습니다.
+
+### 15-3. 오디오 믹싱·중복 방지 (`js/audio.js`)
+- 신호 경로 `개별 SFX → sfxBus(0.95) → master(0.9) → 리미터(DynamicsCompressor −10dB / ratio 6) → 출력`.
+- **효과음 게이트**: 같은 소리는 최소 간격을 두고 한 번만 냅니다 — 라이트 타격 32ms, 헤비 50ms, 검기 45ms, 마법 80ms, 발걸음 55ms, UI 50ms. 다수 적 크리티컬이 한 프레임에 겹쳐도 찢어지지 않습니다.
+- **보이스**: 동시 1개. 우선순위는 보스 3 > 지원 2 > 카엘 1이며, 센 목소리가 오면 약한 쪽은 끊깁니다. 같은 보이스는 이름별 간격, 보이스 사이에는 0.65초 쿨다운.
+- **BGM 더킹**: 보이스·보스 포효 중 BGM을 0.38→0.16으로 낮췄다가 되돌립니다.
+- 검증 훅 `G.Sfx.mixState()` — muted/ctx/master/sfx/bgm/limiter/활성 보이스/발음·스킵 카운트.
+
+### 15-4. 검증
+- `node --check js/*.js` 10/10 OK.
+- `tools_sd/verify_workflow_step4_1.py` — 로컬 HTTP + headless Chromium, **19항목 ALL PASS**:
+  콘솔·페이지·HTTP 0 / 타이틀 클릭 시 AudioContext running / 한 프레임 `hit()` 32회 → 2회 발음·30회 스킵 /
+  보이스 겹침 거부·보스 우선순위 교체 / HUD 사운드 버튼 mute↔unmute /
+  콤보 0.030→0.048→0.085 · 공중 0.058 · 보스 0.051/0.082/0.145 · 피격 0.045/0.085 · 지원 0.030/0.075/0.040 · 궁극기 0.075 /
+  스킬 틱 간격 0.27초 / 넉백 방향 오른쪽 +58.3px·왼쪽 −72.1px / 히트스톱 최대 0.145 ≤ 0.17.
+- 회귀 `tools_sd/verify_workflow_step2.py` — 조작·키 반복·blur 초기화·보스 4패턴(50/46/32/105)·재도전·오토 3모드 전부 통과, 오류 0.
+- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/` — `v5.4.2-build442` 로드, 응답 52건 전부 200, 오류 0, 전투 진입·오디오 잠금 해제·음소거·히트스톱 확인(`tools_sd/verify_workflow_step4_1_live.py`).
+- 증빙: `../evidence/workflow_step4_1_qa.png`, `../evidence/workflow_step4_1_live_{title,battle}.png`.
+
+### 15-5. 배포 저장소 경량화
+게임이 참조하지 않는 원본 PNG 10종과 `assets/src_art/`(원화 소스)를 라이브 저장소에서 제거했습니다 — `guardian/battle_v2/` **33MB → 9.3MB**(파일 78→58개). `assets/anim/meta.json`·`assets/sd/meta.json`이 가리키는 webp와 초상화·오디오는 전부 그대로이며, 라이브 실측에서 404가 0건임을 확인했습니다. 로컬 SSOT(`battle_v2_sd/`)에는 원본이 그대로 남아 있습니다.
