@@ -1,0 +1,236 @@
+/* audio.js : BGM(보스전 트랙) + 절차적 효과음(WebAudio) */
+(function () {
+  const Sfx = {
+    ctx: null,
+    master: null,
+    muted: false,
+    bgm: null,
+    bgmStarted: false,
+    bgmVolume: 0.38,
+
+    init() {
+      if (this.ctx) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.9;
+      this.master.connect(this.ctx.destination);
+      this._noiseBuf = this._makeNoise(1.0);
+    },
+
+    _makeNoise(sec) {
+      const ctx = this.ctx;
+      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * sec), ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return buf;
+    },
+
+    resume() {
+      this.init();
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      // BGM(4.9MB)은 첫 터치 직후에도 바로 받지 않고, 전투가 시작된 뒤 비동기로 받는다
+      if (!this.bgm && !this._bgmScheduled) this._scheduleBgm(1500);
+      if (this._needGesture && this.bgm) {
+        this._needGesture = false;
+        this._playBgm();
+      }
+    },
+
+    _scheduleBgm(delay) {
+      this._bgmScheduled = true;
+      const go = () => setTimeout(() => this._loadBgm(), delay);
+      if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 2500 });
+      else go();
+    },
+
+    _loadBgm() {
+      if (this.bgm) return;
+      const a = new Audio();
+      a.src = 'audio/boss_bgm.mp3';
+      a.loop = true;
+      a.volume = this.muted ? 0 : this.bgmVolume;
+      a.preload = 'auto';
+      this.bgm = a;
+      this._wantPlay = true;
+      a.addEventListener('canplay', () => {
+        if (this._wantPlay) this._playBgm();
+      });
+      a.load();
+    },
+
+    _playBgm() {
+      if (!this.bgm || this.bgmStarted) return;
+      const p = this.bgm.play();
+      if (p && p.then) {
+        p.then(() => { this.bgmStarted = true; }).catch(() => { this._needGesture = true; });
+      } else {
+        this.bgmStarted = true;
+      }
+    },
+
+    toggleMute() {
+      this.muted = !this.muted;
+      if (this.master) this.master.gain.value = this.muted ? 0 : 0.9;
+      if (this.bgm) this.bgm.volume = this.muted ? 0 : this.bgmVolume;
+      return this.muted;
+    },
+
+    _env(node, t0, a, d, peak) {
+      const g = node.gain;
+      g.setValueAtTime(0.0001, t0);
+      g.exponentialRampToValueAtTime(peak, t0 + a);
+      g.exponentialRampToValueAtTime(0.0001, t0 + a + d);
+    },
+
+    /* 검기 스윙 */
+    slash(pitch = 1) {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = this._noiseBuf;
+      src.playbackRate.value = pitch;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(1800 * pitch, t);
+      bp.frequency.exponentialRampToValueAtTime(520, t + 0.18);
+      bp.Q.value = 1.1;
+      const g = ctx.createGain();
+      this._env(g, t, 0.012, 0.2, 0.28);
+      src.connect(bp).connect(g).connect(this.master);
+      src.start(t);
+      src.stop(t + 0.3);
+    },
+
+    /* 타격 */
+    hit(heavy = false) {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(heavy ? 180 : 260, t);
+      osc.frequency.exponentialRampToValueAtTime(heavy ? 46 : 70, t + 0.14);
+      const g = ctx.createGain();
+      this._env(g, t, 0.005, heavy ? 0.3 : 0.16, heavy ? 0.4 : 0.26);
+      osc.connect(g).connect(this.master);
+      osc.start(t);
+      osc.stop(t + 0.4);
+
+      const n = ctx.createBufferSource();
+      n.buffer = this._noiseBuf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 900;
+      const ng = ctx.createGain();
+      this._env(ng, t, 0.003, 0.1, 0.18);
+      n.connect(hp).connect(ng).connect(this.master);
+      n.start(t);
+      n.stop(t + 0.16);
+    },
+
+    /* 마법 / 스킬 */
+    magic() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      [660, 990, 1320].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(f, t);
+        o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.5);
+        const g = ctx.createGain();
+        this._env(g, t + i * 0.02, 0.02, 0.5, 0.1);
+        o.connect(g).connect(this.master);
+        o.start(t);
+        o.stop(t + 0.6);
+      });
+    },
+
+    /* 퍼펙트 카운터 */
+    counter() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(880, t + 0.25);
+      const g = ctx.createGain();
+      this._env(g, t, 0.005, 0.45, 0.22);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(1200, t);
+      lp.frequency.exponentialRampToValueAtTime(6000, t + 0.3);
+      o.connect(lp).connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 0.55);
+      this.hit(true);
+    },
+
+    /* 보스 등장 */
+    bossRoar() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(70, t);
+      o.frequency.exponentialRampToValueAtTime(38, t + 0.9);
+      const g = ctx.createGain();
+      this._env(g, t, 0.06, 1.0, 0.32);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(400, t);
+      o.connect(lp).connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 1.2);
+    },
+
+    /* 발걸음 (달리기/걷기 접지음) */
+    step(power = 1) {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const n = ctx.createBufferSource();
+      n.buffer = this._noiseBuf;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 420 + 260 * power;
+      const ng = ctx.createGain();
+      this._env(ng, t, 0.004, 0.075, 0.055 + 0.05 * power);
+      n.connect(lp).connect(ng).connect(this.master);
+      n.start(t);
+      n.stop(t + 0.14);
+    },
+
+    /* UI */
+    ui(up = true) {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(up ? 880 : 520, t);
+      const g = ctx.createGain();
+      this._env(g, t, 0.004, 0.07, 0.08);
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 0.1);
+    },
+  };
+
+  G.Sfx = Sfx;
+  // Optional voice files; missing files never interrupt gameplay.
+  G.Sfx._voiceT = {};
+  G.Sfx.playVoice = function(name, opts) {
+    if (!/^[a-z0-9_]+$/i.test(name)) return;
+    const o = opts || {};
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const last = this._voiceT[name] || -1e9;
+    if (now - last < (o.min || 900)) return;
+    if (o.chance !== undefined && Math.random() > o.chance) return;
+    this._voiceT[name] = now;
+    try {
+      const voice = new Audio('audio/' + name + '.mp3');
+      voice.volume = 0.72;
+      const result = voice.play();
+      if (result && result.catch) result.catch(() => {});
+    } catch (_) {}
+  };
+})();

@@ -1,0 +1,38 @@
+{
+  "snowball_sd": {
+    "file": "assets/sd/snowball_sd.webp",
+    "w": 521,
+    "h": 720,
+    "anchorX": 0.4933,
+    "anchorY": 1.0,
+    "bodyH": 720,
+    "bodyPx": 205
+  },
+  "mimic_sd": {
+    "file": "assets/sd/mimic_sd.webp",
+    "w": 609,
+    "h": 720,
+    "anchorX": 0.4995,
+    "anchorY": 1.0,
+    "bodyH": 720,
+    "bodyPx": 200
+  },
+  "rudolph_sd": {
+    "file": "assets/sd/rudolph_sd.webp",
+    "w": 422,
+    "h": 720,
+    "anchorX": 0.499,
+    "anchorY": 1.0,
+    "bodyH": 720,
+    "bodyPx": 215
+  },
+  "noel_sd": {
+    "file": "assets/sd/noel_sd.webp",
+    "w": 679,
+    "h": 820,
+    "anchorX": 0.4628,
+    "anchorY": 1.0,
+    "bodyH": 820,
+    "bodyPx": 330
+  }
+}

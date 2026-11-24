@@ -1,0 +1,149 @@
+{
+  "bodyH": 410.0,
+  "anims": {
+    "idle": {
+      "file": "assets/anim/kael_idle.webp",
+      "frames": 4,
+      "fps": 5,
+      "loop": true,
+      "frameW": 188,
+      "frameH": 360,
+      "pxBodyH": 348.5,
+      "anchorX": 0.6872,
+      "anchorY": 0.9822,
+      "bob": [
+        0.0,
+        0.006,
+        0.0,
+        -0.004
+      ],
+      "contacts": []
+    },
+    "walk": {
+      "file": "assets/anim/kael_walk.webp",
+      "frames": 6,
+      "fps": 10,
+      "loop": true,
+      "frameW": 238,
+      "frameH": 364,
+      "pxBodyH": 348.5,
+      "anchorX": 0.4893,
+      "anchorY": 0.9784,
+      "bob": [
+        0.0,
+        0.012,
+        -0.006,
+        0.0,
+        0.012,
+        -0.006
+      ],
+      "contacts": [
+        0,
+        3
+      ]
+    },
+    "run": {
+      "file": "assets/anim/kael_run.webp",
+      "frames": 8,
+      "fps": 14,
+      "loop": true,
+      "frameW": 308,
+      "frameH": 382,
+      "pxBodyH": 348.5,
+      "anchorX": 0.5133,
+      "anchorY": 0.9546,
+      "bob": [
+        0.0,
+        0.015,
+        -0.008,
+        -0.03,
+        0.0,
+        0.015,
+        -0.008,
+        -0.03
+      ],
+      "contacts": [
+        0,
+        4
+      ]
+    },
+    "atk1": {
+      "file": "assets/anim/kael_atk1.webp",
+      "frames": 3,
+      "fps": 20,
+      "loop": false,
+      "frameW": 622,
+      "frameH": 442,
+      "anchorX": 0.4968,
+      "anchorY": 0.9208
+    },
+    "atk2": {
+      "file": "assets/anim/kael_atk2.webp",
+      "frames": 3,
+      "fps": 20,
+      "loop": false,
+      "frameW": 301,
+      "frameH": 534,
+      "anchorX": 0.5216,
+      "anchorY": 0.8464
+    },
+    "atk3": {
+      "file": "assets/anim/kael_atk3.webp",
+      "frames": 4,
+      "fps": 24,
+      "loop": false,
+      "frameW": 329,
+      "frameH": 482,
+      "anchorX": 0.5015,
+      "anchorY": 0.8672
+    },
+    "dodge": {
+      "file": "assets/anim/kael_dodge.webp",
+      "frames": 3,
+      "fps": 22,
+      "loop": false,
+      "frameW": 410,
+      "frameH": 488,
+      "anchorX": 0.5439,
+      "anchorY": 0.8566
+    },
+    "hurt": {
+      "file": "assets/anim/kael_hurt.webp",
+      "frames": 2,
+      "fps": 14,
+      "loop": false,
+      "frameW": 265,
+      "frameH": 449,
+      "anchorX": 0.4604,
+      "anchorY": 0.8463
+    },
+    "lia": {
+      "file": "assets/anim/lia_summon.webp",
+      "frames": 2,
+      "fps": 8,
+      "loop": true,
+      "frameW": 287,
+      "frameH": 465,
+      "anchorX": 0.5366,
+      "anchorY": 0.8774
+    },
+    "scout_atk": {
+      "file": "assets/anim/scout_atk.webp",
+      "frames": 1,
+      "w": 365,
+      "h": 360,
+      "fps": 1,
+      "loop": false,
+      "atkScale": 1.12
+    },
+    "boss_atk": {
+      "file": "assets/anim/boss_atk.webp",
+      "frames": 1,
+      "w": 523,
+      "h": 880,
+      "fps": 1,
+      "loop": false,
+      "atkScale": 1.3
+    }
+  }
+}
