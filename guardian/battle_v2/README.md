@@ -333,7 +333,8 @@ ChatGPT 통합본 `guardian_sd_1124_portraits_restored_modified.zip`(11-24 16:32
 
 ### 16-5. 배포 · 라이브 실측 (2026-11-24 21:55)
 - `dooroomalix/lilith-v13-pages` `guardian/battle_v2/` 커밋 **`71b092b`**(부모 `b379479`, push `b379479..71b092b`) — 6개 파일 +1,202/−79(`js/lobby.js` 신규 936줄), 변경 경로 전부 `guardian/battle_v2/`, 저장소 9.4MB.
-- GitHub Actions `pages build and deployment` run **`45398138382`** → `completed / success`.
-- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/` — `G.VERSION = v5.5.0-build450`, 응답 **52건 전부 200**(신규 `js/lobby.js` 포함), 콘솔·페이지 오류 0, WebGL 컨텍스트 손실 없음.
+  이어 문서 `e2dd292`(이 절), 대사 말투 다듬기 `95ece99`(리아·세나 3줄) 푸시.
+- GitHub Actions `pages build and deployment` run **`45398138382`**(71b092b)·**`45399136173`**(e2dd292)·**`45400249542`**(95ece99) 모두 `completed / success`.
+- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/`(최종 `95ece99`) — `G.VERSION = v5.5.0-build450`, 응답 **52건 전부 200**(신규 `js/lobby.js` 포함), 콘솔·페이지 오류 0, WebGL 컨텍스트 손실 없음.
   실제 클릭으로 타이틀 → 로비 진입 → 5인 전환 → 대사 3회 순환·보이스 → 사운드 토글 → [전투 출격](적 2기) → 이동 +47.0px·점프 z 85.1·J 공격 → 결과 [로비로] 복귀(오버레이 0·적 0·BGM 0.22)까지 확인.
 - 증빙: `../evidence/workflow_step4_2_live_lobby.png`, `../evidence/workflow_step4_2_live_battle.png`, `../evidence/workflow_step4_2_live.json` (`tools_sd/verify_workflow_step4_2_live.py`).
