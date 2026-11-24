@@ -1,0 +1,146 @@
+{
+  "kael_sd_idle": {
+    "file": "assets/sd/kael_sd_idle.webp",
+    "w": 403,
+    "h": 583,
+    "anchorX": 0.5499,
+    "anchorY": 0.7965,
+    "bodyH": 417
+  },
+  "kael_sd_atk": {
+    "file": "assets/sd/kael_sd_atk.webp",
+    "w": 910,
+    "h": 583,
+    "anchorX": 0.3334,
+    "anchorY": 0.8102,
+    "bodyH": 425
+  },
+  "kael_sd_jump": {
+    "file": "assets/sd/kael_sd_jump.webp",
+    "w": 404,
+    "h": 583,
+    "anchorX": 0.5499,
+    "anchorY": 0.8465,
+    "bodyH": 446
+  },
+  "lia_sd_idle": {
+    "file": "assets/sd/lia_sd_idle.webp",
+    "w": 491,
+    "h": 583,
+    "anchorX": 0.5167,
+    "anchorY": 0.8304,
+    "bodyH": 437
+  },
+  "scout_sd": {
+    "file": "assets/sd/scout_sd.webp",
+    "w": 531,
+    "h": 496,
+    "anchorX": 0.4166,
+    "anchorY": 0.7984,
+    "bodyH": 356
+  },
+  "boss_sd": {
+    "file": "assets/sd/boss_sd.webp",
+    "w": 602,
+    "h": 694,
+    "anchorX": 0.5167,
+    "anchorY": 0.8271,
+    "bodyH": 518
+  },
+  "ara_sd_idle": {
+    "file": "assets/sd/ara_sd_idle.webp",
+    "w": 389,
+    "h": 583,
+    "anchorX": 0.5,
+    "anchorY": 0.8868,
+    "bodyH": 470
+  },
+  "born_sd_idle": {
+    "file": "assets/sd/born_sd_idle.webp",
+    "w": 548,
+    "h": 583,
+    "anchorX": 0.5,
+    "anchorY": 0.8868,
+    "bodyH": 470
+  },
+  "sena_sd_idle": {
+    "file": "assets/sd/sena_sd_idle.webp",
+    "w": 362,
+    "h": 583,
+    "anchorX": 0.5,
+    "anchorY": 0.8868,
+    "bodyH": 470
+  },
+  "ara_sd_cast": {
+    "file": "assets/sd/ara_sd_cast.webp",
+    "w": 495,
+    "h": 665,
+    "anchorX": 0.5417,
+    "anchorY": 0.9008,
+    "bodyH": 470,
+    "crownY": 129,
+    "scale": 0.3926
+  },
+  "born_sd_cast": {
+    "file": "assets/sd/born_sd_cast.webp",
+    "w": 409,
+    "h": 583,
+    "anchorX": 0.5263,
+    "anchorY": 0.8868,
+    "bodyH": 470,
+    "crownY": 47,
+    "scale": 0.3852
+  },
+  "sena_sd_cast": {
+    "file": "assets/sd/sena_sd_cast.webp",
+    "w": 372,
+    "h": 583,
+    "anchorX": 0.4954,
+    "anchorY": 0.8868,
+    "bodyH": 470,
+    "crownY": 47,
+    "scale": 0.3167
+  },
+  "ara_sd_seq": {
+    "file": "assets/sd/ara_sd_seq.webp",
+    "frames": 4,
+    "frameW": 497,
+    "frameH": 752,
+    "w": 1988,
+    "h": 752,
+    "anchorX": 0.3751,
+    "anchorY": 0.8125,
+    "bodyH": 425,
+    "fps": 7,
+    "strike": 3,
+    "scale": 0.9558
+  },
+  "born_sd_seq": {
+    "file": "assets/sd/born_sd_seq.webp",
+    "frames": 4,
+    "frameW": 542,
+    "frameH": 752,
+    "w": 2168,
+    "h": 752,
+    "anchorX": 0.4415,
+    "anchorY": 0.8125,
+    "bodyH": 430,
+    "fps": 7,
+    "strike": 3,
+    "scale": 1.0574
+  },
+  "sena_sd_seq": {
+    "file": "assets/sd/sena_sd_seq.webp",
+    "frames": 4,
+    "frameW": 515,
+    "frameH": 752,
+    "w": 2060,
+    "h": 752,
+    "anchorX": 0.4361,
+    "anchorY": 0.8125,
+    "bodyH": 430,
+    "fps": 7,
+    "strike": 3,
+    "scale": 0.9366
+  }
+}

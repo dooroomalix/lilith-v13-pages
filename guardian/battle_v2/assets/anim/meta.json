@@ -130,18 +130,20 @@
     "scout_atk": {
       "file": "assets/anim/scout_atk.webp",
       "frames": 1,
-      "w": 318,
-      "h": 300,
+      "w": 365,
+      "h": 360,
       "fps": 1,
-      "loop": false
+      "loop": false,
+      "atkScale": 1.12
     },
     "boss_atk": {
       "file": "assets/anim/boss_atk.webp",
       "frames": 1,
-      "w": 324,
-      "h": 480,
+      "w": 523,
+      "h": 880,
       "fps": 1,
-      "loop": false
+      "loop": false,
+      "atkScale": 1.3
     }
   }
 }

@@ -152,6 +152,10 @@
         g.fill({ color, alpha });
       };
 
+      // Three translucent echo trails, then violet bloom, blue edge and white core.
+      layer(o.radius * 1.18, o.width * 2.2, 0x7553ff, 0.11 * o.flare, o.spiral, 1.6);
+      layer(o.radius * 1.12, o.width * 1.8, 0x9a7aff, 0.16 * o.flare, o.spiral, 1.8);
+      layer(o.radius * .93, o.width * 1.0, 0x54aaff, 0.18 * o.flare, o.spiral, 2.0);
       // 바깥 잔광 → 골드/2색 테두리 → 시안 → 백색 코어
       layer(o.radius * 1.06, o.width * 1.55, o.color, 0.13 * o.flare, o.spiral, 1.8);
       layer(o.radius * 1.02, o.width * 1.05, o.color2, 0.22 * o.flare, o.spiral * 0.9, 2.0);
@@ -175,7 +179,7 @@
       this.items.push(item);
 
       // 칼끝을 따라 흩어지는 잔검 파편
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < Math.round(10 * Math.max(1, o.flare)); i++) {
         const t = G.rand(0.95, 0.15);
         const a = o.angle - o.spread / 2 + o.spread * t;
         const rr = o.radius * (1 - 0.18 * t);
@@ -238,10 +242,55 @@
       else this.impact(x, y, o.core, 0.32);
     }
 
+    /* 시네마틱 검격: 한 Graphics를 생성하여 수명 동안 재사용 후 파괴. */
+    cinematicCross(cx = G.W / 2, cy = G.H / 2, dur = 0.58) {
+      const g = new PIXI.Graphics();
+      g.blendMode = 'add';
+      this.layer.addChild(g);
+      const span = Math.hypot(G.W, G.H) * 0.78; // 대각선 전체 길이 약 1.4배
+      const draw = (fade) => {
+        g.clear();
+        for (const sign of [-1, 1]) {
+          const ax = cx - span, ay = cy - sign * span * 0.57;
+          const bx = cx + span, by = cy + sign * span * 0.57;
+          for (const [w, color, alpha] of [[86, 0x7045ff, .13], [48, 0x3d9dff, .29], [22, 0xc4baff, .48], [7, 0xffffff, .98]]) {
+            g.moveTo(ax, ay).lineTo(bx, by).stroke({width:w,color,alpha:alpha*fade,cap:'round'});
+          }
+        }
+      };
+      draw(1);
+      const it={obj:g,t:0,update:(dt)=>{it.t+=dt;const p=it.t/dur;if(p>=1)return false;draw(Math.pow(1-p,1.3));return true;}};
+      this.items.push(it);
+    }
+
+    /* 40ms 실루엣 + 12개 속도선, 매 프레임 Graphics 신규 생성 없음. */
+    impactFrame(x, y, target = null) {
+      const g=new PIXI.Graphics();g.blendMode='add';this.layer.addChild(g);
+      const r=target && (target.bodyPx || target.baseH) ? (target.bodyPx || target.baseH)*0.45 : 75;
+      g.ellipse(x,y,r*.63,r).fill({color:0xffffff,alpha:.78});
+      for(let i=0;i<12;i++){
+        const a=i*Math.PI/6, inner=105+(i%3)*12, outer=inner+G.rand(120,65);
+        g.moveTo(x+Math.cos(a)*inner,y+Math.sin(a)*inner).lineTo(x+Math.cos(a)*outer,y+Math.sin(a)*outer)
+          .stroke({width:i%3===0?5:2.5,color:0xffffff,alpha:.78});
+      }
+      const it={obj:g,t:0,update:(dt)=>{it.t+=dt;g.alpha=Math.max(0,1-it.t/.04);return it.t<.04;}};
+      this.items.push(it);
+    }
+
+    perfectSeal(x=G.W/2,y=G.H-96) {
+      const t=new PIXI.Text({text:'PERFECT',style:{fontFamily:G.FONT_NUM,fontSize:57,fontWeight:'900',
+        fill:{color:0xffdc72},stroke:{color:0x5c2a0b,width:5},letterSpacing:6,
+        dropShadow:{color:0x351c06,alpha:.8,blur:8,distance:3,angle:Math.PI/2}}});
+      t.anchor.set(.5);t.position.set(x,y);t.scale.set(1.25);this.layer.addChild(t);
+      const it={obj:t,t:0,update:(dt)=>{it.t+=dt;const p=Math.min(1,it.t/.7);
+        t.scale.set(1+.25*Math.pow(1-p,3));t.alpha=Math.pow(1-p,1.15);return p<1;}};
+      this.items.push(it);
+    }
+
     /* ---------- 데미지 숫자 ---------- */
     damage(x, y, value, opts = {}) {
       const o = Object.assign({ crit: false, color: null, size: 0, rise: 64 }, opts);
-      const size = o.size || (o.crit ? 30 : 22);
+      const size = o.size || (o.crit ? 35 : 22);
       const color = o.color || (o.crit ? 0xffd75e : 0xffffff);
       const t = new PIXI.Text({
         text: String(Math.round(value)),
@@ -249,8 +298,8 @@
           fontFamily: G.FONT_NUM,
           fontSize: size,
           fontWeight: '900',
-          fill: color,
-          stroke: { color: o.crit ? 0x4a2104 : 0x081a30, width: o.crit ? 8 : 6 },
+          fill: o.crit ? {color: 0xffc35b} : color,
+          stroke: { color: o.crit ? 0x4a2104 : 0x081a30, width: o.crit ? 2 : 3 },
           letterSpacing: 0.5,
         },
       });
@@ -258,7 +307,7 @@
       this._dmgIdx = ((this._dmgIdx || 0) + 1) % 4;
       t.x = x + G.rand(96, -96) + (this._dmgIdx - 1.5) * 30;
       t.y = y - this._dmgIdx * 16 + G.rand(14, -14);
-      t.scale.set(o.crit ? 1.7 : 1.45);
+      t.scale.set(o.crit ? 1.6 : 1.0);
       this.layer.addChild(t);
 
       const item = {
@@ -267,10 +316,10 @@
           item.t2 += dt;
           const p = item.t2 / (o.crit ? 1.1 : 0.95);
           if (p >= 1) return false;
-          const e = G.easeOutCubic(Math.min(1, item.t2 / 0.18));
+          const e = G.easeOutCubic(Math.min(1, item.t2 / 0.15));
           t.y = y - o.rise * G.easeOutCubic(Math.min(1, item.t2 / 0.55));
-          const base = o.crit ? 1.7 : 1.45;
-          t.scale.set(base - 0.55 * e);
+          const base = o.crit ? 1.6 : 1.0;
+          t.scale.set(o.crit ? base - 0.6 * e : 1.0);
           t.alpha = p < 0.55 ? 1 : 1 - (p - 0.55) / 0.45;
           return true;
         },
@@ -586,7 +635,7 @@
     /* ---------- 회피 잔상 ---------- */
     afterimage(unit, dur = 0.5, color = 0x7cc4ff) {
       const spawn = () => {
-        const spr = unit.sprite;
+        const spr = (unit.sdSprite && unit.sdSprite.visible) ? unit.sdSprite : unit.sprite;
         if (!spr) return;
         const s = new PIXI.Sprite(spr.texture);
         s.anchor.set(spr.anchor.x, spr.anchor.y);

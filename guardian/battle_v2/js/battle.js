@@ -2,6 +2,13 @@
 (function () {
   const AUTO_CYCLE = ['counter', 'full', 'manual'];
 
+  /* 보스 컷인 배너 문구 — 시전하는 기술마다 이름이 바뀐다 */
+  const BOSS_SKILL_CUTIN = {
+    slam: { move: '지옥의 균열', en: 'ABYSSAL SLAM' },
+    multi: { move: '삼중 그림자 파동', en: 'SHADOW WAVE' },
+    perfect: { move: '암흑의 심판', en: 'DARK JUDGEMENT' },
+  };
+
   /* 애니 판타지풍 패널/버튼 (오버레이 공용) */
   function platePath(g, x, y, w, h, cut, fill, alpha) {
     const p = [x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
@@ -23,6 +30,9 @@
       this.app = app;
       this.scene = new G.Scene(app);
       this.actorLayer = this.scene.actorLayer;
+      this.bossTeleLayer = new PIXI.Container();
+      this.bossTeleLayer.zIndex = 515;
+      this.scene.world.addChildAt(this.bossTeleLayer, 4);
       this.fx = new G.Fx(this.scene.fxLayer);
 
       this.root = new PIXI.Container();
@@ -45,8 +55,9 @@
       this.root.addChild(this.overlay);
 
       this.flashG = new PIXI.Graphics();
+      this.flashG.alpha = 1;
       this.flashG.zIndex = 30;
-      this.root.addChild(this.flashG);
+      this.scene.root.addChild(this.flashG);
 
       app.stage.addChild(this.root);
 
@@ -63,6 +74,11 @@
       this.enemies = [];
       this.projectiles = [];
       this.hitStop = 0;
+      this.queuedAttack = false;
+      this.queuedJump = false;
+      this.potions = 3;
+      this.buffTime = 0;
+      this.potionPulse = 0;
       this.timeScale = 1;
       this.slowT = 0;
       this.promptMsg = '';
@@ -82,11 +98,19 @@
       this.comboWindow = 0;
       this.cutin = null;
       this.cutT = 0;
+      this.bossCutin = null;
+      this.bossCutT = 0;
+      this.bossCutCD = 0;    // 보스 컷인 재발동 최소 간격(초)
+      this.bossCutKind = null;
+      this.bossCutLog = [];  // 검증용: 컷인 발동 시각·종류
       this.summonActive = false;
       this.bossSpawned = false;
       this.overlayButtons = [];
       this.time = 0;
       this.timers = [];
+
+      // 아라·보른·세나 지원 시스템 (쿨타임 자동 등장 + 컷인 + 보이스)
+      this.support = new G.Support(this);
 
       this._initActors();
       this._buildIntro();
@@ -291,7 +315,8 @@
       });
       this.fx.sparkBurst(hx, cy, heavy ? 0xffe0a0 : 0xbfe4ff, heavy ? 14 : 9, heavy ? 520 : 360, cfg.ang);
       if (heavy) {
-        this.fx.shockRing(hero.x + 150 * f, hero.y - 8, 0x9fd6ff, 260, 0.5);
+        this.fx.shockRing(hero.x + 150 * f, hero.y - 8, 0x9fd6ff, 410, 0.6);
+        this.fx.sparkBurst(hx, cy, 0xffd79a, 30, 620, cfg.ang);
         this.fx.groundBurst(hero.x + 170 * f, hero.y);
       }
 
@@ -299,7 +324,7 @@
       let critHit = false;
       this.enemies.forEach((e) => {
         if (!e.alive || e.dying) return;
-        const inFront = e.x > hero.x - 30;
+        const inFront = (e.x - hero.x) * f > -30;
         const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
         if (inFront && inRange) {
           hits++;
@@ -307,24 +332,36 @@
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying) {
-        if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 200) {
-          if (this.boss.x > hero.x - 60) {
+        if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 125) {
+          if ((this.boss.x - hero.x) * f > -60) {
             hits++;
             if (this._hitBoss(hero, cfg.dmg, cfg)) critHit = true;
           }
         }
       }
       if (hits > 0) {
-        this.hitStop = cfg.hitStop * (critHit ? 1.25 : 1);
-        this.scene.shake(cfg.shake * (critHit ? 1.3 : 1), 0.16 + idx * 0.03);
-        this.flashImpact(heavy ? 0.1 : 0.05);
-        if (critHit) this.flashImpact(0.09, 0xffe6a8);
+        // 콤보 고유 히트스톱 유지: 크리티컬 1.8배, 보스 2.5배, 최대 150ms.
+        const bossHit = !!(this.boss && this.boss.alive && Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && (this.boss.x - hero.x) * f > -60);
+        const multiFinisher = idx >= 2 && hits > 1 ? 1.15 : 1;
+        this.hitStop = Math.max(this.hitStop, Math.min(0.15, cfg.hitStop * (bossHit ? 2.5 : critHit ? 1.8 : 1) * multiFinisher));
+        this.scene.shake(cfg.shake * (bossHit ? 1.7 : critHit ? 1.4 : 1), 0.16 + idx * 0.03);
+        this.flashImpact(heavy ? 0.55 : 0.07);
+        if (heavy) {
+          this.fx.shockRing(hx, cy, 0xe6efff, 570, 0.48);
+          this.fx.sparkBurst(hx, cy, 0xd7baff, 76, 850);
+          this.scene.zoomTo(1.04, 0.09);
+          this.after(0.12, () => this.scene.zoomTo(1, 0.28));
+        }
+        if (critHit || bossHit) {
+          this.fx.impactFrame(hx, cy, bossHit ? this.boss : null);
+          if (!heavy) this.flashImpact(0.15, 0xffffff);
+        }
         G.Sfx.hit(heavy || critHit);
         this.combo += hits;
         this.comboT = 2.4;
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       } else {
-        this.hitStop = Math.min(this.hitStop, 0.012);
+        // 빗나간 공격은 기존 히트스톱을 덮어쓰지 않는다.
       }
     }
 
@@ -332,15 +369,18 @@
       this.flashG.clear();
       this.flashG.rect(0, 0, G.W, G.H).fill({ color, alpha });
       this.flashT = 0.06;
+      this.flashDuration = 0.06;
+      this.flashG.alpha = 1;
     }
 
     _hitEnemy(e, hero, mult, cfg) {
       const crit = G.chance(0.24);
-      const dmg = Math.round(hero.atk * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
+      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.08, 0.94));
       this.stats.damage += dmg;
       const knock = cfg ? (cfg.advance > 24 ? 420 : cfg.advance > 18 ? 300 : 230) : 200;
       e.takeDamage(dmg, { crit, knock });
       if (crit) {
+        this.fx.impactFrame(e.x, e.centerY, e);
         if (this.time - (this._critPop || -9) > 0.3) {
           this._critPop = this.time;
           this.fx.popText(e.x, e.centerY - 146, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
@@ -353,10 +393,11 @@
 
     _hitBoss(hero, mult, cfg) {
       const crit = G.chance(0.24);
-      const dmg = Math.round(hero.atk * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
+      const dmg = Math.round(hero.atk * (this.buffTime > 0 ? 1.1 : 1) * mult * (crit ? 1.95 : 1) * G.rand(1.1, 0.92));
       this.stats.damage += dmg;
       this.boss.takeDamage(dmg, { crit, kb: cfg && cfg.advance > 24 ? 90 : 40 });
       if (crit) {
+        this.fx.impactFrame(this.boss.x, this.boss.centerY, this.boss);
         if (this.time - (this._critPop || -9) > 0.3) {
           this._critPop = this.time;
           this.fx.popText(this.boss.x - 40, this.boss.centerY - 165, 'CRITICAL', { color: 0xffd166, size: 18, dur: 0.7, stroke: 0x3a1e04, letter: 2 });
@@ -374,6 +415,8 @@
         this.flashG.clear();
         this.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xff1a2a, alpha: 0.16 });
         this.flashT = 0.14;
+        this.flashDuration = 0.14;
+        this.flashG.alpha = 1;
         G.Sfx.hit(true);
         if (kael.hp <= 0) this._defeat();
       }
@@ -430,6 +473,7 @@
         this.boss = new G.Boss(this, { hp: 24000, x: 820 });
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
+        if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar');
         this.fx.shockRing(820, G.GROUND_Y - 10, 0xff3355, 300, 0.9);
         this.fx.sparkBurst(820, G.GROUND_Y - 180, 0xff6b4a, 34, 620);
         this.fx.debris(820, G.GROUND_Y - 6, 12, 0xff8a6a, 1.3);
@@ -486,6 +530,18 @@
     }
 
     /* ---------------- 스킬 ---------------- */
+    usePotion() {
+      if (this.potions <= 0 || this.kael.hp >= this.kael.hpMax || this.kael.state === 'dead') return false;
+      this.potions--;
+      const heal = Math.min(this.kael.hpMax - this.kael.hp, Math.round(this.kael.hpMax * 0.3));
+      this.kael.hp += heal;
+      this.buffTime = 8;
+      this.potionPulse = 0.5;
+      this.fx.popText(this.kael.x, this.kael.y - 140, '+' + heal + ' 회복', { color: 0x8dffc1, size: 28, dur: 0.95 });
+      this.fx.sparkBurst(this.kael.x, this.kael.y - 80, 0x85ffc5, 20, 270);
+      return true;
+    }
+
     useSkill1() {
       const h = this.kael;
       if (this.cooldowns.skill1 > 0 || h.mp < 25 || h.state === 'dead') return false;
@@ -512,6 +568,14 @@
 
       // 1) 컷인 (리아 등장 연출)
       this._liaCutIn();
+      this.flashImpact(0.9, 0xffffff);
+      this.fx.cinematicCross();
+      this.scene.zoomTo(1.08, 0.20);
+      this.after(0.48, () => this.scene.zoomTo(1.0, 0.42));
+      if (this.boss && this.boss.alive) {
+        this.fx.ring(this.boss.x, this.boss.centerY, 0xd7baff, 470, 0.65, 11);
+        this.fx.ring(this.boss.x, this.boss.centerY, 0xffffff, 600, 0.78, 7);
+      }
       // 2) 소환 마법진 + 리아 강림
       this.summonActive = true;
       this.after(0.24, () => {
@@ -523,12 +587,17 @@
         this.fx.pillar(tx, ty - 10, 0xe8f2ff, 680, 1.05, 240);
         this.fx.pillar(tx - 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
         this.fx.pillar(tx + 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
-        this.fx.ring(tx, ty - 10, 0xd7c2ff, 210, 0.7, 9, 0.42);
+        this.fx.ring(tx, ty - 10, 0xd7c2ff, 400, 0.8, 12, 0.42);
+        this.fx.sparkBurst(tx, ty - 80, 0xffdfff, 64, 750);
         this.fx.ring(tx, ty - 10, 0xffffff, 140, 0.45, 4, 0.42);
         this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 36, 620);
         this.fx.groundBurst(tx, ty);
-        this.flashImpact(0.16);
-        this.scene.shake(12, 0.42);
+        this.flashImpact(0.95, 0xffffff);
+        this.fx.shockRing(tx, ty - 30, 0xffffff, 690, 0.6);
+        this.fx.sparkBurst(tx, ty - 80, 0xf2e3ff, 90, 950);
+        this.scene.zoomTo(1.06, 0.11);
+        this.after(0.14, () => this.scene.zoomTo(1, 0.34));
+        this.scene.shake(18, 0.62);
         this.hitStop = 0.06;
         let n = 0;
         this.enemies.forEach((e) => {
@@ -551,8 +620,121 @@
         this.comboT = 2.8;
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       });
+      this.after(1.14, () => {
+        this.fx.sparkBurst(tx, ty - 85, 0xdcc7ff, 60, 780);
+        this.scene.shake(18, 0.42);
+      });
       this.after(1.9, () => { this.summonActive = false; });
       return true;
+    }
+
+    /* ---------------- 보스 스킬 컷인 ---------------- */
+    /* 보스가 강력 기술을 시전할 때 오른쪽에서 붉은 배너 + 초상화가 밀려 들어온다.
+       판정을 바꾸지 않고 "누구의 어떤 기술인지"만 알려 주는 연출이라, 예고가 막 시작되는
+       순간에 띄우고 1.2초만 유지한다. 오른쪽 1/3만 덮어 장판·회피 판단을 가리지 않는다. */
+    onBossSkill(kind) {
+      if (this.bossCutCD > 0) return;
+      if (this.phase !== 'boss' && this.phase !== 'bossIntro') return;
+      if (!this.boss || !this.boss.alive || this.boss.dying) return;
+      const info = BOSS_SKILL_CUTIN[kind];
+      if (!info) return;
+      this.bossCutCD = 13;
+      this.bossCutLog.push({ t: +this.time.toFixed(2), kind });
+      this.bossCutKind = kind;
+      this._bossCutIn(info);
+      this.flashImpact(0.38, 0xff2a3c);
+      this.scene.shake(7, 0.3);
+      this.scene.zoomTo(1.03, 0.18);
+      this.after(0.45, () => { if (this.phase === 'boss') this.scene.zoomTo(1, 0.42); });
+      G.Sfx.bossRoar();
+      if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 6000, chance: 0.85 });
+    }
+
+    _bossCutIn(info) {
+      if (this.bossCutin) {
+        this.bossCutin.destroy({ children: true });
+        this.bossCutin = null;
+      }
+      const c = new PIXI.Container();
+      c.zIndex = 16;
+
+      const band = new PIXI.Graphics();
+      band.poly([1310, 176, 792, 104, 676, 340, 1310, 452]).fill({ color: 0x24050a, alpha: 0.9 });
+      band.poly([1310, 208, 788, 136, 700, 322, 1310, 428]).fill({ color: 0xa80f1c, alpha: 0.22 });
+      band.poly([1310, 444, 1076, 360, 1034, 376, 1310, 470]).fill({ color: 0xff5a3c, alpha: 0.32 });
+      band.moveTo(1310, 176).lineTo(792, 104).stroke({ width: 4, color: 0xff3b32, alpha: 0.9 });
+      band.moveTo(792, 104).lineTo(676, 340).stroke({ width: 2.4, color: 0xff6a4a, alpha: 0.75 });
+      band.moveTo(1310, 452).lineTo(676, 340).stroke({ width: 1.6, color: 0xff8a5a, alpha: 0.4 });
+      c.addChild(band);
+
+      // 초상화 뒤 붉은 잔광
+      const g = new PIXI.Sprite(G.Assets.tex.glow);
+      g.anchor.set(0.5);
+      g.blendMode = 'add';
+      g.tint = 0xff2a22;
+      g.width = 660; g.height = 660;
+      g.x = 1104; g.y = 292;
+      g.alpha = 0.34;
+      c.addChild(g);
+
+      // 배너를 가로지르는 잔상선 (위압감)
+      const sl = new PIXI.Graphics();
+      sl.blendMode = 'add';
+      for (let i = 0; i < 4; i++) {
+        const y = 152 + i * 76;
+        sl.moveTo(700 + i * 26, y + 118).lineTo(1300, y - 26)
+          .stroke({ width: i === 1 ? 12 : 5, color: i === 1 ? 0xff4a3a : 0xffb0a0, alpha: i === 1 ? 0.30 : 0.16 });
+      }
+      c.addChild(sl);
+
+      const por = new PIXI.Sprite(G.Assets.tex.portraitBoss);
+      por.anchor.set(0.5);
+      por.height = 344;
+      por.width = 344 * (441 / 560);
+      por.x = 1110; por.y = 286;
+
+      // 같은 실루엣을 살짝 키워 붉게 태운 뒤 가산 블렌드 → 어두운 갑옷이 배너에서 떠 보인다
+      const aura = new PIXI.Sprite(G.Assets.tex.portraitBoss);
+      aura.anchor.set(0.5);
+      aura.height = 358; aura.width = 358 * (441 / 560);
+      aura.x = 1108; aura.y = 286;
+      aura.tint = 0xff3a1e;
+      aura.blendMode = 'add';
+      aura.alpha = 0.34;
+      c.addChild(aura);
+      c.addChild(por);
+      this.bossCutPor = por;
+      this.bossCutPorBase = por.scale.x;
+
+      const name = new PIXI.Text({
+        text: '아르카논',
+        style: G.style({ fontSize: 42, fontWeight: '900', fill: 0xffe6dc, letterSpacing: 4, stroke: { color: 0x3a0409, width: 8 } }),
+      });
+      name.anchor.set(1, 0.5);
+      name.x = 972; name.y = 232;
+      c.addChild(name);
+
+      const mv = new PIXI.Text({
+        text: info.move,
+        style: G.style({ fontSize: 27, fontWeight: '900', fill: 0xffb4a2, letterSpacing: 2, stroke: { color: 0x2c0306, width: 6 } }),
+      });
+      mv.anchor.set(1, 0.5);
+      mv.x = 972; mv.y = 282;
+      c.addChild(mv);
+
+      const sub = new PIXI.Text({
+        text: 'SHADOW LORD  ·  ' + info.en,
+        style: G.style({ fontSize: 14, fontWeight: '800', fill: 0xff8f78, letterSpacing: 3 }),
+      });
+      sub.anchor.set(1, 0.5);
+      sub.x = 972; sub.y = 320;
+      c.addChild(sub);
+
+      c.x = 760;
+      c.alpha = 0;
+      this.root.addChild(c);
+      this.bossCutin = c;
+      this.bossCutT = 0;
     }
 
     /* 리아 컷인: 화면 좌측에서 초상화가 미끄러져 들어왔다가 사라진다 */
@@ -621,12 +803,12 @@
       sh.width = 160; sh.height = 54;
       sh.alpha = 0.34;
       o.addChild(sh);
-      const spr = new PIXI.AnimatedSprite(a.frames);
-      spr.anchor.set(a.ax, a.ay);
-      const sc = 340 / (a.fh || 465);
+      const sdLia = G.Assets.sd?.lia_sd_idle;
+      const spr = sdLia ? new PIXI.Sprite(sdLia.texture) : new PIXI.AnimatedSprite(a.frames);
+      spr.anchor.set(sdLia ? sdLia.ax : a.ax, sdLia ? sdLia.ay : a.ay);
+      const sc = (sdLia ? 250 / sdLia.h : 340 / (a.fh || 465));
       spr.scale.set(sc);
-      spr.animationSpeed = 0;
-      spr.gotoAndStop(0);
+      if (spr.gotoAndStop) { spr.animationSpeed = 0; spr.gotoAndStop(0); }
       o.addChild(spr);
 
       const glow = new PIXI.Sprite(G.Assets.tex.glow);
@@ -690,6 +872,7 @@
 
       if (this.flashT > 0) {
         this.flashT -= realDt;
+        this.flashG.alpha = Math.max(0, this.flashT / (this.flashDuration || 0.06));
         if (this.flashT <= 0) this.flashG.clear();
       }
 
@@ -700,7 +883,7 @@
 
       // 히트스톱 / 슬로우
       let dt = realDt;
-      if (this.hitStop > 0) { this.hitStop = Math.max(0, this.hitStop - realDt); dt = realDt * 0.08; }
+      if (this.hitStop > 0) { this.hitStop = Math.max(0, this.hitStop - realDt); dt = 0; }
       if (this.slowT > 0) { this.slowT -= realDt; dt *= 0.35; }
 
       this._processTimers(dt);
@@ -711,7 +894,7 @@
       const k = this.keys;
       let mx = inp.moveX, my = inp.moveY;
       const kx = (k['ArrowRight'] || k['d'] ? 1 : 0) - (k['ArrowLeft'] || k['a'] ? 1 : 0);
-      const ky = (k['ArrowDown'] || k['s'] ? 1 : 0) - (k['ArrowUp'] || k['w'] ? 1 : 0);
+      const ky = (k['s'] ? 1 : 0) - (k['w'] ? 1 : 0);
       if (kx || ky) {
         const len = Math.hypot(kx, ky) || 1;
         mx = kx / len; my = ky / len;
@@ -729,6 +912,26 @@
       if (this.phase === 'wave' && this.timeLeft <= 0) this.enterBossPhase();
       if (this.phase === 'boss' && this.timeLeft <= 0) this._defeat('시간 초과');
 
+      // 히트스톱 동안에도 입력을 수집해 해제 직후 처리한다.
+      if (dt === 0) {
+        if (inp.attack) this.queuedAttack = true;
+        if (inp.skill1) this.queuedSkill1 = true;
+        if (inp.skill2) this.queuedSkill2 = true;
+        if (inp.dodge) this.queuedDodge = true;
+        if (inp.potion) this.queuedPotion = true;
+        if (inp.jump) this.queuedJump = true;
+        this.hud.update(realDt, this);
+        this.support.update(0, realDt);   // 히트스톱 중에도 컷인 배너는 부드럽게
+        return;
+      }
+      if (this.queuedJump) { inp.jump = true; this.queuedJump = false; }
+      if (inp.jump) this.kael.jump();
+      if (this.queuedAttack) { inp.attack = true; this.queuedAttack = false; }
+      if (this.queuedSkill1) { inp.skill1 = true; this.queuedSkill1 = false; }
+      if (this.queuedSkill2) { inp.skill2 = true; this.queuedSkill2 = false; }
+      if (this.queuedDodge) { inp.dodge = true; this.queuedDodge = false; }
+      if (this.queuedPotion) { inp.potion = true; this.queuedPotion = false; }
+      if (inp.potion) this.usePotion();
       // 조작
       if (inp.attack) this._tryAttack();
       if (this.attackBuffer > 0) {
@@ -743,7 +946,7 @@
       if (manualMove && this.kael.state !== 'dead') {
         const sp = 260;
         this.kael.moveSpeed = Math.abs(mx) * sp;
-        this.kael.move(mx * sp, my * sp * 0.6, dt);
+        this.kael.move(mx * sp, my * sp, dt);
       } else if (this.autoMode !== 'manual') {
         this._autoMove(dt);
       }
@@ -753,6 +956,8 @@
       if (this.atkCD <= 0.42) this.atkCD = Math.max(this.atkCD, 0);
 
       // 스킬 쿨다운 (수동 모드에서도 흐른다)
+      this.buffTime = Math.max(0, this.buffTime - dt);
+      this.potionPulse = Math.max(0, this.potionPulse - realDt);
       this.cooldowns.skill1 = Math.max(0, this.cooldowns.skill1 - dt);
       this.cooldowns.skill2 = Math.max(0, this.cooldowns.skill2 - dt);
 
@@ -775,6 +980,25 @@
         if (this.cutT > 1.14) {
           this.cutin.destroy({ children: true });
           this.cutin = null;
+        }
+      }
+
+      // 보스 스킬 컷인 연출 (오른쪽에서 들어왔다가 오른쪽으로 나간다)
+      if (this.bossCutCD > 0) this.bossCutCD = Math.max(0, this.bossCutCD - realDt);
+      if (this.bossCutin) {
+        this.bossCutT += realDt;
+        const tin = G.clamp(this.bossCutT / 0.2, 0, 1);
+        const tout = G.clamp((this.bossCutT - 0.92) / 0.3, 0, 1);
+        this.bossCutin.x = 760 * (1 - G.easeOutCubic(tin)) + 540 * G.easeInCubic(tout);
+        this.bossCutin.alpha = (this.bossCutT < 0.92 ? G.clamp(this.bossCutT / 0.1, 0, 1) : 1 - tout);
+        if (this.bossCutPor) {
+          const p = G.clamp(this.bossCutT / 0.28, 0, 1);
+          this.bossCutPor.scale.set(this.bossCutPorBase * (0.9 + 0.1 * G.easeOutBack(p)));
+        }
+        if (this.bossCutT > 1.22) {
+          this.bossCutin.destroy({ children: true });
+          this.bossCutin = null;
+          this.bossCutPor = null;
         }
       }
 
@@ -804,13 +1028,14 @@
       }
       if (this.phase === 'boss' && !this.bossSpawned) this._lateBossSpawn();
 
-      // 적들
-      this.enemies.forEach((e) => e.update(dt, this.time, this.kael));
+      // 적들 (세나의 기록의 인장이 걸려 있으면 이동·공격이 35% 느려진다)
+      const edt = this.support && this.support.slowT > 0 ? dt * 0.65 : dt;
+      this.enemies.forEach((e) => e.update(edt, this.time, this.kael));
       this.enemies = this.enemies.filter((e) => !e.dead);
 
       // 보스
       if (this.boss && this.boss.alive) {
-        this.boss.update(dt, this.time, this.kael);
+        this.boss.update(edt, this.time, this.kael);
         this._bossWindow(dt);
       }
 
@@ -853,6 +1078,7 @@
       }
 
       this.fx.update(dt);
+      this.support.update(dt, realDt);
       this.hud.update(realDt, this);
       this.phaseT += realDt;
     }
@@ -886,9 +1112,13 @@
         if (this.kael.state !== 'attack') return;
         this.kael.state = 'dodge';
         this.kael.stateT = 0;
+        this.kael.dodgeDir = this.kael.facing;
+        this.kael.dodgeY = this.kael.y;
+        this.kael.dodgeYDir = Math.sign(this.kael.vy || 0);
         this.kael.dodgeFrom = this.kael.x;
         this.kael.dodgeDist = 150;
         this.kael.invuln = 0.36;
+        this.kael.obj.alpha = 1;
       } else {
         this.kael.dodge();
       }
@@ -897,6 +1127,9 @@
       if (this.perfectWindow && this.boss && this.boss.state === 'windup' && this.boss.kind === 'perfect') {
         this.perfectWindow = false;
         this.perfectCounter = true;
+        this.slowT = Math.max(this.slowT || 0, 0.35);
+        this.flashImpact(0.28, 0xffe7aa);
+        this.fx.perfectSeal();
         G.Sfx.counter();
       }
       // 회피 이펙트 + 잔상
@@ -925,7 +1158,8 @@
       // 자동 회피 (반격만 수동 모드에서도 일반 공격은 회피)
       if (this.autoMode !== 'manual' && b.state === 'windup' && b.kind !== 'perfect') {
         const tLeft = b.cfg.tele - b.stateT;
-        const inside = Math.abs(this.kael.x - b.teleX) < b.cfg.radius * 1.05;
+        const inside = b.teleTargets && b.teleTargets.some((q) => Math.hypot(this.kael.x - q.x, (this.kael.y - q.y) / 0.4) < q.r * 1.05);
+        if (inside && b.kind !== 'perfect' && this.kael.z <= 0 && tLeft < 0.6) this.kael.jump();
         if (tLeft < 0.3 && tLeft > 0 && inside && this.kael.dodgeCD <= 0 && this.kael.state !== 'dodge' && this.kael.state !== 'attack') {
           this.kael.dodge();
           this.fx.ring(this.kael.x, this.kael.y - 8, 0x9fd6ff, 90, 0.35, 3);
@@ -967,11 +1201,11 @@
         this.kael.moveSpeed = Math.abs(mx) * 210;
         this.kael.move(mx * 210, 0, dt);
       }
-      this.kael.x = G.clamp(this.kael.x, 300, 420);
+      this.kael.x = G.clamp(this.kael.x, 120, 1040);
       this.kael.obj.x = this.kael.x;
       // y 정렬
       const dy = target.y - this.kael.y;
-      if (Math.abs(dy) > 14) this.kael.move(0, Math.sign(dy) * 55, dt);
+      if (Math.abs(dy) > 14) this.kael.move(0, Math.sign(dy) * 95, dt);
     }
 
     _nearestEnemy() {
@@ -1141,6 +1375,8 @@
       this.enemies.forEach((e) => { if (e.obj) e.obj.destroy({ children: true }); });
       this.enemies = [];
       if (this.boss && this.boss.obj) this.boss.obj.destroy({ children: true });
+      // 보스 예고 그래픽은 actorLayer 밖에 있으므로 재시작 시 별도로 정리한다.
+      for (const tele of this.bossTeleLayer.removeChildren()) tele.destroy();
       this.boss = null;
       this.bossSpawned = false;
       this.projectiles.forEach((p) => p.spr.destroy());
@@ -1152,6 +1388,9 @@
       this.cooldowns = { skill1: 0, skill2: 0 };
       this.timers.length = 0;
       if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
+      if (this.bossCutin) { this.bossCutin.destroy({ children: true }); this.bossCutin = null; this.bossCutPor = null; }
+      this.bossCutCD = 0;
+      if (this.support) this.support.reset();
       this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
       this.kael = null; this.lia = null;
       this._initActors();
@@ -1166,6 +1405,18 @@
       this.perfectWindow = false;
       this.perfectCounter = false;
       this.hitStop = 0;
+      this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = false;
+      // 재도전 직후 이전 판의 일회성 입력(공격/스킬/점프)과 잡고 있던 조이스틱이 따라오지 않게 비운다.
+      if (this.hud) {
+        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute']) {
+          this.hud.input[key] = false;
+        }
+        const j = this.hud.joy;
+        if (j) { j.active = false; j.id = null; j.vx = 0; j.vy = 0; }
+      }
+      this.bossCutT = 0;
+      this._perfectHintShown = false;
+      this.potions = 3; this.buffTime = 0; this.potionPulse = 0;
       this.slowT = 0;
       this.time = 0;
       this.start();

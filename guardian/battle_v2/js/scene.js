@@ -11,6 +11,99 @@
     return PIXI.Texture.from(c);
   }
 
+  // All generated textures are local Canvas2D assets; no remote fetches.
+  function paintedSky() {
+    const c = document.createElement('canvas'); c.width = 1280; c.height = 720;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, 720);
+    [[0,'#080e2b'],[0.4,'#262044'],[0.72,'#65405e'],[1,'#dc7751']].forEach(v=>g.addColorStop(...v));
+    x.fillStyle=g; x.fillRect(0,0,1280,720);
+    const halo=x.createRadialGradient(1010,132,10,1010,132,210);
+    halo.addColorStop(0,'rgba(200,214,255,.45)'); halo.addColorStop(.35,'rgba(142,147,242,.13)'); halo.addColorStop(1,'rgba(142,147,242,0)');
+    x.fillStyle=halo; x.fillRect(790,0,450,360);
+    x.beginPath(); x.arc(1010,132,54,0,Math.PI*2); x.fillStyle='#d9dfff';x.fill();
+    let seed=2197; const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+    for(let i=0;i<140;i++){x.fillStyle=`rgba(222,230,255,${.2+rand()*.65})`;x.fillRect(rand()*1280,rand()*370,1+rand()*2,1+rand()*2);}
+    for(let i=0;i<9;i++){const xx=rand()*1280, yy=70+rand()*300;
+      const cloud=x.createRadialGradient(xx,yy,10,xx,yy,190);cloud.addColorStop(0,'rgba(148,120,176,.18)');cloud.addColorStop(1,'rgba(148,120,176,0)');x.fillStyle=cloud;x.fillRect(xx-200,yy-130,400,260);}
+    return PIXI.Texture.from(c);
+  }
+  // Broken medieval architecture, not rectangular skyline blocks.
+  function ruinLayer(color, offset, height) {
+    const g = new PIXI.Graphics();
+    const y = 495 + offset * 0.11;
+    const dark = color;
+    const rim = 0xd68a5a;
+    const wall = (x, w, top, jag) => {
+      const pts = [x, 720, x, top + 18];
+      for (let k = 0; k <= 10; k++) {
+        const px = x + w * k / 10;
+        const chip = ((k * 17 + jag * 11) % 7) * 3;
+        pts.push(px, top + chip + (k % 3 === 0 ? 11 : 0));
+      }
+      pts.push(x + w, 720);
+      g.poly(pts).fill({color: dark, alpha: 0.46});
+      for (let k = 0; k < 10; k++) {
+        const x1 = x + w * k / 10;
+        const y1 = top + ((k * 17 + jag * 11) % 7) * 3 + (k % 3 === 0 ? 11 : 0);
+        const x2 = x + w * (k + 1) / 10;
+        const y2 = top + (((k + 1) * 17 + jag * 11) % 7) * 3 + ((k + 1) % 3 === 0 ? 11 : 0);
+        g.moveTo(x1, y1).lineTo(x2, y2).stroke({color: rim, width: 1.2, alpha: 0.14});
+      }
+    };
+    wall(-130 + offset * .22, 330, y - 12 - height * .14, 2);
+    wall(1000 + offset * .14, 410, y - 3 - height * .18, 5);
+    // Ruined towers with chipped pointed caps, arched openings and broken pillars.
+    for (const [x, w, h] of [[105 + offset*.3, 77, 87], [1090 - offset*.2, 91, 103]]) {
+      const top = y - h;
+      g.poly([x, y+90, x, top+35, x+9, top+20, x+21, top+23,
+        x+w*.43, top-18, x+w*.57, top-11, x+w*.74, top+19,
+        x+w-10, top+15, x+w, top+36, x+w, y+90]).fill({color:dark,alpha:.55});
+      g.moveTo(x+9,top+20).lineTo(x+21,top+23).lineTo(x+w*.43,top-18)
+        .lineTo(x+w*.57,top-11).stroke({color:rim,width:1.5,alpha:.19});
+      g.poly([x+w*.3,y+20,x+w*.3,top+67,x+w*.5,top+48,x+w*.7,top+67,x+w*.7,y+20])
+        .fill({color:0x100f20,alpha:.42});
+    }
+    // A broken stone arch on the far left, with its open interior.
+    g.moveTo(-55,y+80).lineTo(-55,y-22).quadraticCurveTo(55,y-124,157,y-32)
+      .lineTo(157,y+75).stroke({color:dark,width:27,alpha:.55});
+    g.moveTo(-47,y-27).quadraticCurveTo(55,y-117,151,y-32)
+      .stroke({color:rim,width:2,alpha:.20});
+    return g;
+  }
+  function floorPerspective() {
+    const g = new PIXI.Graphics();
+    const vanX=640, vanY=470, bottom=735;
+    g.poly([0,720,1280,720,790,vanY,490,vanY]).fill({color:0x343849,alpha:.20});
+    // Staggered stone slabs: horizontal courses and short offset joints.
+    const rows=9;
+    const bounds=[];
+    for(let r=0;r<=rows;r++) {
+      const t=r/rows;
+      bounds.push(vanY+Math.pow(t,1.65)*(bottom-vanY));
+    }
+    for(let r=0;r<rows;r++) {
+      const y0=bounds[r], y1=bounds[r+1];
+      const t0=(y0-vanY)/(bottom-vanY),t1=(y1-vanY)/(bottom-vanY);
+      const width0=150+1150*t0, width1=150+1150*t1;
+      const count=7;
+      const offset=(r%2)*.5;
+      for(let k=-count;k<=count;k++) {
+        const xx0=vanX+(k+offset)*width0/count;
+        const xx1=vanX+(k+offset)*width1/count;
+        g.moveTo(xx0,y0+1).lineTo(xx1,y1-1).stroke({color:0x9a9ca5,width:1.2,alpha:.12+.09*t1});
+      }
+      g.moveTo(0,y1).lineTo(1280,y1).stroke({color:0x9c9c9e,width:1.2,alpha:.12+.08*t1});
+      if(r>3) {
+        const x=vanX+((r*127)%630)-310;
+        g.moveTo(x,y1-7).lineTo(x+16,y1-11).lineTo(x+23,y1-4)
+          .stroke({color:0x161c2d,width:1.4,alpha:.23});
+        g.moveTo(x+48,y1-2).lineTo(x+59,y1-5).stroke({color:0x66815f,width:3,alpha:.20});
+      }
+    }
+    return g;
+  }
+
   class Scene {
     constructor(app) {
       this.app = app;
@@ -23,11 +116,12 @@
       this.skyLayer = new PIXI.Container();     // 하늘·성문·빛줄기
       this.farLayer = new PIXI.Container();     // 원경 안개
       this.midLayer = new PIXI.Container();     // 바닥·바닥 안개 (캐릭터 뒤)
+      this.nearLayer = new PIXI.Container();    // 원근 바닥·잔해
       this.actorLayer = new PIXI.Container();   // 캐릭터 (battle.js가 채운다)
       this.fxLayer = new PIXI.Container();      // 이펙트·데미지
       this.frontLayer = new PIXI.Container();   // 전경 안개·근경 입자 (캐릭터 앞)
       this.world.addChild(this.skyLayer, this.farLayer, this.midLayer,
-        this.actorLayer, this.fxLayer, this.frontLayer);
+        this.nearLayer, this.actorLayer, this.fxLayer, this.frontLayer);
       this.actorLayer.sortableChildren = true;
 
       this.zoom = 1;
@@ -45,14 +139,29 @@
       const tex = G.Assets.tex;
       this.bgW = 1672;
       this.bgH = 941;
-      this.bgScale = Math.max(G.W / this.bgW, G.H / this.bgH) * 1.06;
+      this.bgScale = Math.max(G.W / 1672, G.H / 941) * 1.06;
 
       this.bg = new PIXI.Sprite(tex.bg);
       this.bg.anchor.set(0.5);
       this.bg.scale.set(this.bgScale);
       this.bg.x = G.W / 2;
       this.bg.y = G.H / 2;
+      const sky = new PIXI.Sprite(paintedSky());
+      sky.width=G.W; sky.height=G.H;
+      this.bg.alpha = 1;
       this.skyLayer.addChild(this.bg);
+      // Extremely subtle atmospheric glaze; the original golden gate painting remains dominant.
+      sky.alpha = 0.075;
+      this.skyLayer.addChild(sky);
+      this.farLayer.addChild(ruinLayer(0x1a1630, 0, 80));
+      this.farLayer.addChild(ruinLayer(0x241d3a, 31, 48));
+      this.midLayer.addChild(ruinLayer(0x29253c, 67, 14));
+      this.nearLayer.addChild(floorPerspective());
+      const fore=new PIXI.Graphics();
+      fore.poly([0,0,58,0,46,460,0,540]).fill({color:0x080d1d,alpha:.53});
+      fore.poly([1280,0,1238,0,1244,490,1280,600]).fill({color:0x080d1d,alpha:.6});
+      fore.poly([0,720,0,665,260,720]).fill({color:0x0a1020,alpha:.5});
+      this.frontLayer.addChild(fore);
 
       // 성문 쪽 따뜻한 발광 (노을) — 호흡하듯 천천히 밝아졌다 어두워진다
       const warm = new PIXI.Sprite(tex.glow);
@@ -224,7 +333,7 @@
     shake(amp, dur = 0.25) {
       this.shakeAmp = Math.max(this.shakeAmp, amp);
       this.shakeT = Math.max(this.shakeT, dur);
-      this.shakeDur = dur;
+      this.shakeDur = Math.max(this.shakeDur || 0, dur);
     }
 
     zoomTo(z, dur) {
@@ -243,11 +352,12 @@
       this.time += dt;
       const t = this.time;
 
-      const shakeX = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp : 0;
-      const shakeY = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * 0.7 : 0;
+      const shakeFade = this.shakeT > 0 ? Math.pow(G.clamp(this.shakeT / Math.max(0.001, this.shakeDur), 0, 1), 1.7) : 0;
+      const shakeX = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade : 0;
+      const shakeY = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade * 0.7 : 0;
       if (this.shakeT > 0) {
         this.shakeT -= dt;
-        if (this.shakeT <= 0) this.shakeAmp = 0;
+        if (this.shakeT <= 0) { this.shakeAmp = 0; this.shakeDur = 0; }
       }
 
       if (this._zoomDur) {
@@ -264,10 +374,11 @@
       this.world.position.set(G.W / 2 + shakeX, G.H / 2 + shakeY);
 
       // 레이어 시차
-      this.skyLayer.x = -this.focus * 0.10 + Math.sin(t * 0.16) * 4;
-      this.farLayer.x = -this.focus * 0.26 + Math.sin(t * 0.11) * 6;
-      this.midLayer.x = -this.focus * 0.45;
-      this.frontLayer.x = -this.focus * 0.85;
+      this.skyLayer.x = -this.focus * 0.05 + Math.sin(t * 0.16) * 4;
+      this.farLayer.x = -this.focus * 0.18 + Math.sin(t * 0.11) * 6;
+      this.midLayer.x = -this.focus * 0.4;
+      this.nearLayer.x = -this.focus * 0.7;
+      this.frontLayer.x = -this.focus * 1.3;
       this.skyLayer.y = Math.sin(t * 0.11) * 2;
       this.farLayer.y = Math.sin(t * 0.09 + 1) * 3;
 

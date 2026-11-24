@@ -4,6 +4,10 @@
     bg: 'assets/bg_gate.webp',
     portraitKael: 'assets/portrait_kael.webp',
     portraitLia: 'assets/portrait_lia.webp',
+    portraitBoss: 'assets/portrait_boss.webp',
+    portraitAra: 'assets/portrait_ara.webp',
+    portraitBorn: 'assets/portrait_born.webp',
+    portraitSena: 'assets/portrait_sena.webp',
     scout: 'assets/mon_scout.webp',
     boss: 'assets/boss.webp',
   };
@@ -17,6 +21,8 @@
     tex: {},
     anim: {},
     animMeta: null,
+    sd: {},
+    seq: {},
     total: 0,
     loaded: 0,
     _imgCache: {},
@@ -29,6 +35,36 @@
       jobs.push(this._loadMeta(prog));
       await Promise.all(jobs);
       await Promise.all(ANIM_CRITICAL.map((k) => this._loadAnim(k, prog)));
+      try {
+        const meta = await (await fetch('assets/sd/meta.json')).json();
+        await Promise.all(Object.entries(meta).map(async ([key, info]) => {
+          try {
+            const img = await this._img(info.file);
+            const base = PIXI.Texture.from(img);
+            base.source.scaleMode = 'linear';
+            if (info.frames) {
+              // 가로 N칸 시퀀스 시트 → 프레임별 서브 텍스처
+              const frames = [];
+              for (let i = 0; i < info.frames; i++) {
+                frames.push(new PIXI.Texture({
+                  source: base.source,
+                  frame: new PIXI.Rectangle(i * info.frameW, 0, info.frameW, info.frameH),
+                }));
+              }
+              const short = key.replace(/_sd_seq$/, '');
+              this.seq[short] = {
+                key, frames, ax: info.anchorX, ay: info.anchorY,
+                w: info.frameW, h: info.frameH, bodyH: info.bodyH || info.frameH,
+                fps: info.fps || 7, strike: info.strike || 3,
+              };
+              this.sd[key] = { texture: frames[0], ax: info.anchorX, ay: info.anchorY,
+                h: info.frameH, w: info.frameW, bodyH: info.bodyH || info.frameH };
+            } else {
+              this.sd[key] = {texture: base, ax:info.anchorX, ay:info.anchorY, h:info.h, w:info.w, bodyH:info.bodyH || info.h};
+            }
+          } catch (_) { /* optional SD art: keep original sprites/Graphics fallback */ }
+        }));
+      } catch (_) { /* optional SD metadata */ }
 
       const gen = {
         glow: () => this._glowTex(),
@@ -105,7 +141,7 @@
         frames: [], ax: m.anchorX, ay: m.anchorY,
         fw: m.frameW, fh: m.frameH, count: m.frames,
         pxBodyH: m.pxBodyH || this.animMeta.bodyH,
-        bob: m.bob || null, contacts: m.contacts || null,
+        bob: m.bob || null, contacts: m.contacts || null, atkScale: m.atkScale || 1,
       };
       if (m.frames > 1) {
         for (let i = 0; i < m.frames; i++) {

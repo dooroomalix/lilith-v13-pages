@@ -216,4 +216,21 @@
   };
 
   G.Sfx = Sfx;
+  // Optional voice files; missing files never interrupt gameplay.
+  G.Sfx._voiceT = {};
+  G.Sfx.playVoice = function(name, opts) {
+    if (!/^[a-z0-9_]+$/i.test(name)) return;
+    const o = opts || {};
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const last = this._voiceT[name] || -1e9;
+    if (now - last < (o.min || 900)) return;
+    if (o.chance !== undefined && Math.random() > o.chance) return;
+    this._voiceT[name] = now;
+    try {
+      const voice = new Audio('audio/' + name + '.mp3');
+      voice.volume = 0.72;
+      const result = voice.play();
+      if (result && result.catch) result.catch(() => {});
+    } catch (_) {}
+  };
 })();

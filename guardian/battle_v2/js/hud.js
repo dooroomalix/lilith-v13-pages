@@ -53,9 +53,14 @@
         auto: { x: 1148, y: 446, w: 138, h: 54, press: 0 },
         pause: { x: 1204, y: 30, r: 20, press: 0 },
         mute: { x: 1248, y: 30, r: 20, press: 0 },
+        potion: { x: 916, y: 630, r: 32, press: 0 },
+        jump: { x: 850, y: 602, r: 32, press: 0 },
       };
       this.joy = { active: false, id: null, bx: 150, by: 600, r: 80, kx: 150, ky: 600, vx: 0, vy: 0 };
-      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false };
+      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false };
+      this.potionLabel = new PIXI.Text({ text: '3', style: G.style({ fontSize: 15, fill: 0xffffff, fontWeight: '900' }) });
+      this.potionLabel.zIndex = 8; this.root.addChild(this.potionLabel);
+      this.buffG = new PIXI.Graphics(); this.root.addChild(this.buffG);
       this.hpGhost = 1;
       this.mpGhost = 1;
       this.build();
@@ -275,10 +280,11 @@
 
       const ring = (btn, color, icon) => {
         const press = btn.press > 0 ? 1 - btn.press / 0.16 : 0;
-        const r = btn.r * (1 + press * 0.04);
+        const r = btn.r * (1 - press * 0.06);
         g.circle(btn.x, btn.y, r + 7).fill({ color, alpha: 0.10 });
         g.circle(btn.x, btn.y, r + 3).stroke({ width: 1.2, color, alpha: 0.35 });
-        g.circle(btn.x, btn.y, r).fill({ color: 0x061424, alpha: 0.62 });
+        g.circle(btn.x, btn.y, r).fill({ color: 0x061424, alpha: 0.82 });
+        g.circle(btn.x, btn.y, r*.74).fill({ color, alpha: press*.22 });
         g.circle(btn.x, btn.y, r).stroke({ width: 2.4, color, alpha: 0.9 });
         g.circle(btn.x, btn.y, r * 0.84).stroke({ width: 1, color, alpha: 0.22 });
         g.circle(btn.x, btn.y - r * 0.42, r * 0.72).fill({ color, alpha: 0.06 + press * 0.08 });
@@ -287,6 +293,7 @@
 
       ring(b.attack, 0xbfe0ff, (btn, r) => {
         const x = btn.x, y = btn.y, s = r / 58;
+        g.moveTo(x-19*s,y-16*s).lineTo(x+18*s,y+18*s).stroke({width:5*s,color:0x8ed6ff,alpha:.8});
         g.poly([
           x - 16 * s, y + 20 * s, x + 12 * s, y - 8 * s, x + 22 * s, y - 18 * s,
           x + 24 * s, y - 24 * s, x + 18 * s, y - 22 * s, x + 8 * s, y - 12 * s,
@@ -314,6 +321,17 @@
         }
         g.poly(pts).fill({ color: 0xe6d6ff, alpha: 0.96 });
         g.circle(x, y, 3 * s).fill({ color: 0xffffff, alpha: 0.95 });
+        g.moveTo(x-20*s,y+8*s).lineTo(x-20*s,y-10*s).lineTo(x-8*s,y-20*s).stroke({width:2.3*s,color:0xd8baff,alpha:.8});
+        g.moveTo(x+20*s,y+8*s).lineTo(x+20*s,y-10*s).lineTo(x+8*s,y-20*s).stroke({width:2.3*s,color:0xd8baff,alpha:.8});
+      });
+      ring(b.jump, 0x91caff, (btn,r) => {
+        this._text('jumpGlyph', '↑', G.style({fontSize:32,fill:0xe2f2ff,fontWeight:'900'}), this.root).position.set(btn.x-12,btn.y-23);
+      });
+      ring(b.potion, 0x7df1aa, (btn, r) => {
+        g.roundRect(btn.x - 10, btn.y - 12, 20, 25, 5).fill({color:0x9fffe0,alpha:.85});
+        g.roundRect(btn.x - 8, btn.y - 3, 16, 13, 3).fill({color:0x19b987,alpha:.95});
+        g.rect(btn.x - 6, btn.y - 18, 12, 7).fill({color:0xd9fff1});
+        g.moveTo(btn.x - 5,btn.y - 8).lineTo(btn.x - 5,btn.y + 6).stroke({width:2,color:0xffffff,alpha:.75});
       });
       ring(b.dodge, 0xffffff, (btn, r) => {
         const x = btn.x, y = btn.y, s = r / 37;
@@ -374,6 +392,8 @@
         this.input.auto = true; ax.press = 0.16; return;
       }
       if (hit(b.attack, 10)) { this.input.attack = true; b.attack.press = 0.16; return; }
+      if (hit(b.jump, 8)) { this.input.jump = true; b.jump.press = 0.16; return; }
+      if (hit(b.potion, 8)) { this.input.potion = true; b.potion.press = 0.16; return; }
       if (hit(b.skill1, 8)) { this.input.skill1 = true; b.skill1.press = 0.16; return; }
       if (hit(b.skill2, 8)) { this.input.skill2 = true; b.skill2.press = 0.16; return; }
       if (hit(b.dodge, 8)) { this.input.dodge = true; b.dodge.press = 0.16; return; }
@@ -415,17 +435,17 @@
       const i = this.input;
       const out = {
         attack: i.attack, skill1: i.skill1, skill2: i.skill2, dodge: i.dodge,
-        auto: i.auto, pause: i.pause, mute: i.mute,
+        auto: i.auto, pause: i.pause, mute: i.mute, potion: i.potion, jump: i.jump,
         moveX: this.joy.vx, moveY: this.joy.vy,
       };
-      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = false;
+      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = i.potion = i.jump = false;
       return out;
     }
 
     /* ---------- 갱신 ---------- */
     update(dt, game) {
       const b = this.buttons;
-      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute'].forEach((k) => {
+      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute', 'potion', 'jump'].forEach((k) => {
         if (b[k].press > 0) b[k].press = Math.max(0, b[k].press - dt);
       });
 
@@ -546,8 +566,8 @@
         const t2 = this.cdTexts[key];
         if (cur > 0) {
           const p = G.clamp(cur / max, 0, 1);
-          t2.visible = cur > 0.35;
-          t2.text = cur >= 1 ? String(Math.ceil(cur)) : cur.toFixed(1);
+          t2.visible = cur >= 0.1;
+          t2.text = cur.toFixed(1) + "s";
           t2.x = btn.x; t2.y = btn.y;
           this.btnFx.moveTo(btn.x, btn.y);
           this.btnFx.arc(btn.x, btn.y, btn.r * 0.98, -Math.PI / 2, -Math.PI / 2 + G.TAU * p);
@@ -559,6 +579,14 @@
       sweepCd('skill2', b.skill2, cd.skill2, game.skillMax.skill2);
       sweepCd('dodge', b.dodge, kael.dodgeCD, 2.4);
 
+      // 물약 수량 및 버프 잔여시간 게이지
+      this.potionLabel.text = String(game.potions);
+      this.potionLabel.x = b.potion.x + 17; this.potionLabel.y = b.potion.y + 9;
+      this.buffG.clear();
+      if (game.buffTime > 0) {
+        this.buffG.roundRect(862, 671, 104, 5, 2).fill({ color: 0x17452c, alpha: 0.9 });
+        this.buffG.roundRect(862, 671, 104 * game.buffTime / 8, 5, 2).fill({ color: 0x71ffac });
+      }
       this._drawAuto(game);
       this._drawButtons();
       this._drawJoystick();
