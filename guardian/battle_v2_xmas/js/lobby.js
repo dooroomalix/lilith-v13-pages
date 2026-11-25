@@ -30,7 +30,8 @@
   function layoutPortrait(w, h) {
     W = w; H = h;
     const m = 8, W1 = w - m * 2;
-    const cardW = (W1 - 4 * 6) / 5;
+    const cardGap = 6;
+    const cardW = Math.floor((W1 - 4 * cardGap) / 5);
     const cardH = 112;
     const cardY = h - 330;
     return {
@@ -43,7 +44,7 @@
       stat: { x: m + 17, y: 146, size: 11, lh: 15 }, line: { x: m + 17, y: 194, size: 12, lh: 16, wrap: W1 - 34 },
       skinLabel: { x: m + 4, y: h - 210, size: 12 },
       skins: { x: m, y: h - 192, w: (W1 - 12) / 3, h: 40, gap: 6, size: 12 },
-      cards: { x: m, y: cardY, w: cardW, h: cardH, gap: 0, name: 11 },
+      cards: { x: m, y: cardY, w: cardW, h: cardH, gap: cardGap, name: 11 },
       deploy: { x: m, y: h - 104, w: W1, h: 66 }, deployText: { x: w / 2, y: h - 71, size: 22 },
       hint: { x: m + 4, y: h - 16, size: 9.5 },
       hintText: '← → 이동 · J 공격 · K 스킬 · L 궁극기 · Shift 회피 · Q 물약',

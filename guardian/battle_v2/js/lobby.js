@@ -95,41 +95,52 @@
   function layoutPortrait(w, h) {
     const m = 8;
     const W1 = w - m * 2;
-    const stageY = 160;
-    const stageH = Math.round(G.clamp(h * 0.24, 168, 224));
-    const nameY = stageY + stageH + 6;
-    const skinY = nameY + 44;
-    const bubbleY = skinY + 34;
-    const hintY = bubbleY + 70;
-    const tabY = hintY + 18;
-    const tabH = 26;
-    const padY = tabY + tabH + 6;
-    const sortieH = 68;
-    const sortieY = h - sortieH - 26;
-    const panelH = Math.max(150, sortieY - 8 - padY);
+    const sy = G.clamp(h / 844, 0.72, 1.2);        // 높이 기준 배율 (작은 폰에서도 안 넘치게)
+    const px = (v) => Math.round(v * sy);
+    const headH = px(76);
+    const pillsY = px(54);
+    const pillsH = px(32);
+    const railY = px(94);
+    const railH = px(52);
+    const stageY = px(160);
+    // 아래에서부터 자리를 잡는다 — 출격 → (탭) 패널 → 힌트 → 말풍선 → 스킨 → 이름
+    const sortieH = px(68);
+    const sortieY = h - sortieH - px(22);
+    const panelH = Math.round(G.clamp(h * 0.22, 118, 200));
+    const padY = sortieY - 8 - panelH;
+    const tabH = px(26);
+    const tabY = padY - tabH - 6;
+    const hintY = tabY - px(20);
+    const bubbleH = px(62);
+    const bubbleY = hintY - 8 - bubbleH;
+    const skinH = px(30);
+    const skinY = bubbleY - px(4) - skinH;
+    const nameH = px(40);
+    const nameY = skinY - px(4) - nameH;
+    const stageH = Math.max(px(96), nameY - 6 - stageY);
     return {
       mode: 'portrait',
       V: { w, h },
-      headerH: 52,
-      sound: { x: w - m - 92, y: 8, w: 92, h: 32 },
-      stageSel: { x0: m, y: 54, w: (W1 - 6) / 2, h: 32, gap: 6 },
+      headerH: px(52),
+      sound: { x: w - m - 92, y: 8, w: 92, h: px(32) },
+      stageSel: { x0: m, y: pillsY, w: (W1 - 6) / 2, h: pillsH, gap: 6 },
       infoX: m,
       infoW: W1,
       support: { x: m, y: padY, w: W1, h: panelH },
       keys: { x: m, y: padY, w: W1, h: panelH },
       keyToggle: { x: w - m - 92, y: padY + 6, w: 84, h: 26 },
       stage: { x: 26, y: stageY, w: w - 52, h: stageH },
-      name: { x: 26, y: nameY, w: w - 52, h: 40 },
-      skins: { x: 26, y: skinY, w: w - 52, h: 30, gap: 4 },
+      name: { x: 26, y: nameY, w: w - 52, h: nameH },
+      skins: { x: 26, y: skinY, w: w - 52, h: skinH, gap: 4 },
       sdX: w / 2, sdFoot: stageY + stageH - 4, sdBody: Math.round(stageH * 0.84),
-      bubble: { x: m, y: bubbleY, w: W1, h: 64 },
-      stageHit: { x: 12, y: stageY - 6, w: w - 24, h: stageH + 50 },
+      bubble: { x: m, y: bubbleY, w: W1, h: bubbleH },
+      stageHit: { x: 12, y: stageY - 6, w: w - 24, h: stageH + nameH + 10 },
       hintY,
       hintX: w / 2,
       sortie: { x: 24, y: sortieY, w: w - 48, h: sortieH },
-      rail: { x: m, y: 94, w: W1, h: 52, cy0: 0, step: Math.min(70, (W1 - 12) / 4), r: 21, dir: 'h' },
-      supRow: { y0: 14, step: Math.round((panelH - 20) / 3) },
-      keyRow: { y0: 12, step: Math.round((panelH - 16) / 9) },
+      rail: { x: m, y: railY, w: W1, h: railH, cy0: 0, step: Math.min(70, (W1 - 12) / 4), r: Math.max(15, px(21)), dir: 'h' },
+      supRow: { y0: px(14), step: Math.round((panelH - px(20)) / 3) },
+      keyRow: { y0: px(12), step: Math.round((panelH - px(16)) / 9) },
       tabs: { x: m, y: tabY, w: W1, h: tabH },
       tab: null,
     };
