@@ -145,6 +145,6 @@ WebGL 컨텍스트가 1회 끊깁니다. 실제 시간으로 플레이한 세션
   `#rotate` 회전 안내는 뜨지 않습니다. `js/hud.js` 는 좌표계 그룹으로 나눠(가로는 항등 변환 — 종전과 동일)
   세로에서 상태 판·타이머·미니맵·월드 띠·보스 HP(+P1/P2/P3 배지·등불 게이지)·자막·조이스틱·버튼을 화면 픽셀로 재배치합니다.
   `js/lobby.js` 는 세로에서 제목 → 정보 판 → 리그 무대 → 카드 5장 → 스킨 3칸 → 출격을 화면 크기에 맞춰 다시 짓습니다.
-- **검증**: `node --check` 15/15, `tools_xmas/verify_workflow_step9_1_xmas.py` **56/56 ALL PASS**
-  (가로 35 — 5인 K 스킬 정면 데미지·등 뒤 −80/−300 0·보스 등 뒤 0 / 세로 22 — 로비·전투 터치 실사용·겹침 0·컷인 잘림 0, 오류 0),
+- **검증**: `node --check` 15/15, `tools_xmas/verify_workflow_step9_1_xmas.py` **60/60 ALL PASS**
+  (가로 35 — 5인 K 스킬 정면 데미지·등 뒤 −80/−300 0·보스 등 뒤 0 / 세로 26 — 로비·전투 터치 실사용·겹침 0·컷인 잘림 0, 오류 0),
   `tools_xmas/verify_workflow_step8_xmas.py` **26/26 유지**. 증빙 `../guardian/evidence/workflow_step9_1_xmas_*`.
