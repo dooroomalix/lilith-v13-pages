@@ -446,8 +446,53 @@
       viewInfo: () => ({
         mode: G.VIEW.mode, w: G.VIEW.w, h: G.VIEW.h,
         world: { ...G.VIEW.world }, bandBottom: G.VIEW.bandBottom,
+        cam: { ...G.VIEW.cam },
         canvas: { w: canvas.width, h: canvas.height, css: { w: canvas.clientWidth, h: canvas.clientHeight } },
       }),
+      /* ---- Step 10-1 : 세로 추적 카메라 ----
+         히어로·보스의 화면(캔버스) 좌표 바운딩과 카메라 창을 그대로 돌려준다.
+         가로에서는 cam.active=false · scale=1 · 창 = 1280×720 이다. */
+      camInfo: () => {
+        const v = G.VIEW, c = v.cam, band = v.world;
+        const rect = (a) => {
+          if (!a) return null;
+          try {
+            const o = (a.rig && a.rig.body && !a.rig.body.destroyed) ? a.rig.body : a.sprite;
+            if (!o) return null;
+            const b = o.getBounds();
+            return { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) };
+          } catch (e) { return null; }
+        };
+        return {
+          active: !!c.active, zoom: +c.zoom.toFixed(4), x: +c.x.toFixed(2), y: +c.y.toFixed(2),
+          visW: +c.visW.toFixed(2), visH: +c.visH.toFixed(2), scale: +(c.scale || band.scale).toFixed(4),
+          band: { x: band.x, y: band.y, w: band.w, h: band.h, scale: band.scale },
+          root: { sx: +game.scene.root.scale.x.toFixed(4), px: +game.scene.root.x.toFixed(2), py: +game.scene.root.y.toFixed(2) },
+          hero: rect(game.kael),
+          boss: rect(game.boss),
+          heroWorld: game.kael ? { x: Math.round(game.kael.x), y: Math.round(game.kael.y), z: +game.kael.z.toFixed(1) } : null,
+          clamp: { minX: 0, maxX: +Math.max(0, G.W - c.visW).toFixed(2), minY: 0, maxY: +Math.max(0, G.H - c.visH).toFixed(2) },
+        };
+      },
+      /* 결과판 — 보상 줄과 통계 줄의 바운딩(캔버스 좌표)을 그대로 준다 */
+      resultLayout: () => {
+        const box = (t) => {
+          if (!t || t.destroyed) return null;
+          const b = t.getBounds();
+          return { t: t.text, x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) };
+        };
+        return {
+          reward: box(game.rewardText),
+          stats: (game.resultStatTexts || []).map(box).filter(Boolean),
+          buttons: (game.overlayButtons || []).map((b) => {
+            const s = game.overlay.scale.x || 1;
+            return { x: +(game.overlay.x + b.x * s).toFixed(1), y: +(game.overlay.y + b.y * s).toFixed(1),
+              w: +(b.w * s).toFixed(1), h: +(b.h * s).toFixed(1) };
+          }),
+          overlay: { x: +game.overlay.x.toFixed(1), y: +game.overlay.y.toFixed(1), s: +game.overlay.scale.x.toFixed(3) },
+          texts: window.__debug.resultTexts(),
+        };
+      },
       hudLayout: () => (game.hud && game.hud.layoutInfo ? game.hud.layoutInfo() : null),
       lobbyLayout: () => (game.lobby && game.lobby.layoutInfo ? game.lobby.layoutInfo() : null),
       hitAt: (x, y) => ({ hud: game.hud && game.hud.ownerAt ? game.hud.ownerAt(x, y) : null }),

@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.11.0-build510';
+G.VERSION = 'v5.12.0-build520';
 G.ASSET_V = 'a5.8.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
@@ -122,6 +122,7 @@ G.RING = {
 
 /* 스폰은 좌·우 양쪽에서 — 한쪽 편중을 없앤다 */
 G.SPAWN = { left: [70, 132], right: [1116, 1222], lane: 34 };
+
 G.spawnX = (side) => {
   const s = G.SPAWN[side === 'left' ? 'left' : 'right'];
   return G.rand(s[1], s[0]);
@@ -141,8 +142,40 @@ G.VIEW = {
   h: G.H,
   world: { x: 0, y: 0, scale: 1, w: G.W, h: G.H },
   bandBottom: G.H,
+  /* 세로 화면 카메라 (Step 10-1) — 가로에서는 zoom 1 · x/y 0 · active false 로 종전 그대로다.
+     x·y 는 지금 보이는 월드 창의 왼쪽 위(월드 좌표), visW·visH 는 그 창의 크기. */
+  cam: { active: false, zoom: 1, x: 0, y: 0, visW: G.W, visH: G.H },
 };
 G.isPortrait = () => G.VIEW.mode === 'portrait';
+
+/* ------------------------------------------------------------------
+ * 세로 추적 카메라 (Step 10-1)
+ *   세로 화면은 1280×720 월드를 폭에 맞춰 줄이면 띠가 390×219 로 납작해져
+ *   캐릭터가 작게 보인다. 세로일 때만 월드를 zoom 배(띠 기준)로 키우고
+ *   히어로 X 를 부드럽게 따라가되, 창이 월드(0~1280 · 0~720) 밖으로 나가지 않게
+ *   클램프한다. 점프·보스처럼 세로로 길어지면 zoom 을 잠깐 낮춰 머리·발이
+ *   화면 밖으로 잘리지 않게 한다. 가로(1280×720)는 이 값을 쓰지 않는다.
+ *     zoom      : 서 있을 때 확대 배율(띠 높이 기준)
+ *     minZoom   : 점프·보스 때 줄어드는 하한
+ *     padTop    : 머리 위 여유(월드 px)
+ *     padGround : 서 있을 때 발밑 앞쪽 여유(월드 px) / padAir : 공중일 때
+ *     followX   : 좌우 추적 속도(초당 지수) / followY : 위아래 추적 속도
+ *     zoomOut   : 확대를 풀 때 속도 / zoomIn : 다시 확대할 때 속도
+ *     bossBias  : 보스전에서 보스 쪽으로 치우치는 정도(0~0.5)
+ * ------------------------------------------------------------------ */
+G.CAM = {
+  zoom: 1.62,
+  minZoom: 1.24,
+  padTop: 22,
+  padGround: 74,      // 서 있을 때 발밑 앞쪽 여유(월드 px)
+  padAir: 18,         // 공중일 때는 앞쪽 여유를 줄여 머리·발을 다 담는다
+  followX: 5.2,
+  followY: 6.0,
+  followYAir: 16.0,
+  zoomOut: 10.0,
+  zoomIn: 3.2,
+  bossBias: 0.45,
+};
 
 G.fmtTime = (sec) => {
   sec = Math.max(0, Math.ceil(sec));

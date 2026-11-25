@@ -47,6 +47,10 @@
       this.root.sortableChildren = true;
       this.root.addChild(this.scene.root);
 
+      /* Step 10-1: 세로 추적 카메라 상태 — 가로에서는 active false 로 종전 고정 뷰 그대로다.
+         x·y = 지금 보이는 월드 창의 왼쪽 위, zoom = 띠 배율에 곱하는 확대 배율 */
+      this.cam = { active: false, zoom: 1, x: 0, y: 0, visW: G.W, visH: G.H, probe: 0 };
+
       /* 1280×720 화면 좌표계를 쓰는 연출(사선 컷인·보스 컷인) — 세로 화면에서는
          월드 띠와 같은 배율로 함께 줄어 화면 밖으로 잘리지 않는다 (Step 9-1) */
       this.screenC = new PIXI.Container();
@@ -253,6 +257,7 @@
       this._buildWaves();
       this._applyStageLook();
       this.spawnWave();
+      this._camSnap();          // 새 판은 카메라를 히어로 자리에서 바로 시작한다
       G.Sfx.resume();
     }
 
@@ -537,8 +542,7 @@
       G.VIEW.bandBottom = band.y + band.h;
       if (this.lobby && this.lobby.applyLayout) this.lobby.applyLayout(mode, w, h);
 
-      this.scene.root.scale.set(band.scale);
-      this.scene.root.position.set(band.x, band.y);
+      this._layoutCamera(band, portrait);
       this.screenC.scale.set(band.scale);
       this.screenC.position.set(band.x, band.y);
       this.vignette.scale.set(band.scale);
@@ -566,6 +570,156 @@
         this.scene.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xffffff, alpha: 1 });
       }
       return band;
+    }
+
+    /* ================================================================ 세로 추적 카메라 (Step 10-1)
+       가로: 종전 고정 뷰 — scene.root 배율 = 띠 배율, 이동 0 (픽셀 단위로 같다).
+       세로: 띠 안에서 월드를 G.CAM.zoom 배로 키우고 히어로 X 를 따라간다.
+             창은 월드(0~1280 · 0~720) 밖으로 나가지 않게 클램프한다. */
+    _layoutCamera(band, portrait) {
+      if (!portrait) {
+        this.cam.active = false;
+        this.cam.zoom = 1;
+        this.cam.x = 0;
+        this.cam.y = 0;
+        this.cam.visW = G.W;
+        this.cam.visH = G.H;
+        this.scene.root.scale.set(band.scale);
+        this.scene.root.position.set(band.x, band.y);
+        this._publishCam();
+        return;
+      }
+      this.cam.active = true;
+      const t = this._camTargets();
+      this.cam.zoom = t.zoom;
+      this.cam.visW = G.W / t.zoom;
+      this.cam.visH = G.H / t.zoom;
+      this.cam.x = t.x;
+      this.cam.y = t.y;
+      this._applyCamera();
+      this._publishCam();
+    }
+
+    /* 배우(히어로·보스)의 머리 끝(월드 좌표) — 리그·스프라이트 바운딩을 0.1초에 한 번 잰다.
+       getBounds 는 화면 좌표를 주므로 scene.root 변환을 되돌려 월드 좌표로 바꿔 쓴다. */
+    _actorTop(a, probeNow) {
+      if (!a) return 0;
+      let box = a._camBox || null;
+      if (probeNow || !box) {
+        box = null;
+        try {
+          const o = (a.rig && a.rig.body && !a.rig.body.destroyed) ? a.rig.body : (a.sprite || null);
+          if (o) {
+            const b = o.getBounds();
+            const sy = this.scene.root.scale.y || 1;
+            if (b && b.height > 0 && sy > 0) {
+              box = { top: (b.y - this.scene.root.y) / sy, bottom: (b.y + b.height - this.scene.root.y) / sy };
+            }
+          }
+        } catch (e) { box = null; }
+        if (!box) {
+          const bp = a.bodyPx || 330;
+          box = { top: (a.y || 0) - bp + bp * 0.2 - (a.z || 0), bottom: a.y || 0 };
+        }
+        a._camBox = box;
+      }
+      return box.top;
+    }
+
+    /* 지금 프레임의 카메라 목표 — 확대 배율과 창 위치 */
+    _camTargets() {
+      const base = G.CAM.zoom;
+      const h = this.kael;
+      const airNow = !!(h && ((h.z || 0) > 4 || (h.vz || 0) > 0));
+      const probeNow = airNow || this.cam.probe <= 0;   // 공중에는 매 프레임 잰다(빠른 상승)
+      if (this.cam.probe <= 0) this.cam.probe = 0.08;
+      let zoom = base;
+      let visH = G.H / base;
+      let cy = G.H - visH;
+      let cx = 0;
+      if (!h) return { zoom, x: 0, y: cy };
+      const boss = this.boss;
+      const bossOn = !!(boss && boss.alive !== false && !boss.dying
+        && (this.phase === 'boss' || this.phase === 'bossIntro' || this.phase === 'victory'));
+      const top = this._actorTop(h, probeNow);
+      const padB = airNow ? G.CAM.padAir : G.CAM.padGround;
+      let needTop = top - G.CAM.padTop;
+      let needBottom = (h.y || G.RING.centerY) + 26 + padB;
+      if (bossOn) {
+        needTop = Math.min(needTop, this._actorTop(boss, probeNow) - 18);
+        needBottom = Math.max(needBottom, (boss.y || 600) + 34);
+      }
+      const span = Math.max(140, needBottom - needTop);
+      zoom = G.clamp(G.H / span, G.CAM.minZoom, base);
+      visH = G.H / zoom;
+      cy = G.clamp((needTop + needBottom) / 2 - visH / 2, 0, G.H - visH);
+      const visW = G.W / zoom;
+      // 좌우: 히어로 중심. 보스전에서는 보스도 화면 안에 남게 조금 치우친다.
+      let fx = h.x || G.RING.centerX;
+      if (bossOn && Math.abs(boss.x - fx) < visW - 100) {
+        fx = G.lerp(fx, (fx + boss.x) / 2, G.CAM.bossBias);
+      }
+      cx = G.clamp(fx - visW / 2, 0, Math.max(0, G.W - visW));
+      return { zoom, x: cx, y: cy };
+    }
+
+    /* 매 프레임 — 목표를 부드럽게 따라가고 월드 밖으로 나가지 않게 클램프한다 */
+    _updateCamera(dt) {
+      if (!this.cam.active) return;
+      if (this.cam.probe > 0) this.cam.probe -= dt;
+      const t = this._camTargets();
+      const h = this.kael;
+      const air = !!(h && ((h.z || 0) > 4 || (h.vz || 0) > 0));
+      const kx = 1 - Math.exp(-G.CAM.followX * dt);
+      const kz = 1 - Math.exp(-(t.zoom < this.cam.zoom ? G.CAM.zoomOut : G.CAM.zoomIn) * dt);
+      const ky = 1 - Math.exp(-(air ? G.CAM.followYAir : G.CAM.followY) * dt);
+      this.cam.zoom = G.lerp(this.cam.zoom, t.zoom, kz);
+      this.cam.visW = G.W / this.cam.zoom;
+      this.cam.visH = G.H / this.cam.zoom;
+      this.cam.x = G.lerp(this.cam.x, t.x, kx);
+      this.cam.y = G.lerp(this.cam.y, t.y, Math.max(ky, kz));
+      this.cam.x = G.clamp(this.cam.x, 0, Math.max(0, G.W - this.cam.visW));
+      this.cam.y = G.clamp(this.cam.y, 0, Math.max(0, G.H - this.cam.visH));
+      // 보간이 덜 끝나 머리가 창 위로 나가면 그만큼은 바로 따라 올린다 (점프 중 잘림 방지)
+      if (h) {
+        const head = this._actorTop(h, air) - 10;
+        if (head < this.cam.y) this.cam.y = G.clamp(head, 0, Math.max(0, G.H - this.cam.visH));
+      }
+      this._applyCamera();
+      this._publishCam();
+    }
+
+    /* 배치가 바뀌거나 새 판이 시작할 때 — 보간 없이 바로 자리를 잡는다 */
+    _camSnap() {
+      if (!G.isPortrait()) return;
+      this.cam.active = true;
+      this.cam.probe = 0;
+      const t = this._camTargets();
+      this.cam.zoom = t.zoom;
+      this.cam.visW = G.W / t.zoom;
+      this.cam.visH = G.H / t.zoom;
+      this.cam.x = t.x;
+      this.cam.y = t.y;
+      this._applyCamera();
+      this._publishCam();
+    }
+
+    _applyCamera() {
+      const band = G.VIEW.world;
+      const s = band.scale * this.cam.zoom;
+      this.scene.root.scale.set(s);
+      this.scene.root.position.set(band.x - this.cam.x * s, band.y - this.cam.y * s);
+    }
+
+    _publishCam() {
+      const c = G.VIEW.cam;
+      c.active = this.cam.active;
+      c.zoom = this.cam.zoom;
+      c.x = this.cam.x;
+      c.y = this.cam.y;
+      c.visW = this.cam.visW;
+      c.visH = this.cam.visH;
+      c.scale = G.VIEW.world.scale * this.cam.zoom;
     }
 
     /* 화면 좌표 → 결과 판(1280×720 설계 좌표) 좌표 */
@@ -1932,6 +2086,7 @@
         if (inp.coop) this.queuedCoop = true;
         this.hud.update(realDt, this);
         this.support.update(0, realDt);   // 히트스톱 중에도 컷인 배너는 부드럽게
+        this._updateCamera(realDt);       // 히트스톱 중에도 카메라는 매끈하게 따라간다
         return;
       }
       if (this.queuedJump) { inp.jump = true; this.queuedJump = false; }
@@ -2133,6 +2288,7 @@
 
       this.fx.update(dt);
       this.support.update(dt, realDt);
+      this._updateCamera(realDt);      // 세로 추적 카메라 — 가로에서는 아무 일도 하지 않는다
       this.hud.update(realDt, this);
       this.phaseT += realDt;
       this._updateDebugBoxes(realDt);
@@ -2389,6 +2545,7 @@
     _clearOverlay() {
       this.overlay.removeChildren().forEach((c) => c.destroy({ children: true }));
       this.overlayButtons = [];
+      this.resultStatTexts = [];
       this.resultActive = false;
       this.pauseActive = false;
       if (this.overlayDark) this.overlayDark.visible = false;
@@ -2455,18 +2612,19 @@
       bg.rect(0, 0, G.W, G.H).fill({ color: 0x02060d, alpha: 0.88 });
       c.addChild(bg);
       const g = new PIXI.Graphics();
-      platePath(g, G.W / 2 - 290, 140, 580, 440, 18, 0x081422, 0.97);
-      plateEdge(g, G.W / 2 - 290, 140, 580, 440, 18, win ? 0xffd166 : 0xff6b7a, 0.8, 2.2);
-      plateEdge(g, G.W / 2 - 282, 148, 564, 424, 15, 0x9fd0ff, 0.2, 1);
-      gem(g, G.W / 2 - 290, 360, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
-      gem(g, G.W / 2 + 290, 360, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
-      gem(g, G.W / 2, 140, 8, win ? 0xffd166 : 0xff6b7a, 0.9);
+      // 결과판 — 보상 줄까지 넣고도 남도록 높이를 넉넉히 잡는다 (Step 10-1)
+      platePath(g, G.W / 2 - 290, 128, 580, 470, 18, 0x081422, 0.97);
+      plateEdge(g, G.W / 2 - 290, 128, 580, 470, 18, win ? 0xffd166 : 0xff6b7a, 0.8, 2.2);
+      plateEdge(g, G.W / 2 - 282, 136, 564, 454, 15, 0x9fd0ff, 0.2, 1);
+      gem(g, G.W / 2 - 290, 375, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
+      gem(g, G.W / 2 + 290, 375, 9, win ? 0xffd166 : 0xff6b7a, 0.95);
+      gem(g, G.W / 2, 128, 8, win ? 0xffd166 : 0xff6b7a, 0.9);
       c.addChild(g);
 
       const title = new PIXI.Text({
         text: win ? 'VICTORY' : 'DEFEAT',
         style: G.style({ fontSize: 54, fontWeight: '900', fill: win ? 0xffd166 : 0xff8899, letterSpacing: 8, stroke: { color: 0x1a0e04, width: 6 } }),
-      });      title.anchor.set(0.5); title.x = G.W / 2; title.y = 215;
+      });      title.anchor.set(0.5); title.x = G.W / 2; title.y = 196;
       c.addChild(title);
 
       const hName = this.heroChar ? this.heroChar.name : '카엘';
@@ -2477,7 +2635,7 @@
         text: win ? '아르카논을 쓰러뜨렸습니다' : hName + josa + ' 쓰러졌습니다' + (reason ? ' · ' + reason : ''),
         style: G.style({ fontSize: 19, fill: 0xbcd8f0, fontWeight: '700' }),
       });
-      sub.anchor.set(0.5); sub.x = G.W / 2; sub.y = 262;
+      sub.anchor.set(0.5); sub.x = G.W / 2; sub.y = 246;
       c.addChild(sub);
 
       const lines = [
@@ -2486,30 +2644,34 @@
         ['처치 수', `${this.stats.kills}`],
         ['남은 시간', G.fmtTime(this.timeLeft)],
       ];
+      this.resultStatTexts = [];
       lines.forEach(([k, v], i) => {
         const kt = new PIXI.Text({ text: k, style: G.style({ fontSize: 18, fill: 0x8fb0cc }) });
-        kt.x = G.W / 2 - 170; kt.y = 320 + i * 36;
+        kt.x = G.W / 2 - 170; kt.y = 300 + i * 34;
         c.addChild(kt);
         const vt = new PIXI.Text({ text: v, style: G.style({ fontSize: 20, fill: 0xeaf4ff, fontWeight: '900' }) });
-        vt.anchor.set(1, 0); vt.x = G.W / 2 + 170; vt.y = 318 + i * 36;
+        vt.anchor.set(1, 0); vt.x = G.W / 2 + 170; vt.y = 298 + i * 34;
         c.addChild(vt);
+        this.resultStatTexts.push(kt, vt);
       });
 
       // 스테이지 보상 — 이긴 판에서만 표시한다 (Step 9-3)
+      //  통계 마지막 줄(남은 시간, 300+3·34 = 402)과 겹치지 않게 452 로 내리고
+      //  아래 버튼(492)과도 30px 넘게 띄운다 (Step 10-1 보정).
       const rw = this.stage && this.stage.reward;
       if (win && rw) {
         const rt = new PIXI.Text({
           text: `${this.stage.order}스테이지 보상  ·  ${rw.name} ×${rw.count}`,
           style: G.style({ fontSize: 16, fontWeight: '900', fill: 0xffd166, letterSpacing: 0.4 }),
         });
-        rt.anchor.set(0.5); rt.x = G.W / 2; rt.y = 448;
+        rt.anchor.set(0.5); rt.x = G.W / 2; rt.y = 452;
         c.addChild(rt);
         this.rewardText = rt;
       } else {
         this.rewardText = null;
       }
 
-      const btnY = 496;
+      const btnY = 492;
       const mkResultBtn = (label, x, w, fill, edgeColor) => {
         const bg2 = new PIXI.Graphics();
         platePath(bg2, x, btnY, w, 56, 12, fill, 0.95);
