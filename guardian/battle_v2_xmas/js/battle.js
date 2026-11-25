@@ -41,6 +41,14 @@
       this.scene.world.addChildAt(this.bossTeleLayer, 4);
       this.fx = new G.Fx(this.scene.fxLayer);
 
+      // 2.5D 판정 디버그 (H 키) — 기본 OFF
+      this.debugBoxes = false;
+      this.debugT = 0;
+      this.debugG = new PIXI.Graphics();
+      this.debugG.zIndex = 9;
+      this.scene.fxLayer.addChild(this.debugG);
+      this.debugText = null;
+
       this.root = new PIXI.Container();
       this.root.sortableChildren = true;
       this.root.addChild(this.scene.root);
@@ -483,21 +491,22 @@
 
       let hits = 0;
       let critHit = false;
+      /* 2.5D 링 타점 (Step 8) — 바라보는 정면 + 무기 리치 + 좁은 깊이 레인.
+         등 뒤(6px 허용)나 다른 깊이 레인(±48px 밖)의 적은 절대 맞지 않는다. */
+      const reachX = cfg.reach + 40;
       this.enemies.forEach((e) => {
         if (!e.alive || e.dying) return;
-        const inFront = (e.x - hero.x) * f > -30;
-        const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
-        if (inFront && inRange) {
+        if (G.inFront(hero.x, e.x, f, reachX) && G.inLane(e.y, hero.y, G.LANE.hero)) {
           hits++;
           if (this._hitEnemy(e, hero, cfg.dmg, cfg)) critHit = true;
         }
       });
+      let bossDidHit = false;
       if (this.boss && this.boss.alive && !this.boss.dying) {
-        if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 125) {
-          if ((this.boss.x - hero.x) * f > -60) {
-            hits++;
-            if (this._hitBoss(hero, cfg.dmg, cfg)) critHit = true;
-          }
+        if (G.inFront(hero.x, this.boss.x, f, cfg.reach + 260) && G.inLane(this.boss.y, hero.y, G.LANE.boss)) {
+          hits++;
+          bossDidHit = true;
+          if (this._hitBoss(hero, cfg.dmg, cfg)) critHit = true;
         }
       }
       // 성탄 설화 검기: 검겤적을 따라 눈가루가 흐르고, 꺼진 등불 곁에서 휘두르면 불이 다시 붙는다
@@ -507,7 +516,7 @@
       }
       if (hits > 0) {
         // 콤보 고유 히트스톱 유지: 크리티컬 1.8배, 보스 2.5배, 최대 150ms.
-        const bossHit = !!(this.boss && this.boss.alive && Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && (this.boss.x - hero.x) * f > -60);
+        const bossHit = bossDidHit;
         const multiFinisher = idx >= 2 && hits > 1 ? 1.15 : 1;
         this.hitStop = Math.max(this.hitStop, Math.min(0.15, cfg.hitStop * (bossHit ? 2.5 : critHit ? 1.8 : 1) * multiFinisher));
         this.scene.shake(cfg.shake * (bossHit ? 1.7 : critHit ? 1.4 : 1), 0.16 + idx * 0.03);
@@ -597,26 +606,30 @@
     spawnWave() {
       this.waveIndex++;
       const cfg = this.waves[Math.min(this.waveIndex, this.waves.length - 1)];
+      /* 2.5D 링 양방향 스폰 (Step 8) — 오른쪽 편중을 없애고 좌·우를 번갈아 들여보낸다. */
       if (cfg.list) {
         cfg.list.forEach((v, i) => {
+          const side = i % 2 === 0 ? 'right' : 'left';
           const delay = i * G.rand(0.34, 0.16) + G.rand(0.22, 0.04);
           this.after(delay, () => {
             if (this.phase !== 'wave') return;
-            this._spawnEnemy(cfg, 1050 + G.rand(150, 0), v);
+            this._spawnEnemy(cfg, null, v, side);
           });
         });
         return;
       }
       for (let i = 0; i < cfg.count; i++) {
+        const side = i % 2 === 0 ? 'right' : 'left';
         const delay = i * G.rand(0.28, 0.12) + G.rand(0.2, 0);
         this.after(delay, () => {
           if (this.phase !== 'wave') return;
-          this._spawnEnemy(cfg, 1000 + G.rand(140, 0));
+          this._spawnEnemy(cfg, null, undefined, side);
         });
       }
     }
 
-    _spawnEnemy(cfg, x, variant) {
+    _spawnEnemy(cfg, x, variant, side) {
+      const s = side === 'left' ? 'left' : 'right';
       let hp = cfg.hp ? cfg.hp + this.waveIndex * 12 : undefined;
       if (!hp && variant && G.Xmas && G.Xmas.enemies[variant]) {
         hp = Math.round(G.Xmas.enemies[variant].hp * (cfg.hpScale || 1));
@@ -625,8 +638,9 @@
         variant,
         hp,
         atk: cfg.atk,
-        x: x || 1240,
-        y: G.GROUND_Y - 2 + G.rand(34, -30),
+        x: x == null ? G.spawnX(s) : x,
+        y: G.GROUND_Y - 2 + G.rand(G.SPAWN.lane, -G.SPAWN.lane),
+        facing: s === 'left' ? 1 : -1,
         scale: variant ? undefined : G.rand(0.6, 0.46),
         lv: 2 + Math.min(3, this.waveIndex),
       });
@@ -639,7 +653,7 @@
       for (let i = 0; i < n; i++) {
         this.after(0.38 * i, () => {
           if (this.phase !== 'boss') return;
-          this._spawnEnemy({ hp: 200, atk: 12 }, 1180 + G.rand(120, 0), G.Xmas.ON ? 'snowball' : undefined);
+          this._spawnEnemy({ hp: 200, atk: 12 }, null, G.Xmas.ON ? 'snowball' : undefined, i % 2 === 0 ? 'left' : 'right');
         });
       }
     }
@@ -1472,9 +1486,81 @@
       this.support.update(dt, realDt);
       this.hud.update(realDt, this);
       this.phaseT += realDt;
+      this._updateDebugBoxes(realDt);
+    }
+
+    /* ---------------- 2.5D 판정 디버그 (H 키) ---------------- */
+    toggleDebugBoxes(on) {
+      this.debugBoxes = on == null ? !this.debugBoxes : !!on;
+      this.debugT = this.debugBoxes ? 8 : 0;
+      if (!this.debugBoxes && this.debugG) this.debugG.clear();
+      if (this.debugText) this.debugText.visible = this.debugBoxes;
+      return this.debugBoxes;
+    }
+
+    _updateDebugBoxes(dt) {
+      if (!this.debugBoxes) return;
+      this.debugT -= dt;
+      if (this.debugT <= 0) { this.toggleDebugBoxes(false); return; }
+      this._drawDebug();
+    }
+
+    _drawDebug() {
+      const g = this.debugG, h = this.kael;
+      if (!g || !h) return;
+      g.clear();
+      const f = h.facing || 1;
+      const reach = (h.atkCfg && h.atkCfg.reach ? h.atkCfg.reach : 252) + 40;
+      const x0 = f > 0 ? h.x - 6 : h.x - reach;
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).fill({ color: 0x54ffa8, alpha: 0.10 });
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x54ffa8, width: 1.4, alpha: 0.6 });
+      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).fill({ color: 0xffe066, alpha: 0.12 });
+      g.moveTo(h.x, h.y).lineTo(h.x + 46 * f, h.y).stroke({ color: 0x54ffa8, width: 2, alpha: 0.9 });
+      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero); });
+      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss);
+      const txt = 'X ' + Math.round(h.x) + ' · Y ' + Math.round(h.y)
+        + ' · 레인 ±' + G.LANE.hero + ' · ' + (f > 0 ? '오른쪽' : '왼쪽') + ' 보기';
+      if (!this.debugText) {
+        this.debugText = new PIXI.Text({ text: txt, style: G.style({ fontSize: 15, fontWeight: '800', fill: 0xd8ffe8, stroke: { color: 0x06210f, width: 4 } }) });
+        this.scene.fxLayer.addChild(this.debugText);
+      }
+      this.debugText.text = txt;
+      this.debugText.visible = true;
+      this.debugText.x = h.x - 96;
+      this.debugText.y = h.y + 10;
+    }
+
+    _dbgActor(e, color, lane) {
+      const g = this.debugG;
+      const L = lane || G.LANE.hero;
+      g.rect(e.x - 20, e.y - L, 40, L * 2).fill({ color, alpha: 0.10 });
+      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 1.2, alpha: 0.55 });
+      g.moveTo(e.x, e.y).lineTo(e.x + 30 * (e.facing || -1), e.y).stroke({ color, width: 1.6, alpha: 0.7 });
     }
 
     _lateBossSpawn() {}
+
+    /* 공격 직전에 몸을 돌린다 (Step 8) — 뒤돌아 허공에 휘두르는 일을 없앤다. */
+    _faceForAttack() {
+      const h = this.kael;
+      if (!h || h.state === 'dead') return;
+      let dir = 0;
+      if (this.autoMode !== 'manual') {
+        const t = this._nearestEnemy();
+        if (t) dir = Math.sign(t.x - h.x);
+      } else {
+        const k = this.keys || {};
+        const left = (k['ArrowLeft'] || k['a']) ? 1 : 0;
+        const right = (k['ArrowRight'] || k['d']) ? 1 : 0;
+        if (left && !right) dir = -1;
+        else if (right && !left) dir = 1;
+        else {
+          const j = this.hud && this.hud.joy;
+          if (j && Math.abs(j.vx) > 0.25) dir = Math.sign(j.vx);
+        }
+      }
+      if (dir) h.facing = dir >= 0 ? 1 : -1;
+    }
 
     _tryAttack() {
       if (this.kael.state === 'dead') return;
@@ -1484,6 +1570,7 @@
         return;
       }
       if (this.kael.state === 'dodge' || this.kael.state === 'cast') return;
+      this._faceForAttack();
       if (this.kael.attack(this.comboStep)) {
         // 2·3타는 앞으로 미세 전진 (콤보 손맛)
         const adv = this.kael.atkCfg.advance;
@@ -1773,6 +1860,11 @@
     restart() {
       this._clearOverlay();
       this.overlay.alpha = 1;
+      // 2.5D 디버그 박스는 판을 넘기지 않는다
+      this.debugBoxes = false;
+      this.debugT = 0;
+      if (this.debugG) this.debugG.clear();
+      if (this.debugText) this.debugText.visible = false;
       // 액터 정리
       this.enemies.forEach((e) => {
         if (e.tele) { e.tele.destroy(); e.tele = null; }

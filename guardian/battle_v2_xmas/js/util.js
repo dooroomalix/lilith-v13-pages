@@ -3,8 +3,8 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'XMAS-2.0.0-build030';
-G.ASSET_V = 'axmas2.0.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
+G.VERSION = 'XMAS-2.1.0-build040';
+G.ASSET_V = 'axmas2.1.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
 
@@ -34,6 +34,32 @@ G.FONT = '"Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, 
 G.FONT_NUM = '"Noto Sans CJK KR", "Noto Sans KR", "Arial Black", system-ui, sans-serif';
 
 G.style = (o) => Object.assign({ fontFamily: G.FONT, fill: 0xffffff, fontWeight: '700' }, o || {});
+
+/* ------------------------------------------------------------------
+ * 2.5D 사각 링 — 타점·좌표 판정의 단일 기준 (Step 8, XMAS-2.1.0)
+ *   무대는 X(가로) × Y(깊이) 사각 링이다. 세로 레인 폭을 좁혀
+ *   W/S(위아래) 이동과 회피(Shift)가 실제로 공격을 피하게 만든다.
+ * ------------------------------------------------------------------ */
+G.LANE = { hero: 48, boss: 58, enemy: 44, back: 6 };
+G.inLane = (a, b, lane) => Math.abs((a || 0) - (b || 0)) <= lane;
+G.inFront = (ax, tx, facing, reach, back) => {
+  const dx = ((tx || 0) - (ax || 0)) * (facing >= 0 ? 1 : -1);
+  return dx >= -(back == null ? G.LANE.back : back) && dx <= reach;
+};
+
+G.RING = {
+  left: 104, right: 1056,
+  far: 470, near: 690,
+  centerX: 580, centerY: 588,
+  laneY: [540, 636],
+  heroY: [492, 664],
+};
+
+G.SPAWN = { left: [70, 132], right: [1116, 1222], lane: 34 };
+G.spawnX = (side) => {
+  const s = G.SPAWN[side === 'left' ? 'left' : 'right'];
+  return G.rand(s[1], s[0]);
+};
 
 G.fmtTime = (sec) => {
   sec = Math.max(0, Math.ceil(sec));

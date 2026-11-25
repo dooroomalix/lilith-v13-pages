@@ -146,6 +146,7 @@
       if (k === 'l' && !e.repeat) game.hud.input.skill2 = true;
       if (k === 'q' && !e.repeat) game.hud.input.potion = true;
       if (k === 'Shift' && !e.repeat) game.hud.input.dodge = true;
+      if (k === 'h' && !e.repeat) game.toggleDebugBoxes();      // 2.5D 판정 박스 (기본 OFF)
       // 길게 누르는 동안 keydown 반복으로 토글이 여러 번 실행되지 않도록 제한
       if (!e.repeat) {
         if (k === 'Escape' || k === 'p') game.togglePause();
@@ -343,6 +344,29 @@
         parts: Object.fromEntries(game.boss.rig.partNames.map((n) => [n, +game.boss.rig.nodes[n].rotation.toFixed(3)])) } : null),
       forceIdle: () => { if (game.kael) { game.kael.state = 'idle'; game.kael.stateT = 0; } },
       attack: () => game.hud.input.attack = true,
+      // ---- Step 8 : 2.5D 사각 링 판정 ----
+      toggleBoxes: (on) => game.toggleDebugBoxes(on),
+      laneInfo: () => ({
+        lane: G.LANE, ring: G.RING, spawn: G.SPAWN,
+        hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing },
+        enemies: game.enemies.filter((e) => e.alive && !e.dying).map((e) => ({
+          x: Math.round(e.x), y: Math.round(e.y), facing: e.facing,
+          state: e.state, atkDir: e.atkDir, atkY: Math.round(e.atkY == null ? e.y : e.atkY),
+        })),
+        boss: game.boss ? { x: Math.round(game.boss.x), y: Math.round(game.boss.y), facing: game.boss.facing } : null,
+        debugOn: !!game.debugBoxes,
+      }),
+      probeStrike: (opts) => {
+        const h = game.kael;
+        const o = opts || {};
+        const before = game.stats.damage;
+        if (o.facing) h.facing = o.facing;
+        if (o.heroY != null) { h.y = o.heroY; h.obj.y = h.y; }
+        if (o.enemyX != null && game.enemies[0]) { game.enemies[0].x = o.enemyX; game.enemies[0].obj.x = o.enemyX; }
+        if (o.enemyY != null && game.enemies[0]) { game.enemies[0].y = o.enemyY; game.enemies[0].obj.y = o.enemyY; }
+        game.heroStrike(h, h.atkCfg || { reach: 252, dmg: 1, spread: 1.3, ang: -0.3 }, 0);
+        return Math.round(game.stats.damage - before);
+      },
       jump: () => game.kael.jump(),
       summon: () => game.useSkill2(),
       skill1: () => game.useSkill1(),

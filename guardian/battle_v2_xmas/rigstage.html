@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>RIG STAGE — XMAS Step 6</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0f18;overflow:hidden}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script src="vendor_pixi.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/rig.js"></script>
+<script>
+(async function () {
+  const app = new PIXI.Application();
+  await app.init({ canvas: document.getElementById('game'), width: 1280, height: 720, background: 0x0a0f18, antialias: true });
+  await G.Rigs.loadMeta('assets/rig/meta.json');
+
+  const names = Object.keys(G.Rigs.meta.rigs);
+  const rigs = {};
+  for (const n of names) {
+    const def = await G.Rigs.load(n);
+    if (!def) continue;
+    const rig = new G.Rig(def, { artFacing: (n.indexOf('snowball') + n.indexOf('mimic') + n.indexOf('rudolph') + n.indexOf('noel')) > -4 ? -1 : 1 });
+    rig.setBodyPx(300);
+    rigs[n] = rig;
+  }
+
+  const stage = new PIXI.Container();
+  app.stage.addChild(stage);
+  const label = new PIXI.Text({ text: '', style: { fontFamily: 'monospace', fontSize: 14, fill: 0x9fd6ff } });
+  label.x = 10; label.y = 10;
+  app.stage.addChild(label);
+
+  let view = { mode: 'lineup', states: ['idle'], names: names };
+  window.__stage = {
+    names: () => names,
+    show(list, state, p) {
+      while (stage.children.length) stage.removeChildAt(0);
+      const cols = Math.min(list.length, 5);
+      list.forEach((n, i) => {
+        const rig = rigs[n]; if (!rig) return;
+        rig.setState(state || 'idle', p == null ? 0.5 : p, { mainArm: 'far', stepPhase: 1.2 });
+        rig.update(0.016);
+        rig.root.x = 130 + (i % cols) * 250;
+        rig.root.y = 330 + Math.floor(i / cols) * 340;
+        stage.addChild(rig.root);
+      });
+      label.text = `${list.join(', ')} · ${state}`;
+    },
+    pose(n, state, p, opt) {
+      const rig = rigs[n]; if (!rig) return null;
+      const o = Object.assign({ mainArm: 'far', stepPhase: 1.2 }, opt || {});
+      rig.setState(state, p == null ? 0.5 : p, o);
+      rig.update(0.016);
+      return rig.debug();
+    },
+    single(n) {
+      while (stage.children.length) stage.removeChildAt(0);
+      const rig = rigs[n]; if (!rig) return;
+      rig.root.x = 340; rig.root.y = 620; rig.setBodyPx(520);
+      stage.addChild(rig.root);
+      label.text = n;
+    },
+    /** 턴 전환 프레임 캡처용: dir로 돌리며 n프레임 스냅샷 */
+    turn(n, dir, frames) {
+      const rig = rigs[n]; if (!rig) return null;
+      rig.setBodyPx(430);
+      rig.root.x = 640; rig.root.y = 640;
+      rig.yaw = dir > 0 ? 1 : -1; rig.yawTarget = rig.yaw; rig.turnT = 1;
+      rig.setFacing(dir);
+      const snap = [];
+      for (let i = 0; i < frames; i++) {
+        rig.update(1 / 60);
+        snap.push(rig.debug());
+      }
+      return snap;
+    },
+    rig: (n) => rigs[n],
+    tick(dt) { for (const k in rigs) rigs[k].update(dt || 1 / 60); },
+    app,
+  };
+  window.__stage.show(names.slice(0, 10), 'idle');
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

@@ -737,6 +737,9 @@
       this.dying = false;
       this.attackCD = G.rand(1.4, 0.4);
       this.stopDist = V ? V.stopDist : G.rand(225, 150);
+      this.facing = opts.facing || -1;   // 왼쪽 스폰은 1, 오른쪽 스폰은 -1 (링 안쪽을 본다)
+      this.atkDir = this.facing;
+      this.atkY = this.y;
       this.dead = false;
       this.kb = 0;
       this.kbV = 0;
@@ -959,7 +962,13 @@
 
       if (this.state === 'walk') {
         const dx = target.x - this.x;
-        const dir = Math.sign(dx) || -1;
+        const dy = target.y - this.y;
+        const dir = Math.sign(dx) || this.facing || -1;
+        this.facing = dir;
+        // 2.5D 링 — 플레이어의 깊이(Y) 레인으로 내려온다
+        if (Math.abs(dy) > 12) {
+          this.y = G.clamp(this.y + Math.sign(dy) * this.speed * 0.5 * dt, 500, 664);
+        }
         if (Math.abs(dx) > this.stopDist) {
           this.x = G.clamp(this.x + dir * this.speed * (this.slowT > 0 ? 0.55 : 1) * dt, 110, 1080);
           this.sprite.y = bob;
@@ -967,10 +976,12 @@
           if (this.walkT > 0.30) { this.walkT = 0; this.contactPulse = 0.9; }
           const bobS = 1 + Math.sin(this.bobT * 7.4) * 0.02;
           this.sprite.scale.set(-this.scale, this.scale * bobS);
-        } else {
+        } else if (Math.abs(dy) <= 16) {
           this.state = 'windup';
           this.stateT = 0;
           this.sprite.scale.set(-this.scale, this.scale);
+          this.atkDir = this.facing;
+          this.atkY = this.y;
           this.game.fx.ring(this.x, this.y - 6, cfg.tele, 70, 0.3, 2, 0.4);
         }
         return;
@@ -1061,7 +1072,7 @@
         this.game.fx.sparkBurst(this.x, this.y - this.baseH * 0.45, 0xffc9c0, 20, 420);
         this.game.scene.shake(9, 0.28);
         G.Sfx.magic();
-        if (target.z <= 40 && G.dist(target.x, target.y, this.x, this.y) < (cfg.teleR || 200)) {
+        if (target.z <= 40 && Math.hypot(target.x - this.x, (target.y - this.y) * 1.7) < (cfg.teleR || 200)) {
           this.game.damageHero(this.atk, this.x);
         }
         this.enterStumble(cfg.rest, false);
@@ -1078,7 +1089,7 @@
         const e = G.easeOutCubic(p);
         this.x = this.strikeFromX + this.strikeDir * cfg.dash * e;
         this.sprite.rotation = this.strikeDir * p * 0.6;
-        if (!this.strikeHit && Math.abs(target.x - this.x) < 98 && Math.abs(target.y - this.y) < 110) {
+        if (!this.strikeHit && Math.abs(target.x - this.x) < 98 && Math.abs(target.y - this.y) < 48) {
           this.strikeHit = true;
           this.game.damageHero(this.atk, this.x);
           this.game.fx.sparkBurst(this.x, this.y - 90, 0xdfefff, 16, 380);
@@ -1093,7 +1104,7 @@
         const e = G.easeInQuad(p);
         this.x = this.strikeFromX + this.strikeDir * cfg.dash * e;
         this.sprite.rotation = this.strikeDir * 0.08;
-        if (!this.strikeHit && Math.abs(target.x - this.x) < 92 && Math.abs(target.y - this.y) < 105) {
+        if (!this.strikeHit && Math.abs(target.x - this.x) < 92 && Math.abs(target.y - this.y) < 48) {
           this.strikeHit = true;
           this.game.damageHero(this.atk, this.x);
           this.game.fx.sparkBurst(this.x, this.y - 80, 0xe6c8ff, 16, 400);
@@ -1214,23 +1225,33 @@
         this._updateXmas(dt, target, bob);
       } else if (this.state === 'walk') {
         this._setAttackTex(false);
-        const dist = this.x - target.x;
-        if (dist > (this.stopDist || 172)) {
-          this.x -= this.speed * dt;
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const stopDist = this.stopDist || 172;
+        this.facing = Math.sign(dx) || this.facing || -1;
+        // 2.5D 링 — 어느 쪽에서 왔든 플레이어의 깊이(Y) 레인까지 따라 내려온다
+        if (Math.abs(dy) > 12) {
+          this.y = G.clamp(this.y + Math.sign(dy) * this.speed * 0.55 * dt, 500, 664);
+        }
+        if (Math.abs(dx) > stopDist) {
+          this.x = G.clamp(this.x + Math.sign(dx) * this.speed * dt, 60, 1240);
           this.sprite.y = bob;
           this.rim.y = bob - 6;
           this.walkT += dt;
           if (this.walkT > 0.42 / (this.speed / 190)) {
             this.walkT = 0;
             this.contactPulse = 0.8;
-            this.game.fx.dust(this.x + 12, this.y, -1, 0.4);
+            this.game.fx.dust(this.x - 12 * this.facing, this.y, -this.facing, 0.4);
           }
-        } else {
+        } else if (Math.abs(dy) <= 16) {
           this.state = 'windup';
           this.stateT = 0;
           this.telegraph = true;
+          this.atkDir = this.facing;
+          this.atkY = this.y;
         }
         this.obj.x = this.x;
+        this.obj.y = this.y;
       } else if (this.state === 'windup') {
         const p = G.clamp(this.stateT / 0.52, 0, 1);
         this._setAttackTex(true);
@@ -1256,11 +1277,13 @@
           this.state = 'strike';
           this.stateT = 0;
           this.sprite.scale.set(-s, s);
-          if (Math.abs(this.x - target.x) < 210 && Math.abs(this.y - target.y) < 120) {
+          /* 2.5D 판정 — 예고 때 잠근 정면 + 좁은 깊이 레인(±44). */
+          if (G.inFront(this.x, target.x, this.atkDir || this.facing || -1, 210)
+            && G.inLane(target.y, this.atkY == null ? this.y : this.atkY, G.LANE.enemy)) {
             this.game.damageHero(this.atk, this.x);
           }
-          this.game.fx.slash(this.x - 60, this.centerY, {
-            radius: 80, spread: 1.4, angle: Math.PI * 0.85, width: 10,
+          this.game.fx.slash(this.x + 60 * (this.facing || -1), this.centerY, {
+            radius: 80, spread: 1.4, angle: (this.facing || -1) > 0 ? Math.PI * 0.15 : Math.PI * 0.85, width: 10,
             color: 0x8a3bff, color2: 0xc9a8ff, dur: 0.2, scale: 0.9,
           });
           this.game.fx.burst(target.x, target.centerY, { color: 0xb45bff, core: 0xf0e0ff, rays: 10, length: 90, width: 6 });
@@ -1596,6 +1619,8 @@
       this.bobT += dt;
       if (this.phaseLock > 0) this.phaseLock = Math.max(0, this.phaseLock - dt);
       this.tickDefDown(dt);
+      // 보스도 항상 플레이어를 바라본다 — 등 뒤 판정이 생기지 않는다
+      if (!this.dying && target) this.facing = Math.sign(target.x - this.x) || this.facing || -1;
       if (this.hitFlash > 0) this.hitFlash -= dt;
       if (this.flashT > 0) {
         this.flashT -= dt;

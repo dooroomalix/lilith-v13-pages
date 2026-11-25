@@ -1,100 +1,139 @@
 {
- "version": "XMAS-2.0.0-build030",
+ "version": 3,
  "rigs": {
   "ara_basic": {
    "json": "assets/rig/ara_basic/rig.json",
    "char": "ara",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/ara_basic/mesh.json",
+   "body": "assets/rig/ara_basic/body.webp"
   },
   "ara_gala": {
    "json": "assets/rig/ara_gala/rig.json",
    "char": "ara",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/ara_gala/mesh.json",
+   "body": "assets/rig/ara_gala/body.webp"
   },
   "ara_santa": {
    "json": "assets/rig/ara_santa/rig.json",
    "char": "ara",
-   "skin": "santa"
+   "skin": "santa",
+   "mesh": "assets/rig/ara_santa/mesh.json",
+   "body": "assets/rig/ara_santa/body.webp"
   },
   "born_basic": {
    "json": "assets/rig/born_basic/rig.json",
    "char": "born",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/born_basic/mesh.json",
+   "body": "assets/rig/born_basic/body.webp"
   },
   "born_gala": {
    "json": "assets/rig/born_gala/rig.json",
    "char": "born",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/born_gala/mesh.json",
+   "body": "assets/rig/born_gala/body.webp"
   },
   "born_santa": {
    "json": "assets/rig/born_santa/rig.json",
    "char": "born",
-   "skin": "santa"
+   "skin": "santa",
+   "mesh": "assets/rig/born_santa/mesh.json",
+   "body": "assets/rig/born_santa/body.webp"
   },
   "kael_basic": {
    "json": "assets/rig/kael_basic/rig.json",
    "char": "kael",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/kael_basic/mesh.json",
+   "body": "assets/rig/kael_basic/body.webp"
   },
   "kael_gala": {
    "json": "assets/rig/kael_gala/rig.json",
    "char": "kael",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/kael_gala/mesh.json",
+   "body": "assets/rig/kael_gala/body.webp"
   },
   "kael_santa": {
    "json": "assets/rig/kael_santa/rig.json",
    "char": "kael",
-   "skin": "santa"
+   "skin": "santa",
+   "mesh": "assets/rig/kael_santa/mesh.json",
+   "body": "assets/rig/kael_santa/body.webp"
   },
   "lia_basic": {
    "json": "assets/rig/lia_basic/rig.json",
    "char": "lia",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/lia_basic/mesh.json",
+   "body": "assets/rig/lia_basic/body.webp"
   },
   "lia_gala": {
    "json": "assets/rig/lia_gala/rig.json",
    "char": "lia",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/lia_gala/mesh.json",
+   "body": "assets/rig/lia_gala/body.webp"
   },
   "lia_santa": {
    "json": "assets/rig/lia_santa/rig.json",
    "char": "lia",
-   "skin": "santa"
+   "skin": "santa",
+   "mesh": "assets/rig/lia_santa/mesh.json",
+   "body": "assets/rig/lia_santa/body.webp"
   },
   "mimic": {
    "json": "assets/rig/mimic/rig.json",
    "char": "mimic",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/mimic/mesh.json",
+   "body": "assets/rig/mimic/body.webp"
   },
   "noel": {
    "json": "assets/rig/noel/rig.json",
    "char": "noel",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/noel/mesh.json",
+   "body": "assets/rig/noel/body.webp"
   },
   "rudolph": {
    "json": "assets/rig/rudolph/rig.json",
    "char": "rudolph",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/rudolph/mesh.json",
+   "body": "assets/rig/rudolph/body.webp"
   },
   "sena_basic": {
    "json": "assets/rig/sena_basic/rig.json",
    "char": "sena",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/sena_basic/mesh.json",
+   "body": "assets/rig/sena_basic/body.webp"
   },
   "sena_gala": {
    "json": "assets/rig/sena_gala/rig.json",
    "char": "sena",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/sena_gala/mesh.json",
+   "body": "assets/rig/sena_gala/body.webp"
   },
   "sena_santa": {
    "json": "assets/rig/sena_santa/rig.json",
    "char": "sena",
-   "skin": "santa"
+   "skin": "santa",
+   "mesh": "assets/rig/sena_santa/mesh.json",
+   "body": "assets/rig/sena_santa/body.webp"
   },
   "snowball": {
    "json": "assets/rig/snowball/rig.json",
    "char": "snowball",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/snowball/mesh.json",
+   "body": "assets/rig/snowball/body.webp"
   }
- }
+ },
+ "kind": "mesh-skeleton"
 }

@@ -104,6 +104,71 @@
     return g;
   }
 
+  /* 2.5D 사각 링 바닥 (Step 8) — 플레이어가 X/Y(깊이) 좌표를 눈으로 읽는 기준면.
+     앞(near)일수록 넓고 뒤(far)일수록 좌우가 좁아지는 사다리꼴 링 + 코너 마커 +
+     깊이선·레인선. 캐릭터 뒤(near 레이어)에 깔리되 시차 이동은 받지 않는다. */
+  function ringFloor() {
+    const g = new PIXI.Graphics();
+    const R = G.RING || { left: 104, right: 1056, far: 470, near: 690, centerX: 580, centerY: 588 };
+    const cx = R.centerX;
+    const halfAt = (y) => {
+      const t = G.clamp((y - R.far) / (R.near - R.far), 0, 1);
+      return G.lerp((R.right - R.left) * 0.5 - 24, (R.right - R.left) * 0.5, t);
+    };
+    const quad = (inset) => {
+      const hf = halfAt(R.far) - inset, hn = halfAt(R.near) - inset;
+      return [cx - hf, R.far + inset * 0.5, cx + hf, R.far + inset * 0.5,
+        cx + hn, R.near - inset * 0.5, cx - hn, R.near - inset * 0.5];
+    };
+    // 링 바닥면 — 아주 옅은 빛을 깔아 무대임을 알린다
+    g.poly(quad(0)).fill({ color: 0x9fd0ff, alpha: 0.030 });
+    g.poly(quad(0)).stroke({ color: 0xbfe0ff, width: 3.2, alpha: 0.26 });
+    g.poly(quad(9)).stroke({ color: 0xe8c27a, width: 1.3, alpha: 0.20 });
+
+    // 깊이선(가로) — 뒤에서 앞으로 4단
+    [0.22, 0.46, 0.72, 0.92].forEach((t, i) => {
+      const y = G.lerp(R.far, R.near, t);
+      const h = halfAt(y);
+      g.moveTo(cx - h, y).lineTo(cx + h, y)
+        .stroke({ color: 0xbfe0ff, width: i === 1 || i === 2 ? 1.6 : 1.1, alpha: 0.11 + 0.05 * t });
+    });
+
+    // 주 타점 레인(588 ± 48) — 이 두 선 사이가 근접 공격이 통하는 깊이다
+    (R.laneY || [540, 636]).forEach((y) => {
+      const h = halfAt(y);
+      g.moveTo(cx - h * 0.94, y).lineTo(cx + h * 0.94, y)
+        .stroke({ color: 0xffd166, width: 1.8, alpha: 0.17 });
+    });
+
+    // 원근 세로선(레일) — 뒤로 갈수록 가운데로 모인다
+    [-0.72, -0.36, 0, 0.36, 0.72].forEach((k) => {
+      const hf = halfAt(R.far), hn = halfAt(R.near);
+      g.moveTo(cx + hf * k, R.far).lineTo(cx + hn * k, R.near)
+        .stroke({ color: 0xbfe0ff, width: 1, alpha: 0.09 });
+    });
+
+    // 코너 마커 — 네 모서리의 다이아몬드
+    const corners = [
+      [cx - halfAt(R.far), R.far], [cx + halfAt(R.far), R.far],
+      [cx - halfAt(R.near), R.near], [cx + halfAt(R.near), R.near],
+    ];
+    corners.forEach(([x, y]) => {
+      const r = 7;
+      g.poly([x, y - r, x + r * 0.78, y, x, y + r, x - r * 0.78, y])
+        .fill({ color: 0xffd166, alpha: 0.30 });
+      g.poly([x, y - r * 1.9, x + r * 1.45, y, x, y + r * 1.9, x - r * 1.45, y])
+        .stroke({ color: 0xffe9a8, width: 1.2, alpha: 0.22 });
+    });
+
+    // 중앙 표식 — 링의 중심(588)을 잡아 주는 타원
+    const cy = R.centerY;
+    g.ellipse(cx, cy, 64, 21).stroke({ color: 0xbfe0ff, width: 1.4, alpha: 0.16 });
+    g.ellipse(cx, cy, 30, 10).fill({ color: 0xffd166, alpha: 0.05 });
+    g.moveTo(cx - 82, cy).lineTo(cx - 70, cy).stroke({ color: 0xffe9a8, width: 1.4, alpha: 0.18 });
+    g.moveTo(cx + 70, cy).lineTo(cx + 82, cy).stroke({ color: 0xffe9a8, width: 1.4, alpha: 0.18 });
+    return g;
+  }
+
   class Scene {
     constructor(app) {
       this.app = app;
@@ -117,12 +182,13 @@
       this.farLayer = new PIXI.Container();     // 원경 안개
       this.midLayer = new PIXI.Container();     // 바닥·바닥 안개 (캐릭터 뒤)
       this.nearLayer = new PIXI.Container();    // 원근 바닥·잔해
+      this.ringLayer = new PIXI.Container();    // 2.5D 사각 링 바닥 가이드 (시차 없음)
       this.lanternLayer = new PIXI.Container(); // 외전 등불 (캐릭터 뒤·바닥 앞)
       this.actorLayer = new PIXI.Container();   // 캐릭터 (battle.js가 채운다)
       this.fxLayer = new PIXI.Container();      // 이펙트·데미지
       this.frontLayer = new PIXI.Container();   // 전경 안개·근경 입자 (캐릭터 앞)
       this.world.addChild(this.skyLayer, this.farLayer, this.midLayer,
-        this.nearLayer, this.lanternLayer, this.actorLayer, this.fxLayer, this.frontLayer);
+        this.nearLayer, this.ringLayer, this.lanternLayer, this.actorLayer, this.fxLayer, this.frontLayer);
       this.actorLayer.sortableChildren = true;
       this.lanternLayer.sortableChildren = true;
 
@@ -135,6 +201,9 @@
       this.focus = 0;       // 캐릭터 x 기준 시차 오프셋
       this._focusTarget = 0;
       this._build();
+      // 2.5D 사각 링 — 어느 배경(광장/성문)이든 같은 무대 기준선을 얹는다
+      this.ringG = ringFloor();
+      this.ringLayer.addChild(this.ringG);
     }
 
     _build() {

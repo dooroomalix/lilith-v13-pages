@@ -1,26 +1,26 @@
-/* rig.js : SD 관절 파츠 리깅 (Step 6)
- * 한 장짜리 통이미지 대신 머리·몸통·팔·다리 파츠를 PixiJS 컨테이너 계층으로 묶어
- * pivot 회전·위치·Z-order로 실제 관절이 움직이게 한다.
- * - 대기(호흡)·이동(보행)·점프·공격 1/2/3타·스킬·궁극기·피격·회피·쓰러짐
- * - 방향 전환은 즉시 scaleX 반전이 아니라 몸통·머리·팔 파츠가 시간차로 돌아가는 다프레임 턴
- * - 스킨은 파츠 텍스처 전체를 교체(같은 리그에 다른 복장 파츠 세트)
+/* rig.js : 2D 본(뼈대) + 가중치 메쉬 스킨 (Step 8, v5.8.0)
+ *
+ * Step 7 까지의 "한 장 그림을 보로노이로 잘라 파츠 컨테이너를 각자 돌리는" 방식은 폐기했다.
+ * 파츠가 따로 놀고(무기가 손에서 떨어짐) 어깨·허리 이음새가 벌어지는 한계가 있었다.
+ *
+ * 지금 방식
+ *  · body.webp — 잘라 붙이지 않은 **한 장 그대로의 몸 이미지**를 PixiJS v8 Mesh 로 그린다.
+ *    이음새가 생길 수 있는 절단선 자체가 없다.
+ *  · mesh.json — 뼈대(18본) 계층 + 격자 정점 + 정점별 가중치(최대 3본).
+ *    정점은 인접 본에 가중치로 묶여 있어 관절에서 부드럽게 휘어진다(가중치 메쉬 변형).
+ *  · 무기 — 손 본(hand bone) 소켓에 붙는 별도 스프라이트(weapon.webp). 손목과 1:1로 움직인다.
+ *  · 2본 IK — 발이 땅을 파고들지 않도록 다리 체인을 목표 지점으로 푼다.
+ *  · 2차 물리 — 머리(머리카락)·허리 천이 스프링으로 살짝 뒤처진다.
+ *  · 방향 전환 — scaleX 즉시 반전 + 0.11초 발 디딤(stepTurn) 자세 (Step 8 2.5D 지시).
  */
 (function () {
-  const R = {
-    meta: null,
-    cache: {},
-    texCache: {},
-    ready: {},
-  };
+  const R = { meta: null, cache: {}, texCache: {}, ready: {} };
 
-  const TAU = Math.PI * 2;
   const lerp = (a, b, t) => a + (b - a) * t;
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
   const easeIn = (t) => t * t * t;
-  const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-  /* 파츠 텍스처 로드 — 같은 파츠는 한 번만 */
   function texFor(path) {
     if (R.texCache[path]) return R.texCache[path];
     const p = new Promise((resolve) => {
@@ -28,7 +28,7 @@
       img.onload = () => {
         const t = PIXI.Texture.from(img);
         t.source.scaleMode = 'linear';
-        t.source.autoGarbageCollect = false;   // 로비에 오래 머물러도 파츠가 내려가지 않게
+        t.source.autoGarbageCollect = false;
         resolve(t);
       };
       img.onerror = () => resolve(null);
@@ -44,31 +44,21 @@
     return R.meta;
   };
 
-  /* 리그 정의 + 파츠 텍스처 한 벌 */
+  /* 메쉬 정의 + 텍스처 한 벌 */
   R.load = function (key) {
     if (R.ready[key]) return R.ready[key];
     R.ready[key] = (async () => {
       const info = R.meta && R.meta.rigs && R.meta.rigs[key];
       if (!info) return null;
-      const res = await fetch(info.json + '?v=' + encodeURIComponent((G && (G.ASSET_V || G.VERSION)) || 'v0'));
+      const meshPath = info.mesh || info.json.replace(/rig\.json$/, 'mesh.json');
+      const res = await fetch(meshPath + '?v=' + encodeURIComponent((G && (G.ASSET_V || G.VERSION)) || 'v0'));
       const def = await res.json();
-      const texs = {};
-      if (def.atlas) {
-        // 파츠 11장 → 아틀라스 1장 (텍스처 수·드로우콜 절감)
-        const base = await texFor(def.atlas);
-        if (base) {
-          def.parts.forEach((p) => {
-            if (!p.rect) { texs[p.name] = base; return; }
-            const t = new PIXI.Texture({ source: base.source, frame: new PIXI.Rectangle(p.rect[0], p.rect[1], p.rect[2], p.rect[3]) });
-            texs[p.name] = t;
-          });
-        }
-      }
-      if (!texs.head) {
-        await Promise.all(def.parts.map(async (p) => { texs[p.name] = await texFor(p.file); }));
-      }
-      def.textures = texs;
       def.meta = info;
+      def.name = def.name || key;
+      def.bodyH = def.h;
+      def.cx = def.cx;
+      def.bodyTex = await texFor(def.body || info.body);
+      def.weaponTex = def.weapon ? await texFor(def.weapon.file) : null;
       R.cache[key] = def;
       return def;
     })();
@@ -79,7 +69,7 @@
   R.has = function (key) { return !!(R.meta && R.meta.rigs && R.meta.rigs[key]); };
 
   /* ------------------------------------------------------------------ */
-  /*  포즈 라이브러리                                                    */
+  /*  포즈 라이브러리 (Step 6/7 그대로 — 뼈 회전으로 옮겨 쓴다)          */
   /* ------------------------------------------------------------------ */
   const P0 = () => ({
     rootY: 0, rootRot: 0, rootSX: 1, rootSY: 1, rootX: 0,
@@ -90,12 +80,11 @@
     armSwing: 0,
   });
 
-  /* 상태별 포즈. p(0~1)는 동작 진행도, t는 로컬 시간 */
   function pose(state, t, p, cfg) {
     const o = P0();
     const K = cfg || {};
-    const br = Math.sin(t * 2.1);          // 호흡
-    const step = K.stepPhase || 0;          // 보행 위상
+    const br = Math.sin(t * 2.1);
+    const step = K.stepPhase || 0;
 
     switch (state) {
       case 'idle': {
@@ -115,7 +104,6 @@
         const sp = clamp((K.speed || 200) / 240, 0.55, 1.35);
         o.hipNear = s * 0.62 * sp;
         o.hipFar = -s * 0.62 * sp;
-        // 무릎은 뒤로 접힌 쪽만 굽힌다
         o.kneeNear = Math.max(0, -s) * 0.95 * sp + 0.08;
         o.kneeFar = Math.max(0, s) * 0.95 * sp + 0.08;
         o.shNear = -s * 0.5 * sp;
@@ -151,11 +139,9 @@
       case 'atk1':
       case 'atk2':
       case 'atk3': {
-        // 3연타: 1타 가로 베기, 2타 되돌아 베기, 3타 내려찍기
         const heavy = state === 'atk3';
         const wind = heavy ? 0.34 : 0.26;
-        const dur = heavy ? 1 : 1;
-        const q = clamp(p / dur, 0, 1);
+        const q = clamp(p, 0, 1);
         let swing;
         if (q < wind) swing = -easeOut(q / wind);
         else if (q < wind + 0.22) swing = lerp(-1, 1.25, easeIn((q - wind) / 0.22));
@@ -246,7 +232,6 @@
         o.rootY = q * 1.5;
         break;
       }
-      /* ---- 적 ---- */
       case 'walk': {
         const s = Math.sin(step);
         o.hipNear = s * 0.55; o.hipFar = -s * 0.55;
@@ -306,19 +291,22 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /*  Rig                                                                */
+  /*  Rig — 본 + 가중치 메쉬                                            */
   /* ------------------------------------------------------------------ */
   class Rig {
     constructor(def, opts = {}) {
       this.def = def;
       this.key = def.name;
       this.opts = opts;
-      this.artFacing = opts.artFacing || 1;    // 원화가 향한 방향 (+1 오른쪽)
-      this.yaw = 1;          // 1 = 원화 방향, -1 = 반대
+      this.artFacing = opts.artFacing || 1;
+      this.mainArm = opts.mainArm || 'far';
+
+      this.yaw = 1;
       this.yawTarget = 1;
-      this.turnT = 1;        // 1 = 전환 끝
-      this.turnDur = opts.turnDur || 0.30;
+      this.turnT = 1;
+      this.turnDur = opts.turnDur || 0.11;
       this.turnFrom = 1;
+      this.stepTurn = 0;
       this.turnLog = [];
       this.t = 0;
       this.state = 'idle';
@@ -327,207 +315,310 @@
       this.poseData = P0();
       this.flash = 0;
       this.flashColor = 0xffffff;
+      this.scale = 1;
 
+      // ---- 본 준비 (부모 → 자식 순서 보장)
+      const src = def.bones || [];
+      this.bones = src.slice().sort((a, b) => a.idx - b.idx).map((b) => ({
+        name: b.name, parent: b.parentIdx, x: b.x, y: b.y,
+        px: b.pa[0], py: b.pa[1], len: b.len, ang: b.ang, kind: b.kind,
+        rest: b.ang, idx: b.idx,
+        rot: 0, wx: 0, wy: 0, wrot: 0,
+      }));
+      this.boneByName = {};
+      this.bones.forEach((b) => { this.boneByName[b.name] = b; });
+      this.nodes = {};
+      this.bones.forEach((b) => {
+        this.nodes[b.name] = { rotation: 0, x: b.x, y: b.y, z: b.idx };
+      });
+      this.partNames = this.bones.map((b) => b.name);
+      this.order = this.bones;
+
+      // ---- 메쉬 정점/가중치
+      const g = def.grid;
+      this.cols = g[0]; this.rows = g[1];
+      this.rest = Float32Array.from(def.positions);
+      this.uvs = Float32Array.from(def.uvs);
+      this.weights = def.weights;                  // [ [boneIdx, w], ... ] per influence
+      this.vertCount = this.rest.length / 2;
+      this.vmask = def.vmask || null;
+      this.cmask = def.cmask || null;
+      this.pos = new Float32Array(this.rest.length);
+      this.pos.set(this.rest);
+
+      const geo = new PIXI.MeshGeometry({
+        positions: this.pos,
+        uvs: this.uvs,
+        indices: new Uint32Array(def.indices),
+      });
+      this.geo = geo;
+      this.mesh = new PIXI.Mesh({ geometry: geo, texture: def.bodyTex || PIXI.Texture.WHITE });
+      this.mesh.texture = def.bodyTex;
+      this.mesh.roundPixels = false;
+
+      this.body = new PIXI.Container();     // 턴/스쿼시 전용 래퍼 (scale.x = ±scale)
+      this.body.sortableChildren = true;
       this.root = new PIXI.Container();
       this.root.sortableChildren = true;
-      this.body = new PIXI.Container();     // 턴/스쿼시 전용 래퍼
-      this.body.sortableChildren = true;
-      this.root.sortableChildren = true;
       this.root.addChild(this.body);
+      this.body.addChild(this.mesh);
 
-      this.nodes = {};
-      this.spinners = {};
-      this.sprites = {};
-      this.defs = {};
-      const parts = def.parts.slice().sort((a, b) => a.z - b.z);
-      const byName = {};
-      parts.forEach((p) => { byName[p.name] = p; this.defs[p.name] = p; });
-      const cx = def.cx, H = def.h;
+      // ---- 무기 손 소켓
+      this.weapon = null;
+      if (def.weapon && def.weaponTex) {
+        const w = def.weapon;
+        this.weapon = new PIXI.Sprite(def.weaponTex);
+        this.weapon.anchor.set(w.pivot[0] / w.w, w.pivot[1] / w.h);
+        this.weaponSocket = 'hand_' + (w.side || 'near');
+        this.body.addChild(this.weapon);
+      }
 
-      this.base = {};
-      // 파츠 피벗은 자기 크롭 기준 → 원화 좌표로 환산
-      const ip = {};
-      parts.forEach((p) => { ip[p.name] = [p.pivot[0] + (p.origin ? p.origin[0] : 0), p.pivot[1] + (p.origin ? p.origin[1] : 0)]; });
-      this.ip = ip;
-      const mk = (p) => {
-        const nodeY = p.name;
-        const node = new PIXI.Container();
-        const parent = p.parent ? this.nodes[p.parent] : this.body;
-        node.x = ip[p.name][0] - (p.parent ? ip[p.parent][0] : cx);
-        node.y = ip[p.name][1] - (p.parent ? ip[p.parent][1] : H);
-        node.zIndex = p.z;
-        node.sortableChildren = true;
-        (parent || this.body).addChild(node);
-        this.base[nodeY] = { x: node.x, y: node.y };
-        this.nodes[p.name] = node;
+      // ---- 2차 물리(머리카락·천) 스프링
+      this.spr = { head: 0, headV: 0, cloth: 0, clothV: 0 };
+      this.groundY = def.groundY != null ? def.groundY : 0;
 
-        const tex = def.textures[p.name];
-        const spr = new PIXI.Sprite(tex || PIXI.Texture.WHITE);
-        spr.anchor.set(p.pivot[0] / p.w, p.pivot[1] / p.h);
-        spr.zIndex = 2;
-        node.addChild(spr);
-        this.sprites[p.name] = spr;
-
-        // 관절 원판 — 회전 시 파츠 사이 틈을 메운다 (팔다리 관절만)
-        const jointed = /^(upArm|loArm|thigh|shin)/.test(p.name);
-        if (jointed) {
-          const disc = new PIXI.Graphics();
-          const rad = Math.max(2.2, p.r * 0.28);
-          disc.circle(0, 0, rad).fill({ color: p.jointColor, alpha: 0.92 });
-          disc.zIndex = 1;
-          node.addChild(disc);
-          this.spinners[p.name] = disc;
-        }
-        return node;
-      };
-      // 부모가 먼저 만들어지도록 z 순서대로 (torso → pelvis → limbs → head)
-      const order = ['torso', 'pelvis', 'upArm_far', 'upArm_near', 'loArm_far', 'loArm_near',
-        'thigh_far', 'thigh_near', 'shin_far', 'shin_near', 'head'];
-      const rest = parts.filter((p) => order.indexOf(p.name) < 0).map((p) => p.name);
-      order.concat(rest).forEach((n) => { if (byName[n]) mk(byName[n]); });
-
-      // 파츠별 턴 지연 (머리가 먼저 돌고 다리가 마지막)
-      this.turnDelay = {};
-      parts.forEach((p) => {
-        const n = p.name;
-        this.turnDelay[n] = n === 'head' ? 0.0 : n === 'torso' ? 0.12
-          : n.indexOf('Arm') >= 0 ? 0.26 : n.indexOf('thigh') >= 0 ? 0.34 : n.indexOf('shin') >= 0 ? 0.42 : 0.2;
-      });
-      this.partNames = parts.map((p) => p.name);
-
-      this.scale = 1;
+      this.setBodyPx(opts.bodyPx || def.h * 0.5);
     }
 
-    /* 몸 전체 크기(px) — bodyPx / 원화 키 */
-    setBodyPx(px) { this.scale = px / this.def.bodyH; this.applyScale(); }
+    setBodyPx(px) {
+      this.scale = px / (this.def.bodyH || this.def.h || 1);
+      this.applyScale();
+    }
 
     applyScale() {
       const s = this.scale;
-      this.body.scale.set(s, s);
+      this.body.scale.set(s * (this.yawTarget >= 0 ? 1 : -1), s);
     }
 
-    /* 방향 전환: 즉시 반전이 아니라 다프레임 턴 */
+    /* 방향 전환 — 즉시 반전 + 0.11초 발 디딤 */
     setFacing(worldDir) {
       const target = (worldDir >= 0 ? 1 : -1) * (this.artFacing >= 0 ? 1 : -1);
       if (target === this.yawTarget) return;
       this.turnFrom = this.yaw;
+      this.yaw = target;
       this.yawTarget = target;
       this.turnT = 0;
-      this.turnLog.push({ t: +this.t.toFixed(3), from: this.turnFrom, to: target });
+      this.turnLog.push({ t: +this.t.toFixed(3), from: this.turnFrom, to: target, snap: true });
       if (this.turnLog.length > 40) this.turnLog.shift();
     }
 
     get turning() { return this.turnT < 1; }
 
-    /* 상태 + 진행도로 포즈를 잡는다 */
     setState(name, p, cfg) {
       this.state = name;
       this.stateP = p;
       this.stateCfg = cfg;
     }
 
+    /* 본 회전 → 정점 스키닝 */
     update(dt) {
       if (!this.body || this.body.destroyed) return;
       this.t += dt;
       this.stateT += dt;
-      // 턴 진행
-      if (this.turnT < 1) {
-        this.turnT = Math.min(1, this.turnT + dt / this.turnDur);
-        const e = easeInOut(this.turnT);
-        this.yaw = lerp(this.turnFrom, this.yawTarget, e);
-        if (this.turnT >= 1) this.yaw = this.yawTarget;
-      }
-      const st = this.state;
-      const cfg = Object.assign({ stepPhase: this.stepPhase, mainArm: this.opts.mainArm || 'far' }, this.stateCfg || {});
-      const pd = pose(st, this.stateT, this.stateP == null ? 0 : this.stateP, cfg);
+      if (this.turnT < 1) this.turnT = Math.min(1, this.turnT + dt / this.turnDur);
+      const stepTurn = this.turnT < 1 ? Math.sin(this.turnT * Math.PI) : 0;
+      this.stepTurn = stepTurn;
+      this.yaw = this.yawTarget;
+
+      const cfg = Object.assign({ stepPhase: this.stepPhase, mainArm: this.mainArm }, this.stateCfg || {});
+      const pd = pose(this.state, this.stateT, this.stateP == null ? 0 : this.stateP, cfg);
       this.poseData = pd;
 
-      // 턴 중 스쿼시(몸이 돌아가는 동안 폭이 줄었다 돌아온다)
-      const turning = this.turnT < 1 ? Math.sin(this.turnT * Math.PI) : 0;
-      const dirNow = this.yaw;
+      // 2차 물리 — 머리카락/천이 반 박자 늦게 따라온다
+      const tgtHead = pd.head.rot + stepTurn * 0.10;
+      this.spr.headV += (tgtHead - this.spr.head) * 26 * dt - this.spr.headV * 9 * dt;
+      this.spr.head += this.spr.headV * dt;
+      const tgtCloth = pd.torso.rot * 0.5 + stepTurn * 0.16;
+      this.spr.clothV += (tgtCloth - this.spr.cloth) * 18 * dt - this.spr.clothV * 7 * dt;
+      this.spr.cloth += this.spr.clothV * dt;
 
-      this.body.x = pd.rootX * (dirNow >= 0 ? 1 : -1);
-      this.body.y = pd.rootY;
-      this.body.rotation = pd.rootRot * (dirNow >= 0 ? 1 : -1);
-      const sq = 1 - 0.30 * turning;
-      this.body.scale.x = this.scale * dirNow * (1 - 0.14 * turning) * pd.rootSX;
-      this.body.scale.y = this.scale * (1 + 0.05 * turning) * pd.rootSY;
-
-      const torso = this.nodes.torso;
-      if (torso) {
-        torso.rotation = pd.torso.rot;
-        torso.x = this.base.torso.x + pd.torso.x;
-        torso.y = this.base.torso.y + pd.torso.y;
-        torso.scale.set(pd.torso.sx, pd.torso.sy);
+      // ---- 포즈 → 본 로컬 회전
+      const tr = pd.torso.rot;
+      const set = (name, rot) => { const b = this.boneByName[name]; if (b) b.rot = rot; };
+      set('hips', tr * 0.0);
+      set('spine', tr * 0.45);
+      set('chest', tr * 0.55);
+      set('head', pd.head.rot - 1.35 * tr + this.spr.head * 0.35);
+      set('shoulder_near', 0); set('shoulder_far', 0);
+      set('upperarm_near', pd.shNear);
+      set('upperarm_far', pd.shFar);
+      set('forearm_near', pd.elNear);
+      set('forearm_far', pd.elFar);
+      set('thigh_near', pd.hipNear);
+      set('thigh_far', pd.hipFar);
+      set('shin_near', pd.kneeNear);
+      set('shin_far', pd.kneeFar);
+      // 발 디딤 — 앞다리를 살짝 딛고 상체가 먼저 돈다
+      if (stepTurn > 0.001) {
+        const th = this.boneByName.thigh_near, sh = this.boneByName.shin_near;
+        if (th) th.rot += -0.20 * stepTurn;
+        if (sh) sh.rot += 0.26 * stepTurn;
       }
-      const setN = (n, rot, x, y) => {
-        const node = this.nodes[n];
-        if (!node) return;
-        node.rotation = rot || 0;
-        if (x != null) node.x = x;
-        if (y != null) node.y = y;
-      };
-      setN('head', pd.head.rot - pd.torso.rot * 0.35);
-      if (this.nodes.head) {
-        this.nodes.head.y = this.base.head.y + pd.head.y;
-        this.nodes.head.x = this.base.head.x + pd.head.x;
-      }
-      setN('upArm_near', pd.shNear);
-      setN('upArm_far', pd.shFar);
-      setN('loArm_near', pd.elNear);
-      setN('loArm_far', pd.elFar);
-      setN('thigh_near', pd.hipNear);
-      setN('thigh_far', pd.hipFar);
-      setN('shin_near', pd.kneeNear);
-      setN('shin_far', pd.kneeFar);
 
-      // 턴 중 파츠별 시간차 — 머리는 먼저, 다리는 나중에 몸통 쪽으로 접힌다
-      if (turning > 0.001) {
-        for (const n of this.partNames) {
-          const d = this.turnDelay[n] || 0.2;
-          const q = clamp((this.turnT - d * 0.55) / (1 - d * 0.55), 0, 1);
-          const lag = Math.sin(q * Math.PI) * 0.30;       // 파츠가 뒤처지며 따라 도는 정도
-          const node = this.nodes[n];
-          if (!node) continue;
-          node.rotation += (n === 'head' ? -0.55 : n === 'torso' ? -0.25 : 0.18) * lag * (this.yawTarget >= 0 ? 1 : -1);
-          // z 순서 교차: 팔·다리는 턴 중반에 앞뒤가 바뀐다
-          if (n.indexOf('far') >= 0) node.zIndex = q > 0.5 ? 70 : 20;
-          if (n.indexOf('near') >= 0 && n.indexOf('Arm') >= 0) node.zIndex = q > 0.5 ? 22 : 50;
-        }
-      } else {
-        for (const n of this.partNames) {
-          const node = this.nodes[n];
-          if (!node) continue;
-          node.zIndex = this.defs[n].z;
+      this._solveWorld();
+      this._footIK();
+      this._skin();
+
+      // 몸 전체 변환
+      const dirNow = this.yawTarget;
+      this.body.x = (pd.rootX - 3.5 * stepTurn) * dirNow;
+      this.body.y = pd.rootY + 2.2 * stepTurn;
+      this.body.rotation = pd.rootRot * dirNow;
+      this.body.scale.set(this.scale * dirNow, this.scale * pd.torso.sy);
+
+      // 무기 — 손 소켓의 월드 변환을 그대로 따른다
+      if (this.weapon) {
+        const hb = this.boneByName[this.weaponSocket];
+        if (hb) {
+          this.weapon.x = hb.wx;
+          this.weapon.y = hb.wy;
+          this.weapon.rotation = hb.wrot;
         }
       }
 
       // 피격 플래시
       if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 4.2);
       const tint = this.flash > 0 ? this.flashColor : 0xffffff;
-      for (const n of this.partNames) {
-        const s = this.sprites[n];
-        if (s) { s.tint = tint; s.alpha = this.baseAlpha != null ? this.baseAlpha : 1; }
+      if (this.mesh) this.mesh.tint = tint;
+      if (this.weapon) this.weapon.tint = tint;
+    }
+
+    /* 본 월드 변환 — 부모 회전을 이어받아 자기 시작점을 축으로 돈다 */
+    _solveWorld() {
+      const bs = this.order;
+      for (let i = 0; i < bs.length; i++) {
+        const b = bs[i];
+        if (b.parent == null) {
+          b.wx = b.px; b.wy = b.py; b.wrot = b.rot;
+        } else {
+          const p = bs[b.parent];
+          const c = Math.cos(p.wrot), s = Math.sin(p.wrot);
+          const dx = b.px - p.px, dy = b.py - p.py;
+          b.wx = p.wx + dx * c - dy * s;
+          b.wy = p.wy + dx * s + dy * c;
+          b.wrot = p.wrot + b.rot;
+        }
       }
+    }
+
+    /* 2본 IK — 발이 땅(로컬 y=groundY)을 파고들면 무릎으로 풀어 세운다 */
+    _footIK() {
+      const gy = this.groundY;
+      for (const side of ['near', 'far']) {
+        const th = this.boneByName['thigh_' + side];
+        const sh = this.boneByName['shin_' + side];
+        if (!th || !sh) continue;
+        const c = Math.cos(sh.wrot);
+        const footX = sh.wx + Math.cos(sh.wrot) * sh.len;
+        const footY = sh.wy + Math.sin(sh.wrot) * sh.len;
+        if (footY <= gy + 0.5) continue;                 // 땅 위면 손대지 않는다
+        const L1 = th.len, L2 = sh.len;
+        const tx = footX, ty = gy;
+        let dx = tx - th.wx, dy = ty - th.wy;
+        let d = Math.hypot(dx, dy);
+        const dmin = Math.abs(L1 - L2) + 1, dmax = L1 + L2 - 1;
+        if (d > dmax) d = dmax;
+        if (d < dmin) d = dmin;
+        const a = Math.atan2(dy, dx);
+        const cosA = clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1);
+        const A = Math.acos(cosA);
+        // 무릎이 꺾이는 방향은 rest 자세에서 정한다
+        const bendSign = this._bendSign(th, sh);
+        const ta = a - bendSign * A;
+        const kx = th.wx + Math.cos(ta) * L1, ky = th.wy + Math.sin(ta) * L1;
+        const sa = Math.atan2(ty - ky, tx - kx);
+        const thDelta = ta - th.rest;
+        th.rot = thDelta - (th.parent != null ? this.order[th.parent].wrot : 0);
+        const shDelta = sa - sh.rest;
+        sh.rot = shDelta - ta;
+        // 바뀐 각으로 다시 월드 계산
+        this._solveWorld();
+      }
+    }
+
+    _bendSign(th, sh) {
+      const cross = Math.cos(th.rest) * Math.sin(sh.rest) - Math.sin(th.rest) * Math.cos(sh.rest);
+      return cross >= 0 ? 1 : -1;
+    }
+
+    /* 가중치 메쉬 스키닝 — 정점마다 최대 3본을 섞어 변형 */
+    _skin() {
+      const pos = this.pos, rest = this.rest, wts = this.weights, bs = this.bones;
+      const cache = [];
+      for (let i = 0; i < bs.length; i++) {
+        const b = bs[i];
+        cache.push([b.wx, b.wy, Math.cos(b.wrot), Math.sin(b.wrot), b.px, b.py]);
+      }
+      const n = this.vertCount;
+      for (let v = 0; v < n; v++) {
+        const rx = rest[v * 2], ry = rest[v * 2 + 1];
+        const inf = wts[v];
+        let ox = 0, oy = 0;
+        for (let k = 0; k < inf.length; k++) {
+          const bi = inf[k][0], w = inf[k][1];
+          const c = cache[bi];
+          const dx = rx - c[4], dy = ry - c[5];
+          ox += w * (c[0] + dx * c[2] - dy * c[3]);
+          oy += w * (c[1] + dx * c[3] + dy * c[2]);
+        }
+        pos[v * 2] = ox;
+        pos[v * 2 + 1] = oy;
+      }
+      const buf = this.geo.getBuffer('aPosition');
+      if (buf) buf.update();
     }
 
     hitFlash(color) { this.flash = 1; this.flashColor = color || 0xffb3b3; }
 
-    /* 검증용: 파츠 회전/위치/스케일 스냅샷 */
+    /* 검증용 */
     debug() {
-      const out = { state: this.state, yaw: +this.yaw.toFixed(3), turnT: +this.turnT.toFixed(3), parts: {} };
-      for (const n of this.partNames) {
-        const node = this.nodes[n];
-        if (!node) continue;
-        out.parts[n] = {
-          rot: +node.rotation.toFixed(4),
-          x: +node.x.toFixed(2), y: +node.y.toFixed(2),
-          z: node.zIndex,
-        };
+      const out = { state: this.state, yaw: +this.yaw.toFixed(3), turnT: +this.turnT.toFixed(3),
+        stepTurn: +this.stepTurn.toFixed(3), parts: {}, bones: {}, weapon: null };
+      for (const b of this.bones) {
+        out.bones[b.name] = { rot: +b.rot.toFixed(4), wx: +b.wx.toFixed(2), wy: +b.wy.toFixed(2) };
+        if (this.nodes[b.name]) this.nodes[b.name].rotation = b.rot;
+      }
+      // 이음새/늘어남 — 화면에 보이는 정점으로만 이루어진 격자칸만 본다
+      let maxStretch = 0, worst = null;
+      const ratios = [];
+      const cols = this.cols, cm = this.cmask, vm = this.vmask;
+      let cell = 0;
+      for (let r = 0; r < this.rows - 1; r++) {
+        for (let c = 0; c < cols - 1; c++, cell++) {
+          const visible = cm ? cm[cell] === 1 : true;
+          if (!visible) continue;
+          const a = r * cols + c, b2 = a + 1, d = a + cols, e = d + 1;
+          if (vm && !(vm[a] && vm[b2] && vm[d] && vm[e])) continue;
+          const cells = [[a, b2], [a, d], [b2, e], [d, e]];
+          for (const [i, j] of cells) {
+            const d0 = Math.hypot(this.rest[j * 2] - this.rest[i * 2], this.rest[j * 2 + 1] - this.rest[i * 2 + 1]);
+            if (d0 < 4) continue;
+            const d1 = Math.hypot(this.pos[j * 2] - this.pos[i * 2], this.pos[j * 2 + 1] - this.pos[i * 2 + 1]);
+            const ratio = d1 / d0;
+            ratios.push(ratio);
+            if (ratio > maxStretch) { maxStretch = ratio; worst = [i, j, +ratio.toFixed(2)]; }
+          }
+        }
+      }
+      ratios.sort((x, y) => x - y);
+      const pct = (q) => (ratios.length ? +ratios[Math.min(ratios.length - 1, Math.floor(ratios.length * q))].toFixed(2) : 0);
+      let moved = 0;
+      for (let v = 0; v < this.vertCount; v++) {
+        moved = Math.max(moved, Math.hypot(this.pos[v * 2] - this.rest[v * 2], this.pos[v * 2 + 1] - this.rest[v * 2 + 1]));
       }
       out.body = { sx: +this.body.scale.x.toFixed(4), sy: +this.body.scale.y.toFixed(4),
         rot: +this.body.rotation.toFixed(4), y: +this.body.y.toFixed(2) };
+      out.maxStretch = +maxStretch.toFixed(3);
+      out.stretchP95 = pct(0.95);
+      out.stretchP99 = pct(0.99);
+      out.maxMove = +moved.toFixed(2);
       out.turnLog = this.turnLog.slice(-4);
+      if (this.weapon) {
+        const hb = this.boneByName[this.weaponSocket];
+        out.weapon = { x: +this.weapon.x.toFixed(2), y: +this.weapon.y.toFixed(2),
+          rot: +this.weapon.rotation.toFixed(4), socket: this.weaponSocket,
+          hand: hb ? { wx: +hb.wx.toFixed(2), wy: +hb.wy.toFixed(2), wrot: +hb.wrot.toFixed(4) } : null };
+      }
       return out;
     }
   }
