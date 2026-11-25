@@ -1,0 +1,420 @@
+{
+ "name": "born_santa",
+ "w": 606,
+ "h": 718,
+ "cx": 277.75,
+ "bodyH": 718,
+ "atlas": "assets/rig/born_santa/atlas.webp",
+ "arch": "stocky",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/born_santa/upArm_far.webp",
+   "w": 188,
+   "h": 169,
+   "pivot": [
+    136.7,
+    57.46
+   ],
+   "tip": [
+    60.75,
+    119.06
+   ],
+   "origin": [
+    0,
+    280
+   ],
+   "jointColor": [
+    74,
+    40,
+    32
+   ],
+   "r": 58.44,
+   "rect": [
+    3,
+    390,
+    188,
+    169
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/born_santa/loArm_far.webp",
+   "w": 54,
+   "h": 107,
+   "pivot": [
+    60.75,
+    53.06
+   ],
+   "tip": [
+    6.5,
+    109.93
+   ],
+   "origin": [
+    0,
+    346
+   ],
+   "jointColor": [
+    54,
+    49,
+    46
+   ],
+   "r": 47.2,
+   "rect": [
+    194,
+    390,
+    54,
+    107
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/born_santa/thigh_far.webp",
+   "w": 137,
+   "h": 177,
+   "pivot": [
+    74.57,
+    42.06
+   ],
+   "tip": [
+    54.73,
+    149.76
+   ],
+   "origin": [
+    126,
+    439
+   ],
+   "jointColor": [
+    148,
+    47,
+    43
+   ],
+   "r": 67.42,
+   "rect": [
+    555,
+    390,
+    137,
+    177
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/born_santa/shin_far.webp",
+   "w": 155,
+   "h": 113,
+   "pivot": [
+    63.73,
+    -5.24
+   ],
+   "tip": [
+    50.5,
+    118.26
+   ],
+   "origin": [
+    117,
+    594
+   ],
+   "jointColor": [
+    50,
+    42,
+    38
+   ],
+   "r": 51.69,
+   "rect": [
+    695,
+    390,
+    155,
+    113
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/born_santa/thigh_near.webp",
+   "w": 171,
+   "h": 180,
+   "pivot": [
+    53.68,
+    45.06
+   ],
+   "tip": [
+    73.97,
+    152.76
+   ],
+   "origin": [
+    303,
+    436
+   ],
+   "jointColor": [
+    93,
+    35,
+    28
+   ],
+   "r": 67.42,
+   "rect": [
+    3,
+    638,
+    171,
+    180
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/born_santa/shin_near.webp",
+   "w": 143,
+   "h": 123,
+   "pivot": [
+    72.97,
+    -6.24
+   ],
+   "tip": [
+    86.5,
+    117.26
+   ],
+   "origin": [
+    304,
+    595
+   ],
+   "jointColor": [
+    57,
+    50,
+    46
+   ],
+   "r": 51.69,
+   "rect": [
+    177,
+    638,
+    143,
+    123
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/born_santa/pelvis.webp",
+   "w": 126,
+   "h": 122,
+   "pivot": [
+    61.75,
+    -38.3
+   ],
+   "tip": [
+    61.75,
+    -16.76
+   ],
+   "origin": [
+    216,
+    505
+   ],
+   "jointColor": [
+    155,
+    144,
+    138
+   ],
+   "r": 179.8,
+   "rect": [
+    747,
+    3,
+    126,
+    122
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/born_santa/torso.webp",
+   "w": 286,
+   "h": 223,
+   "pivot": [
+    147.75,
+    -8.26
+   ],
+   "tip": [
+    147.75,
+    149.7
+   ],
+   "origin": [
+    130,
+    317
+   ],
+   "jointColor": [
+    137,
+    27,
+    27
+   ],
+   "r": 220.25,
+   "rect": [
+    458,
+    3,
+    286,
+    223
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/born_santa/upArm_near.webp",
+   "w": 154,
+   "h": 162,
+   "pivot": [
+    37.46,
+    67.46
+   ],
+   "tip": [
+    98.15,
+    129.06
+   ],
+   "origin": [
+    353,
+    270
+   ],
+   "jointColor": [
+    172,
+    28,
+    29
+   ],
+   "r": 58.44,
+   "rect": [
+    251,
+    390,
+    154,
+    162
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/born_santa/loArm_near.webp",
+   "w": 144,
+   "h": 245,
+   "pivot": [
+    64.15,
+    94.06
+   ],
+   "tip": [
+    107.5,
+    150.93
+   ],
+   "origin": [
+    387,
+    305
+   ],
+   "jointColor": [
+    117,
+    59,
+    48
+   ],
+   "r": 47.2,
+   "rect": [
+    408,
+    390,
+    144,
+    245
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/born_santa/head.webp",
+   "w": 452,
+   "h": 384,
+   "pivot": [
+    123.75,
+    308.74
+   ],
+   "tip": [
+    137.24,
+    32.31
+   ],
+   "origin": [
+    154,
+    0
+   ],
+   "jointColor": [
+    163,
+    129,
+    113
+   ],
+   "r": 224.75,
+   "rect": [
+    3,
+    3,
+    452,
+    384
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   123.75,
+   308.74
+  ],
+  "torso": [
+   147.75,
+   -8.26
+  ],
+  "pelvis": [
+   61.75,
+   -38.3
+  ],
+  "upArm_far": [
+   136.7,
+   57.46
+  ],
+  "loArm_far": [
+   60.75,
+   53.06
+  ],
+  "upArm_near": [
+   37.46,
+   67.46
+  ],
+  "loArm_near": [
+   64.15,
+   94.06
+  ],
+  "thigh_far": [
+   74.57,
+   42.06
+  ],
+  "shin_far": [
+   63.73,
+   -5.24
+  ],
+  "thigh_near": [
+   53.68,
+   45.06
+  ],
+  "shin_near": [
+   72.97,
+   -6.24
+  ]
+ }
+}

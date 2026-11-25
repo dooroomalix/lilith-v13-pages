@@ -1,0 +1,420 @@
+{
+ "name": "ara_basic",
+ "w": 434,
+ "h": 718,
+ "cx": 215.25,
+ "bodyH": 718,
+ "atlas": "assets/rig/ara_basic/atlas.webp",
+ "arch": "small",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/ara_basic/upArm_far.webp",
+   "w": 96,
+   "h": 113,
+   "pivot": [
+    69.97,
+    36.64
+   ],
+   "tip": [
+    36.97,
+    98.24
+   ],
+   "origin": [
+    84,
+    308
+   ],
+   "jointColor": [
+    77,
+    67,
+    58
+   ],
+   "r": 25.15,
+   "rect": [
+    676,
+    3,
+    96,
+    113
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/ara_basic/loArm_far.webp",
+   "w": 148,
+   "h": 165,
+   "pivot": [
+    105.97,
+    10.24
+   ],
+   "tip": [
+    82.39,
+    67.11
+   ],
+   "origin": [
+    15,
+    396
+   ],
+   "jointColor": [
+    77,
+    64,
+    55
+   ],
+   "r": 20.36,
+   "rect": [
+    775,
+    3,
+    148,
+    165
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/ara_basic/thigh_far.webp",
+   "w": 230,
+   "h": 147,
+   "pivot": [
+    179.38,
+    23.24
+   ],
+   "tip": [
+    170.15,
+    130.94
+   ],
+   "origin": [
+    0,
+    465
+   ],
+   "jointColor": [
+    72,
+    59,
+    50
+   ],
+   "r": 28.74,
+   "rect": [
+    142,
+    367,
+    230,
+    147
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/ara_basic/shin_far.webp",
+   "w": 219,
+   "h": 123,
+   "pivot": [
+    159.15,
+    0.94
+   ],
+   "tip": [
+    153.0,
+    117.26
+   ],
+   "origin": [
+    11,
+    595
+   ],
+   "jointColor": [
+    77,
+    53,
+    37
+   ],
+   "r": 22.75,
+   "rect": [
+    375,
+    367,
+    219,
+    123
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/ara_basic/thigh_near.webp",
+   "w": 212,
+   "h": 195,
+   "pivot": [
+    46.62,
+    33.24
+   ],
+   "tip": [
+    58.55,
+    140.94
+   ],
+   "origin": [
+    215,
+    455
+   ],
+   "jointColor": [
+    75,
+    61,
+    52
+   ],
+   "r": 28.74,
+   "rect": [
+    597,
+    367,
+    212,
+    195
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/ara_basic/shin_near.webp",
+   "w": 133,
+   "h": 120,
+   "pivot": [
+    57.55,
+    0.94
+   ],
+   "tip": [
+    65.5,
+    117.26
+   ],
+   "origin": [
+    216,
+    595
+   ],
+   "jointColor": [
+    82,
+    52,
+    34
+   ],
+   "r": 22.75,
+   "rect": [
+    812,
+    367,
+    133,
+    120
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/ara_basic/pelvis.webp",
+   "w": 71,
+   "h": 83,
+   "pivot": [
+    32.25,
+    -11.12
+   ],
+   "tip": [
+    32.25,
+    10.42
+   ],
+   "origin": [
+    183,
+    485
+   ],
+   "jointColor": [
+    70,
+    54,
+    44
+   ],
+   "r": 79.04,
+   "rect": [
+    602,
+    3,
+    71,
+    83
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/ara_basic/torso.webp",
+   "w": 159,
+   "h": 178,
+   "pivot": [
+    82.25,
+    -17.08
+   ],
+   "tip": [
+    82.25,
+    140.88
+   ],
+   "origin": [
+    133,
+    333
+   ],
+   "jointColor": [
+    151,
+    108,
+    77
+   ],
+   "r": 98.19,
+   "rect": [
+    440,
+    3,
+    159,
+    178
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/ara_basic/upArm_near.webp",
+   "w": 92,
+   "h": 111,
+   "pivot": [
+    24.71,
+    34.64
+   ],
+   "tip": [
+    56.73,
+    96.24
+   ],
+   "origin": [
+    250,
+    310
+   ],
+   "jointColor": [
+    119,
+    85,
+    64
+   ],
+   "r": 25.15,
+   "rect": [
+    926,
+    3,
+    92,
+    111
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/ara_basic/loArm_near.webp",
+   "w": 136,
+   "h": 152,
+   "pivot": [
+    39.73,
+    13.24
+   ],
+   "tip": [
+    62.61,
+    70.11
+   ],
+   "origin": [
+    267,
+    393
+   ],
+   "jointColor": [
+    77,
+    62,
+    49
+   ],
+   "r": 20.36,
+   "rect": [
+    3,
+    367,
+    136,
+    152
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/ara_basic/head.webp",
+   "w": 434,
+   "h": 361,
+   "pivot": [
+    215.25,
+    315.92
+   ],
+   "tip": [
+    222.44,
+    32.31
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "jointColor": [
+    88,
+    58,
+    40
+   ],
+   "r": 125.74,
+   "rect": [
+    3,
+    3,
+    434,
+    361
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   215.25,
+   315.92
+  ],
+  "torso": [
+   82.25,
+   -17.08
+  ],
+  "pelvis": [
+   32.25,
+   -11.12
+  ],
+  "upArm_far": [
+   69.97,
+   36.64
+  ],
+  "loArm_far": [
+   105.97,
+   10.24
+  ],
+  "upArm_near": [
+   24.71,
+   34.64
+  ],
+  "loArm_near": [
+   39.73,
+   13.24
+  ],
+  "thigh_far": [
+   179.38,
+   23.24
+  ],
+  "shin_far": [
+   159.15,
+   0.94
+  ],
+  "thigh_near": [
+   46.62,
+   33.24
+  ],
+  "shin_near": [
+   57.55,
+   0.94
+  ]
+ }
+}

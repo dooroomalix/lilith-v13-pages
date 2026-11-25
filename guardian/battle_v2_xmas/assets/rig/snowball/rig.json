@@ -1,0 +1,420 @@
+{
+ "name": "snowball",
+ "w": 451,
+ "h": 718,
+ "cx": 251.5,
+ "bodyH": 718,
+ "atlas": "assets/rig/snowball/atlas.webp",
+ "arch": "human",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/snowball/upArm_far.webp",
+   "w": 138,
+   "h": 124,
+   "pivot": [
+    105.67,
+    51.69
+   ],
+   "tip": [
+    59.99,
+    103.96
+   ],
+   "origin": [
+    61,
+    275
+   ],
+   "jointColor": [
+    167,
+    160,
+    154
+   ],
+   "r": 36.96,
+   "rect": [
+    780,
+    3,
+    138,
+    124
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/snowball/loArm_far.webp",
+   "w": 166,
+   "h": 224,
+   "pivot": [
+    110.99,
+    92.96
+   ],
+   "tip": [
+    78.36,
+    141.21
+   ],
+   "origin": [
+    10,
+    286
+   ],
+   "jointColor": [
+    156,
+    157,
+    165
+   ],
+   "r": 30.24,
+   "rect": [
+    3,
+    350,
+    166,
+    224
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/snowball/thigh_far.webp",
+   "w": 203,
+   "h": 195,
+   "pivot": [
+    165.05,
+    59.34
+   ],
+   "tip": [
+    142.82,
+    174.22
+   ],
+   "origin": [
+    0,
+    393
+   ],
+   "jointColor": [
+    161,
+    159,
+    169
+   ],
+   "r": 43.68,
+   "rect": [
+    455,
+    350,
+    203,
+    195
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/snowball/shin_far.webp",
+   "w": 189,
+   "h": 150,
+   "pivot": [
+    142.82,
+    -0.78
+   ],
+   "tip": [
+    128.0,
+    144.26
+   ],
+   "origin": [
+    0,
+    568
+   ],
+   "jointColor": [
+    155,
+    155,
+    161
+   ],
+   "r": 33.6,
+   "rect": [
+    661,
+    350,
+    189,
+    150
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/snowball/thigh_near.webp",
+   "w": 206,
+   "h": 133,
+   "pivot": [
+    52.05,
+    -2.66
+   ],
+   "tip": [
+    46.02,
+    112.22
+   ],
+   "origin": [
+    176,
+    455
+   ],
+   "jointColor": [
+    129,
+    131,
+    150
+   ],
+   "r": 43.68,
+   "rect": [
+    3,
+    640,
+    206,
+    133
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/snowball/shin_near.webp",
+   "w": 227,
+   "h": 149,
+   "pivot": [
+    50.02,
+    -1.78
+   ],
+   "tip": [
+    46.0,
+    143.26
+   ],
+   "origin": [
+    172,
+    569
+   ],
+   "jointColor": [
+    149,
+    151,
+    159
+   ],
+   "r": 33.6,
+   "rect": [
+    212,
+    640,
+    227,
+    149
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/snowball/pelvis.webp",
+   "w": 155,
+   "h": 83,
+   "pivot": [
+    41.5,
+    -20.02
+   ],
+   "tip": [
+    41.5,
+    1.52
+   ],
+   "origin": [
+    210,
+    458
+   ],
+   "jointColor": [
+    141,
+    142,
+    157
+   ],
+   "r": 117.6,
+   "rect": [
+    622,
+    3,
+    155,
+    83
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/snowball/torso.webp",
+   "w": 206,
+   "h": 183,
+   "pivot": [
+    95.5,
+    -18.8
+   ],
+   "tip": [
+    95.5,
+    131.98
+   ],
+   "origin": [
+    156,
+    306
+   ],
+   "jointColor": [
+    149,
+    148,
+    159
+   ],
+   "r": 144.48,
+   "rect": [
+    413,
+    3,
+    206,
+    183
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/snowball/upArm_near.webp",
+   "w": 147,
+   "h": 115,
+   "pivot": [
+    27.45,
+    43.69
+   ],
+   "tip": [
+    67.81,
+    95.96
+   ],
+   "origin": [
+    299,
+    283
+   ],
+   "jointColor": [
+    165,
+    164,
+    165
+   ],
+   "r": 36.96,
+   "rect": [
+    172,
+    350,
+    147,
+    115
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/snowball/loArm_near.webp",
+   "w": 130,
+   "h": 287,
+   "pivot": [
+    45.81,
+    37.96
+   ],
+   "tip": [
+    74.64,
+    86.21
+   ],
+   "origin": [
+    321,
+    341
+   ],
+   "jointColor": [
+    163,
+    162,
+    164
+   ],
+   "r": 30.24,
+   "rect": [
+    322,
+    350,
+    130,
+    287
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/snowball/head.webp",
+   "w": 407,
+   "h": 344,
+   "pivot": [
+    247.5,
+    287.2
+   ],
+   "tip": [
+    257.58,
+    32.31
+   ],
+   "origin": [
+    4,
+    0
+   ],
+   "jointColor": [
+    166,
+    164,
+    165
+   ],
+   "r": 164.64,
+   "rect": [
+    3,
+    3,
+    407,
+    344
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   247.5,
+   287.2
+  ],
+  "torso": [
+   95.5,
+   -18.8
+  ],
+  "pelvis": [
+   41.5,
+   -20.02
+  ],
+  "upArm_far": [
+   105.67,
+   51.69
+  ],
+  "loArm_far": [
+   110.99,
+   92.96
+  ],
+  "upArm_near": [
+   27.45,
+   43.69
+  ],
+  "loArm_near": [
+   45.81,
+   37.96
+  ],
+  "thigh_far": [
+   165.05,
+   59.34
+  ],
+  "shin_far": [
+   142.82,
+   -0.78
+  ],
+  "thigh_near": [
+   52.05,
+   -2.66
+  ],
+  "shin_near": [
+   50.02,
+   -1.78
+  ]
+ }
+}

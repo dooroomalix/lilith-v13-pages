@@ -148,6 +148,20 @@
       this.addHalo(opts.haloColor || 0x6fb8ff, 360, 0.18);
       this.addShadow(opts.shadowW || 196, 0.58);
 
+      // Step 6: 파츠 리그 — 고른 캐릭터/스킨이 그대로 전투 메인으로
+      this.char = opts.char || null;
+      this.skin = opts.skin || 'basic';
+      this.rig = null;
+      if (this.char && G.Rigs && G.CHARS) {
+        const def = G.Rigs.get(G.CHARS.rigKey(this.char.key, this.skin));
+        if (def) {
+          this.rig = new G.Rig(def, { artFacing: this.char.artFacing, mainArm: this.char.mainArm });
+          this.rig.setBodyPx(opts.bodyPx || this.char.bodyPx || 330);
+          this.obj.addChild(this.rig.root);
+          this.stepPhase = 0;
+        }
+      }
+
       const meta = G.Assets.animMeta || { bodyH: 410 };
       this.bodyH = meta.bodyH;
       const idle = G.Assets.anim.idle;
@@ -192,7 +206,7 @@
 
       // 외전: 카엘 겨울 코스튬 — 붉은 목도리 오버레이 (SD 위에 얹는다)
       this.scarf = null;
-      if (G.Xmas && G.Xmas.ON) this._buildScarf();
+      if (G.Xmas && G.Xmas.ON && !this.rig) this._buildScarf();
     }
 
     /* 붉은 목도리 + 흰 털 장식 — SD 몸 위에 붙어 흐느적거린다 */
@@ -332,7 +346,11 @@
       this.state = 'attack';
       this.stateT = 0;
       this.hitDone = false;
-      this.atkCfg = COMBO[idx];
+      const base = COMBO[idx];
+      const own = this.char && this.char.combo ? this.char.combo[idx] : null;
+      this.atkCfg = own ? Object.assign({}, base, own) : base;
+      const col = this.char ? this.char.colors : null;
+      if (col) { this.atkCfg.c1 = col.slash; this.atkCfg.c2 = col.slash2; this.atkCfg.edge = col.edge; }
       this.weaponGlow.alpha = 0.9;
       this.weaponGlow.tint = idx === 2 ? 0x8fd0ff : 0x66aaff;
       this.facing = this.facing || 1;
@@ -462,6 +480,10 @@
           this.state = 'idle';
           this.weaponGlow.alpha = 0;
         }
+      } else if (this.state === 'ult') {
+        // 궁극기 자세 — 0.9초 뒤 복귀 (리그는 ult 포즈로 그동안 유지)
+        if (this.stateT > 0.9) this.state = 'idle';
+        bob += Math.sin(G.clamp(this.stateT / 0.9, 0, 1) * Math.PI) * 5;
       } else if (this.state === 'dodge') {
         const p = G.clamp(this.stateT / 0.30, 0, 1);
         const e = G.easeOutCubic(p);
@@ -514,7 +536,7 @@
         this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4 + this.bobPx;
         this.weaponGlow.x = 40 * this.facing;
       } else {
-        this.obj.rotation = rot;
+        if (!this.rig) this.obj.rotation = rot;
         this.obj.y = this.y + dy;
       }
       // Counter-rotating squash/stretch and velocity lean preserve foot placement.
@@ -588,6 +610,44 @@
       this.game.scene.setFocus(this.x);
 
       this.mp = Math.min(this.mpMax, this.mp + dt * 7.5);
+      if (this.rig) this._driveRig(dt);
+    }
+
+    /* 파츠 리그 구동 — 상태·진행도·방향을 관절 포즈로 옮긴다 */
+    _driveRig(dt) {
+      const r = this.rig;
+      this.sprite.visible = false;
+      this.rim.visible = false;
+      this.sdSprite.visible = false;
+      let st = 'idle', p = 0;
+      const cfg = { mainArm: this.char.mainArm };
+      if (this.hurtT > 0 && this.state !== 'attack' && this.state !== 'dodge' && this.state !== 'dead') {
+        st = 'hurt'; p = 1 - this.hurtT / 0.30;
+      } else if (this.state === 'attack') {
+        st = 'atk' + ((this.atkIdx || 0) + 1); p = G.clamp(this.stateT / this.atkCfg.dur, 0, 1);
+      } else if (this.state === 'cast') {
+        st = 'cast'; p = G.clamp(this.stateT / 0.62, 0, 1);
+      } else if (this.state === 'dodge') {
+        st = 'dodge'; p = G.clamp(this.stateT / 0.30, 0, 1);
+      } else if (this.state === 'ult') {
+        st = 'ult'; p = G.clamp(this.stateT / 0.85, 0, 1);
+      } else if (this.state === 'dead') {
+        st = 'dead'; p = G.clamp(this.stateT / 0.9, 0, 1);
+      } else if (this.z > 0 || this.vz > 0) {
+        st = 'jump'; p = G.clamp(this.z / 190, 0, 1);
+      } else if (this.landT > 0) {
+        st = 'land'; p = 1 - this.landT / 0.16;
+      } else if (this.state === 'move') {
+        st = 'move';
+        const sp = Math.hypot(this.vx, this.vy * 0.6);
+        this.stepPhase = (this.stepPhase + (sp * dt) / 26) % (Math.PI * 2);
+        cfg.stepPhase = this.stepPhase; cfg.speed = sp;
+      }
+      r.setFacing(this.facing);
+      r.setState(st, p, cfg);
+      r.root.y = -this.z;
+      r.update(dt);
+      if (this.hurtT > 0.1) r.hitFlash(0xffc0c8);
     }
   }
 
@@ -719,6 +779,18 @@
       this.flashSpr.alpha = 0;
       this.obj.addChild(this.flashSpr);
       this.baseH = this.sprite.height;
+
+      // Step 6: 적도 관절 리그 (정면 통이미지 미끄러짐 제거)
+      this.rig = null;
+      if (V && G.Rigs) {
+        const rdef = G.Rigs.get(this.variant);
+        if (rdef) {
+          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near' });
+          this.rig.setBodyPx(V.bodyPx || 200);
+          this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
+        }
+      }
+
       this.obj.x = this.x;
       this.obj.y = this.y;
       this.obj.zIndex = this.y;
@@ -784,6 +856,30 @@
     knockback(power, dir = 1) {
       this.kbV = Math.max(this.kbV, power);
       this.kbDir = -dir;
+    }
+
+    /* 세나의 서리 — 이동이 느려진다 */
+    applySlow(sec) {
+      if (this.dying || !this.alive) return;
+      this.slowT = Math.max(this.slowT || 0, sec);
+      if (!this.slowSpr) {
+        const t = new PIXI.Text({
+          text: '서리▼',
+          style: { fontFamily: G.FONT, fontSize: 12, fontWeight: '900', fill: 0x9fe6ff, stroke: { color: 0x08202c, width: 3 } },
+        });
+        t.anchor.set(0.5, 1);
+        t.y = -this.baseH - 40;
+        this.obj.addChild(t);
+        this.slowSpr = t;
+      }
+      this.slowSpr.visible = true;
+    }
+
+    tickSlow(dt) {
+      if (this.slowT > 0) {
+        this.slowT = Math.max(0, this.slowT - dt);
+        if (this.slowT <= 0 && this.slowSpr) this.slowSpr.visible = false;
+      }
     }
 
     /* 기절: 예고·공격을 끊고 1.8초 동안 별이 도는 상태로 멈춘다 */
@@ -865,7 +961,7 @@
         const dx = target.x - this.x;
         const dir = Math.sign(dx) || -1;
         if (Math.abs(dx) > this.stopDist) {
-          this.x = G.clamp(this.x + dir * this.speed * dt, 110, 1080);
+          this.x = G.clamp(this.x + dir * this.speed * (this.slowT > 0 ? 0.55 : 1) * dt, 110, 1080);
           this.sprite.y = bob;
           this.walkT += dt;
           if (this.walkT > 0.30) { this.walkT = 0; this.contactPulse = 0.9; }
@@ -1042,9 +1138,38 @@
     }
 
     update(dt, time, target) {
+      if (this.dead) return;
+      this._updateCore(dt, time, target);
+      if (this.rig && !this.dead) this._driveRig(dt, target);
+    }
+
+    _driveRig(dt, target) {
+      const r = this.rig;
+      if (!r || !r.body || r.body.destroyed) return;
+      this.sprite.visible = false;
+      if (this.rim) this.rim.visible = false;
+      if (this.flashSpr) this.flashSpr.visible = false;
+      let st = 'idle', p = 0;
+      const S = this.state;
+      if (this.stunT > 0 && S !== 'dying') { st = 'stumble'; p = 0.5; }
+      else if (S === 'spawn') { st = 'spawn'; p = G.clamp(this.stateT / 0.5, 0, 1); }
+      else if (S === 'walk') { st = 'walk'; this.stepPhase = (this.stepPhase || 0) + dt * 7.4; }
+      else if (S === 'windup') { st = 'windup'; p = G.clamp(this.stateT / Math.max(0.1, this.windupT), 0, 1); }
+      else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.34, 0, 1); }
+      else if (S === 'stumble') { st = 'stumble'; p = G.clamp(this.stateT / Math.max(0.1, this.stumbleDur), 0, 1); }
+      else if (S === 'dying') { st = 'dead'; p = G.clamp(this.stateT / 0.62, 0, 1); }
+      const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
+      r.setFacing(dir);
+      r.setState(st, p, { stepPhase: this.stepPhase || 0 });
+      r.update(dt);
+      if (this.flashT > 0.1) r.hitFlash(0xffd9d9);
+    }
+
+    _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
       this.tickDefDown(dt);
+      this.tickSlow(dt);
       if (this.hitFlash > 0) {
         this.hitFlash -= dt;
         this.sprite.tint = 0xffffff;
@@ -1240,6 +1365,17 @@
       this.flashSpr.blendMode = 'add';
       this.flashSpr.alpha = 0;
       this.obj.addChild(this.flashSpr);
+      // Step 6: 보스(노엘)도 관절 리그
+      this.rig = null;
+      if (NOEL && G.Rigs) {
+        const rdef = G.Rigs.get('noel');
+        if (rdef) {
+          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near' });
+          this.rig.setBodyPx(this.bodyPx);
+          this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
+        }
+      }
+
       this.obj.x = this.x;
       this.obj.y = this.y;
       this.obj.zIndex = this.y;
@@ -1430,6 +1566,32 @@
     }
 
     update(dt, time, target) {
+      if (this.dead) return;
+      this._updateCore(dt, time, target);
+      if (this.rig && !this.dead) this._driveRig(dt, target);
+    }
+
+    _driveRig(dt, target) {
+      const r = this.rig;
+      if (!r || !r.body || r.body.destroyed) return;
+      this.sprite.visible = false;
+      if (this.rim) this.rim.visible = false;
+      if (this.flashSpr) this.flashSpr.visible = false;
+      let st = 'idle', p = 0;
+      const S = this.state;
+      if (S === 'enter') { st = 'spawn'; p = G.clamp(this.stateT / 1.4, 0, 1); }
+      else if (S === 'windup') { st = 'windup'; p = G.clamp(this.stateT / Math.max(0.15, this.cfg ? this.cfg.tele : 1), 0, 1); }
+      else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.45, 0, 1); }
+      else if (this.stagger > 0) { st = 'stumble'; p = 0.5; }
+      else if (this.dying) { st = 'dead'; p = G.clamp(this.stateT / 1.6, 0, 1); }
+      const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
+      r.setFacing(dir);
+      r.setState(st, p, {});
+      r.update(dt);
+      if (this.flashT > 0.06) r.hitFlash(0xffe0e6);
+    }
+
+    _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
       if (this.phaseLock > 0) this.phaseLock = Math.max(0, this.phaseLock - dt);

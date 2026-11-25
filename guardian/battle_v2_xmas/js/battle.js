@@ -130,15 +130,40 @@
       this.bossPhaseLog = [];
       this.bossCutDur = 1.22;
 
+      // Step 6: 로비에서 고른 캐릭터·스킨이 그대로 전투 메인으로 출전
+      this.deployChar = 'kael';
+      this.deploySkin = 'basic';
+      this.lobby = new G.Lobby(this);
+      this.root.addChild(this.lobby.root);
+
       this._initActors();
       this._buildIntro();
     }
 
     _initActors() {
+      const C = (G.CHARS && G.CHARS.get) ? G.CHARS.get(this.deployChar) : null;
+      this.heroChar = C;
       this.kael = new G.Hero(this, {
-        name: '카엘', role: '성문기사', x: 380, bodyPx: 332, hpMax: 780, shadowW: 160, glowColor: 0x5fb0ff,
+        char: C, skin: this.deploySkin,
+        name: C ? C.name : '카엘', role: C ? C.role : '성문기사',
+        x: 380, bodyPx: C ? C.bodyPx : 332, hpMax: C ? C.hpMax : 780, shadowW: 160,
+        glowColor: C ? C.colors.glow : 0x5fb0ff,
+        haloColor: C ? C.colors.glow : 0x6fb8ff,
       });
-      this.kael.atk = 152;
+      this.kael.atk = C ? C.atk : 152;
+      if (this.hud && this.hud.nameText) this.hud.nameText.text = 'Lv.1 ' + (C ? C.name : '카엘');
+      if (this.hud && this.hud.portrait && C) {
+        const pth = G.CHARS.portrait(C.key, this.deploySkin);
+        G.Assets._img(pth).then((img) => {
+          const t = PIXI.Texture.from(img);
+          t.source.scaleMode = 'linear';
+          this.hud.portrait.texture = t;
+        }).catch(() => {});
+      }
+      if (this.hud) {
+        this.skillMax.skill1 = C ? C.skill.cd : 7;
+        this.skillMax.skill2 = C ? C.ult.cd : 13;
+      }
       // 리아는 필드에 상주하지 않고 궁극기에서만 소환된다
       this.lia = new G.LiaSummon(this);
       this.actorLayer.addChild(this.kael.obj);
@@ -282,6 +307,10 @@
         this._dismissIntro();
         return;
       }
+      if (this.phase === 'lobby' && this.lobby && this.lobby.root.visible) {
+        this.lobby.tap(x, y);
+        return;
+      }
       if (this.resultActive) {
         const hit = this.overlayButtons.find((b) => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
         if (hit) { hit.fn(); G.Sfx.ui(true); }
@@ -304,7 +333,28 @@
       if (this.introBtn) this.introBtn = null;
       this.introT = 0;
       this.introFade = c;
-      this.start();
+      this._openLobby();
+    }
+
+    _openLobby() {
+      this.phase = 'lobby';
+      if (this.lobby) { this.lobby.charKey = this.deployChar; this.lobby.skin = this.deploySkin; }
+      this.hud.root.visible = false;
+      this.vignette.visible = false;
+      this.lobby.open();
+      if (G.Sfx && G.Sfx.lobby) G.Sfx.lobby();
+    }
+
+    /* 로비에서 [출격] — 고른 캐릭터·스킨으로 전투 시작 */
+    onDeploy(key, skin) {
+      this.deployChar = key || 'kael';
+      this.deploySkin = skin || 'basic';
+      this.lobby.close();
+      this.hud.root.visible = true;
+      this.vignette.visible = true;
+      this.resultActive = false;
+      this._clearOverlay();
+      this.restart();
     }
 
     handlePointerMove(x, y, id) { this.hud.pointerMove(x, y, id); }
@@ -387,7 +437,7 @@
     onChill(on) {
       if (!this.lanterns) return;
       if (on) {
-        this.dialogueLine('카엘', '전부 꺼졌어… 그래도 아직 포기 안 해.', 2.8);
+        this.dialogueLine(this.kael ? this.kael.name : '카엘', '전부 꺼졌어… 그래도 아직 포기 안 해.', 2.8);
       } else {
         this.showPrompt('빛의 온기 · 버프 회복', 0xffe0a0, 1.2);
       }
@@ -407,9 +457,9 @@
       this.fx.slash(cx, cy, {
         radius: heavy ? 206 : 162, spread: cfg.spread * 0.95, angle: cfg.ang,
         width: heavy ? 27 : 20,
-        color: XM ? (heavy ? 0xc21f36 : 0xe2453f) : (heavy ? 0x2f6bff : 0x3f7dff),
-        color2: XM ? (heavy ? 0xffd9a0 : 0xffc27a) : (heavy ? 0x9fd6ff : 0x8fd0ff),
-        edge: XM ? 0xfff3c4 : (heavy ? 0xffd166 : 0xbfe4ff),
+        color: cfg.c1 != null ? cfg.c1 : (XM ? (heavy ? 0xc21f36 : 0xe2453f) : (heavy ? 0x2f6bff : 0x3f7dff)),
+        color2: cfg.c2 != null ? cfg.c2 : (XM ? (heavy ? 0xffd9a0 : 0xffc27a) : (heavy ? 0x9fd6ff : 0x8fd0ff)),
+        edge: cfg.edge != null ? cfg.edge : (XM ? 0xfff3c4 : (heavy ? 0xffd166 : 0xbfe4ff)),
         dur: heavy ? 0.26 : 0.19, scale: 1.0,
       });
       this.fx.slash(cx + 10 * f, cy - 4, {
@@ -686,78 +736,179 @@
       return true;
     }
 
+    /* 캐릭터별 K 스킬 — 무기·이펙트·판정이 캐릭터에 맞게 */
     useSkill1() {
       const h = this.kael;
-      if (this.cooldowns.skill1 > 0 || h.mp < 25 || h.state === 'dead') return false;
-      h.mp -= 25;
+      const C = this.heroChar || (G.CHARS && G.CHARS.get('kael'));
+      const sk = C.skill;
+      if (this.phase !== 'wave' && this.phase !== 'boss' && this.phase !== 'bossIntro') return false;
+      if (this.cooldowns.skill1 > 0 || h.mp < (sk.mp || 25) || h.state === 'dead') return false;
+      h.mp -= (sk.mp || 25);
+      this.skillMax.skill1 = sk.cd || 7;
       this.cooldowns.skill1 = this.skillMax.skill1;
-      h.facing = 1;
       h.cast();
-      this.kaelSkillActive = 3;
+      h.facing = h.facing || 1;
+      this.kaelSkillActive = 1.1;
       G.Sfx.magic();
-      this.showPrompt('성문의 참격', 0x9fd6ff, 0.9);
+      if (G.Sfx.playVoice && C.voice.skill) G.Sfx.playVoice(C.voice.skill, { min: 2400, chance: 0.8 });
+      this.showPrompt(sk.name, C.colors.ult, 1.0);
+      const f = h.facing || 1;
+      const cx = h.x + 70 * f;
+      const cy = h.centerY;
+      const dmg = Math.round(h.atk * (sk.dmg || 2));
+      const kind = sk.kind;
+      if (kind === 'cleave') {
+        this.fx.slash(cx, cy, { radius: 250, spread: 1.7, angle: -0.1, width: 34,
+          color: C.colors.slash, color2: C.colors.slash2, edge: C.colors.edge, dur: 0.3 });
+        this.fx.slash(cx + 40 * f, cy - 10, { radius: 200, spread: 1.2, angle: 0.15, width: 14,
+          color: 0xffffff, color2: 0xffffff, dur: 0.18 });
+        this.fx.burst(cx + 150 * f, cy, { color: C.colors.slash2, core: 0xffffff, rays: 24, length: 240, width: 9, dur: 0.22 });
+        this._skillHit(h.x + 110 * f, h.y, sk.radius || 300, dmg, { crit: true, color: C.colors.slash2, knock: 380 });
+      } else if (kind === 'starfall') {
+        const target = this._densestTarget();
+        const tx = target ? G.clamp(target.x, 220, 1060) : G.clamp(h.x + 380, 220, 1060);
+        const ty = target ? target.y : G.GROUND_Y;
+        this.fx.rune(tx, ty - 6, C.colors.slash, 150, 0.9);
+        this.fx.pillar(tx, ty - 10, C.colors.slash2, 520, 0.8, 160);
+        this.fx.ring(tx, ty - 8, C.colors.slash, 320, 0.7, 10);
+        this.fx.sparkBurst(tx, ty - 80, C.colors.slash2, 40, 620);
+        this.scene.shake(8, 0.35);
+        this._skillHit(tx, ty, sk.radius || 320, dmg, { crit: true, color: C.colors.slash2, knock: 260 });
+      } else if (kind === 'prayer') {
+        this.fx.rune(h.x, h.y - 6, 0xffd166, 160, 0.9);
+        this.fx.ring(h.x, h.y - 10, 0xffd166, 300, 0.8, 9);
+        this.fx.ring(h.x, h.y - 10, 0xffffff, 200, 0.6, 5);
+        this.fx.sparkBurst(h.x, h.y - 90, 0xfff0c0, 34, 460);
+        const heal = Math.round(h.hpMax * (sk.heal || 0.2));
+        h.hp = Math.min(h.hpMax, h.hp + heal);
+        this.fx.damage(h.x, h.y - 150, heal, { color: 0x8effc0, size: 26 });
+        this.showPrompt('회복 +' + heal, 0xffd166, 1.0);
+        this._skillHit(h.x, h.y, sk.radius || 210, dmg, { color: 0xffd166, knock: 520 });
+      } else if (kind === 'quake') {
+        this.fx.shockRing(h.x + 40 * f, h.y - 6, C.colors.slash, 420, 0.6);
+        this.fx.groundBurst(h.x + 90 * f, h.y);
+        this.fx.sparkBurst(h.x + 90 * f, h.y - 30, C.colors.slash2, 30, 560);
+        this.fx.debris(h.x + 90 * f, h.y, 10, 0xffcf9a, 1.1);
+        this.scene.shake(12, 0.4);
+        this._skillHit(h.x + 60 * f, h.y, sk.radius || 260, dmg, { crit: true, color: C.colors.slash2, knock: 300, stun: sk.stun || 1.5 });
+      } else if (kind === 'frost') {
+        this.fx.ring(h.x, h.y - 8, 0x8fd6ff, 300, 0.8, 8);
+        this.fx.shockRing(h.x, h.y - 6, 0xcfefff, 380, 0.5);
+        this.fx.sparkBurst(h.x + 60 * f, h.y - 60, 0xdff2ff, 26, 420);
+        this._skillHit(h.x + 30 * f, h.y, sk.radius || 250, dmg, { color: 0x9fd6ff, slow: sk.slow || 2.2 });
+      }
       return true;
     }
 
+    /* 스킬 공통 판정 */
+    _skillHit(cx, cy, radius, dmg, opts = {}) {
+      let n = 0;
+      this.enemies.forEach((e) => {
+        if (!e.alive || e.dying) return;
+        if (Math.abs(e.x - cx) < radius && Math.abs(e.y - cy) < radius * 0.75) {
+          n++;
+          this.stats.damage += dmg;
+          e.takeDamage(dmg, { crit: !!opts.crit, color: opts.color, knock: opts.knock });
+          if (opts.stun && e.stun) e.stun(opts.stun);
+          if (opts.slow && e.applySlow) e.applySlow(opts.slow);
+        }
+      });
+      if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - cx) < radius + 40) {
+        this.stats.damage += dmg;
+        this.boss.takeDamage(dmg, { crit: !!opts.crit, kb: opts.knock ? opts.knock * 0.12 : 40 });
+        n++;
+      }
+      if (n) {
+        this.hitStop = Math.max(this.hitStop, 0.05);
+        this.scene.shake(9, 0.3);
+      }
+      return n;
+    }
+
+    /* 캐릭터별 L 궁극기 — 자기 사선 컷인 + 고유 연출 */
     useSkill2() {
-      if (this.cooldowns.skill2 > 0 || this.lia.mp < 40) return false;
-      if (this.lia.active) return false;
-      this.lia.mp -= 40;
+      const h = this.kael;
+      const C = this.heroChar || (G.CHARS && G.CHARS.get('kael'));
+      const u = C.ult;
+      if (this.phase !== 'wave' && this.phase !== 'boss' && this.phase !== 'bossIntro') return false;
+      if (this.cooldowns.skill2 > 0 || h.mp < (u.mp || 40) || h.state === 'dead') return false;
+      if (h.state === 'ult') return false;
+      h.mp -= (u.mp || 40);
+      this.skillMax.skill2 = u.cd || 13;
       this.cooldowns.skill2 = this.skillMax.skill2;
+      h.state = 'ult';
+      h.stateT = 0;
       G.Sfx.magic();
+      if (G.Sfx.playVoice && C.voice.ult) G.Sfx.playVoice(C.voice.ult, { min: 1200, chance: 1 });
 
       const target = this._densestTarget();
-      const tx = target ? G.clamp(target.x, 280, 1060) : 900;
+      const tx = target ? G.clamp(target.x, 260, 1060) : 900;
       const ty = target ? target.y : G.GROUND_Y;
+      const dmg = Math.round(h.atk * (u.dmg || 3));
 
-      // 1) 컷인 (리아 등장 연출)
-      this._liaCutIn();
+      this._ultCutIn(C);
       this.flashImpact(0.9, 0xffffff);
       this.fx.cinematicCross();
       this.scene.zoomTo(1.08, 0.20);
       this.after(0.48, () => this.scene.zoomTo(1.0, 0.42));
       if (this.boss && this.boss.alive) {
-        this.fx.ring(this.boss.x, this.boss.centerY, 0xd7baff, 470, 0.65, 11);
+        this.fx.ring(this.boss.x, this.boss.centerY, C.colors.ult, 470, 0.65, 11);
         this.fx.ring(this.boss.x, this.boss.centerY, 0xffffff, 600, 0.78, 7);
       }
-      // 2) 소환 마법진 + 리아 강림
+      const kind = u.kind;
       this.summonActive = true;
       this.after(0.24, () => {
-        this.fx.rune(tx - 60, ty - 20, 0xb98bff, 150, 1.0);
-        this._spawnLia(tx - 150, ty - 2);
+        if (kind === 'pillar' && C.key === 'lia') {
+          this.fx.rune(tx - 60, ty - 20, C.colors.ult, 150, 1.0);
+          this._spawnLia(tx - 150, ty - 2);
+        } else {
+          this.fx.rune(h.x, h.y - 10, C.colors.ult, 140, 0.9);
+        }
       });
-      // 3) 빛의 심판 — 빛기둥 + 광역 피해 + 넉백
       this.after(0.62, () => {
-        this.fx.pillar(tx, ty - 10, 0xe8f2ff, 680, 1.05, 240);
-        this.fx.pillar(tx - 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
-        this.fx.pillar(tx + 90, ty - 10, 0xc9a8ff, 520, 0.9, 110);
-        this.fx.ring(tx, ty - 10, 0xd7c2ff, 400, 0.8, 12, 0.42);
-        this.fx.sparkBurst(tx, ty - 80, 0xffdfff, 64, 750);
-        this.fx.ring(tx, ty - 10, 0xffffff, 140, 0.45, 4, 0.42);
-        this.fx.sparkBurst(tx, ty - 90, 0xd9c8ff, 36, 620);
-        this.fx.groundBurst(tx, ty);
-        this.flashImpact(0.95, 0xffffff);
-        this.fx.shockRing(tx, ty - 30, 0xffffff, 690, 0.6);
-        this.fx.sparkBurst(tx, ty - 80, 0xf2e3ff, 90, 950);
-        this.scene.zoomTo(1.06, 0.11);
-        this.after(0.14, () => this.scene.zoomTo(1, 0.34));
-        this.scene.shake(18, 0.62);
-        this.hitStop = 0.06;
-        let n = 0;
-        this.enemies.forEach((e) => {
-          if (e.alive && !e.dying && Math.abs(e.x - tx) < 260) {
-            const dmg = Math.round(this.lia.atk * 3.4 * G.rand(1.05, 0.95));
-            this.stats.damage += dmg;
-            const delay = n++ * 0.06;
-            this.after(delay, () => {
-              if (e.alive && !e.dying) e.takeDamage(dmg, { crit: true, color: 0xd9c8ff, knock: 520 });
+        if (kind === 'pillar') {
+          this.fx.pillar(tx, ty - 10, C.colors.ult2, 680, 1.05, 240);
+          this.fx.pillar(tx - 90, ty - 10, C.colors.ult, 520, 0.9, 110);
+          this.fx.pillar(tx + 90, ty - 10, C.colors.ult, 520, 0.9, 110);
+          this.fx.ring(tx, ty - 10, C.colors.ult, 400, 0.8, 12, 0.42);
+          this.fx.sparkBurst(tx, ty - 80, 0xffdfff, 64, 750);
+          this.fx.shockRing(tx, ty - 30, 0xffffff, 690, 0.6);
+          this.fx.groundBurst(tx, ty);
+          this.flashImpact(0.95, 0xffffff);
+          this.scene.zoomTo(1.06, 0.11);
+          this.after(0.14, () => this.scene.zoomTo(1, 0.34));
+          this.scene.shake(18, 0.62);
+          this.hitStop = 0.06;
+          this._skillHit(tx, ty, u.radius || 280, dmg, { crit: true, color: C.colors.ult, knock: 480 });
+        } else if (kind === 'blessing') {
+          this.fx.ring(h.x, h.y - 10, C.colors.ult, 460, 0.9, 14);
+          this.fx.pillar(h.x, h.y - 10, C.colors.ult2, 620, 1.0, 220);
+          this.fx.sparkBurst(h.x, h.y - 90, 0xfff0c0, 70, 720);
+          const heal = Math.round(h.hpMax * (u.heal || 0.4));
+          h.hp = Math.min(h.hpMax, h.hp + heal);
+          this.fx.damage(h.x, h.y - 170, heal, { color: 0x8effc0, size: 34 });
+          this.scene.shake(12, 0.5);
+          this._skillHit(h.x, h.y, u.radius || 320, dmg, { crit: true, color: C.colors.ult, knock: 560 });
+        } else if (kind === 'quake') {
+          this.fx.shockRing(h.x, h.y - 6, C.colors.ult, 700, 0.8);
+          this.fx.shockRing(h.x, h.y - 6, 0xffffff, 460, 0.55);
+          this.fx.groundBurst(h.x, h.y);
+          this.fx.debris(h.x, h.y, 16, 0xffcf9a, 1.3);
+          this.fx.sparkBurst(h.x, h.y - 40, C.colors.ult2, 60, 800);
+          this.scene.shake(20, 0.7);
+          this.hitStop = 0.07;
+          this._skillHit(h.x, h.y, u.radius || 340, dmg, { crit: true, color: C.colors.ult2, knock: 340, stun: u.stun || 2 });
+        } else if (kind === 'hunt') {
+          for (let i = 0; i < 5; i++) {
+            this.after(i * 0.09, () => {
+              const ex = tx + G.rand(90, -90), ey = ty + G.rand(30, -30);
+              this.fx.slash(ex - 60, ey - 90, { radius: 220, spread: 1.5, angle: G.rand(0.6, -0.6), width: 20,
+                color: C.colors.slash, color2: C.colors.slash2, edge: 0xffffff, dur: 0.18 });
+              this.fx.sparkBurst(ex, ey - 90, 0xdff2ff, 20, 520);
             });
           }
-        });
-        if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - tx) < 320) {
-          const dmg = Math.round(this.lia.atk * 3.2);
-          this.stats.damage += dmg;
-          this.boss.takeDamage(dmg, { crit: true, kb: 70 });
+          this.scene.shake(14, 0.5);
+          this._skillHit(tx, ty, u.radius || 250, dmg, { crit: true, color: C.colors.slash2, knock: 420, slow: 2.5 });
         }
         G.Sfx.hit(true);
         this.combo += 3;
@@ -765,11 +916,61 @@
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       });
       this.after(1.14, () => {
-        this.fx.sparkBurst(tx, ty - 85, 0xdcc7ff, 60, 780);
+        this.fx.sparkBurst(tx, ty - 85, C.colors.ult2, 60, 780);
         this.scene.shake(18, 0.42);
       });
       this.after(1.9, () => { this.summonActive = false; });
       return true;
+    }
+
+    /* 궁극기 사선 컷인 — 고른 캐릭터의 초상·이름·기술명 */
+    _ultCutIn(C) {
+      if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
+      const c = new PIXI.Container();
+      c.zIndex = 15;
+      const band = new PIXI.Graphics();
+      band.poly([-30, 150, 500, 76, 610, 330, -30, 460]).fill({ color: 0x0e0a1c, alpha: 0.88 });
+      band.poly([-30, 180, 500, 106, 590, 310, -30, 430]).fill({ color: C.colors.ult, alpha: 0.20 });
+      band.poly([-30, 450, 200, 360, 240, 374, -30, 476]).fill({ color: C.colors.ult2, alpha: 0.35 });
+      c.addChild(band);
+
+      const tex = (G.Assets.tex && G.Assets.tex['cutin_' + C.key]) || null;
+      const por = new PIXI.Sprite(tex || G.Assets.tex.portraitLia);
+      por.anchor.set(0.5);
+      por.width = 300; por.height = 300;
+      por.x = 168; por.y = 268;
+      c.addChild(por);
+
+      const g = new PIXI.Sprite(G.Assets.tex.glow);
+      g.anchor.set(0.5);
+      g.blendMode = 'add';
+      g.tint = C.colors.ult;
+      g.width = 520; g.height = 520;
+      g.x = 168; g.y = 278;
+      g.alpha = 0.35;
+      c.addChild(g);
+
+      const name = new PIXI.Text({
+        text: C.name + ' · ' + C.ult.name,
+        style: G.style({ fontSize: 38, fontWeight: '900', fill: 0xf8f2ff, letterSpacing: 3, stroke: { color: 0x1a1030, width: 8 } }),
+      });
+      name.anchor.set(0, 0.5);
+      name.x = 322; name.y = 242;
+      c.addChild(name);
+
+      const sub = new PIXI.Text({
+        text: 'ULTIMATE  ·  ' + C.ult.en,
+        style: G.style({ fontSize: 17, fill: C.colors.ult2, fontWeight: '800', letterSpacing: 2 }),
+      });
+      sub.anchor.set(0, 0.5);
+      sub.x = 326; sub.y = 292;
+      c.addChild(sub);
+
+      c.x = -640;
+      c.alpha = 0;
+      this.root.addChild(c);
+      this.cutin = c;
+      this.cutT = 0;
     }
 
     /* ---------------- 보스 스킬 컷인 ---------------- */
@@ -1049,6 +1250,11 @@
 
       if (this.paused || this.introC) {
         this.scene.update(realDt * 0.2);
+        return;
+      }
+      if (this.phase === 'lobby') {
+        this.lobby.update(realDt);
+        this.scene.update(realDt * 0.6);
         return;
       }
 
@@ -1522,7 +1728,7 @@
       const sub = new PIXI.Text({
         text: win
           ? (G.Xmas.ON ? '노엘을 물리치고 축제의 불빛을 지켜냈습니다' : '아르카논을 쓰러뜨렸습니다')
-          : `카엘이 쓰러졌습니다${reason ? ' · ' + reason : ''}`,
+          : `${this.kael && this.kael.name ? this.kael.name : '카엘'}이(가) 쓰러졌습니다${reason ? ' · ' + reason : ''}`,
         style: G.style({ fontSize: 19, fill: 0xbcd8f0, fontWeight: '700' }),
       });
       sub.anchor.set(0.5); sub.x = G.W / 2; sub.y = 262;
@@ -1543,15 +1749,20 @@
         c.addChild(vt);
       });
 
-      const btnY = 496;
-      const bg2 = new PIXI.Graphics();
-      platePath(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0x2a3f1f : 0x14304d, 0.95);
-      plateEdge(bg2, G.W / 2 - 150, btnY, 300, 56, 12, win ? 0xffd166 : 0x7fb8e8, 0.85, 2);
-      c.addChild(bg2);
-      const bt = new PIXI.Text({ text: '다시 도전', style: G.style({ fontSize: 22, fontWeight: '900', fill: 0xf2f8ff }) });
-      bt.anchor.set(0.5); bt.x = G.W / 2; bt.y = btnY + 28;
-      c.addChild(bt);
-      this.overlayButtons = [{ x: G.W / 2 - 150, y: btnY, w: 300, h: 56, fn: () => this.restart() }];
+      const btnY = 486;
+      const mk2 = (label, x, w, fill, edge, fn) => {
+        const g2 = new PIXI.Graphics();
+        platePath(g2, x, btnY, w, 56, 12, fill, 0.95);
+        plateEdge(g2, x, btnY, w, 56, 12, edge, 0.85, 2);
+        c.addChild(g2);
+        const t2 = new PIXI.Text({ text: label, style: G.style({ fontSize: 21, fontWeight: '900', fill: 0xf2f8ff }) });
+        t2.anchor.set(0.5); t2.x = x + w / 2; t2.y = btnY + 28;
+        c.addChild(t2);
+        this.overlayButtons.push({ x, y: btnY, w, h: 56, fn });
+      };
+      this.overlayButtons = [];
+      mk2('다시 도전', G.W / 2 - 310, 292, win ? 0x2a3f1f : 0x14304d, win ? 0xffd166 : 0x7fb8e8, () => this.restart());
+      mk2('로비로', G.W / 2 + 18, 292, 0x14283d, 0x9fd6ff, () => { this._clearOverlay(); this.resultActive = false; this._openLobby(); });
 
       this.overlay.addChild(c);
       this.resultActive = true;
@@ -1595,6 +1806,8 @@
       this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
       this.kael = null; this.lia = null;
       this._initActors();
+      const _C = this.heroChar || null;
+      if (_C) { this.skillMax.skill1 = _C.skill.cd; this.skillMax.skill2 = _C.ult.cd; }
       this.kael.hp = this.kael.hpMax;
       this.phase = 'wave';
       this.phaseT = 0;

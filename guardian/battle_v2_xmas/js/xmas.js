@@ -10,7 +10,7 @@
     TITLE: '메리 크리스마스! 성문을 지켜라',
     TITLE_EN: 'MERRY CHRISTMAS · GUARD THE GATE',
     SERIES: '마지막 성문의 수호자 외전',
-    VERSION: 'XMAS-1.1.0-build020',
+    VERSION: 'XMAS-2.0.0-build030',
     STAGE_NAME: '성문 광장',
     BOSS_STAGE_NAME: '눈보라 왕좌',
     STAGE_MSG: 'XMAS · 눈 내리는 성문 광장',

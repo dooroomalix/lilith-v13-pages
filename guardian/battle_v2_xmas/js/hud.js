@@ -109,7 +109,7 @@
       })();
       root.addChild(this.portrait);
 
-      this.nameText = this._text('name', 'Lv.1 카엘', G.style({ fontSize: 17, fill: 0xf2f8ff, fontWeight: '900' }), root);
+      this.nameText = this._text('name', 'Lv.1 ' + ((G.CHARS && G.CHARS.get) ? G.CHARS.get('kael').name : '카엘'), G.style({ fontSize: 17, fill: 0xf2f8ff, fontWeight: '900' }), root);
       this.nameText.x = 104; this.nameText.y = 19;
       this.classText = this._text('class', '성문기사 · GUARDIAN', G.style({ fontSize: 10, fill: 0x9fc0e0, fontWeight: '800', letterSpacing: 1 }), root);
       this.classText.x = 186; this.classText.y = 25;

@@ -1,0 +1,420 @@
+{
+ "name": "kael_santa",
+ "w": 517,
+ "h": 718,
+ "cx": 293.5,
+ "bodyH": 718,
+ "atlas": "assets/rig/kael_santa/atlas.webp",
+ "arch": "human",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/kael_santa/upArm_far.webp",
+   "w": 171,
+   "h": 133,
+   "pivot": [
+    139.23,
+    50.69
+   ],
+   "tip": [
+    93.32,
+    114.16
+   ],
+   "origin": [
+    69,
+    276
+   ],
+   "jointColor": [
+    30,
+    25,
+    33
+   ],
+   "r": 38.72,
+   "rect": [
+    3,
+    363,
+    171,
+    133
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/kael_santa/loArm_far.webp",
+   "w": 166,
+   "h": 256,
+   "pivot": [
+    111.32,
+    62.16
+   ],
+   "tip": [
+    78.52,
+    120.75
+   ],
+   "origin": [
+    51,
+    328
+   ],
+   "jointColor": [
+    53,
+    115,
+    183
+   ],
+   "r": 31.68,
+   "rect": [
+    177,
+    363,
+    166,
+    256
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/kael_santa/thigh_far.webp",
+   "w": 233,
+   "h": 153,
+   "pivot": [
+    214.25,
+    20.88
+   ],
+   "tip": [
+    203.9,
+    132.17
+   ],
+   "origin": [
+    39,
+    453
+   ],
+   "jointColor": [
+    113,
+    58,
+    42
+   ],
+   "r": 45.76,
+   "rect": [
+    613,
+    363,
+    233,
+    153
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/kael_santa/shin_far.webp",
+   "w": 261,
+   "h": 131,
+   "pivot": [
+    242.9,
+    -1.83
+   ],
+   "tip": [
+    236.0,
+    125.26
+   ],
+   "origin": [
+    0,
+    587
+   ],
+   "jointColor": [
+    101,
+    153,
+    212
+   ],
+   "r": 35.2,
+   "rect": [
+    3,
+    634,
+    261,
+    131
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/kael_santa/thigh_near.webp",
+   "w": 191,
+   "h": 108,
+   "pivot": [
+    23.05,
+    -24.12
+   ],
+   "tip": [
+    17.02,
+    87.17
+   ],
+   "origin": [
+    247,
+    498
+   ],
+   "jointColor": [
+    161,
+    26,
+    28
+   ],
+   "r": 45.76,
+   "rect": [
+    267,
+    634,
+    191,
+    108
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/kael_santa/shin_near.webp",
+   "w": 214,
+   "h": 121,
+   "pivot": [
+    22.02,
+    -2.83
+   ],
+   "tip": [
+    18.0,
+    124.26
+   ],
+   "origin": [
+    242,
+    588
+   ],
+   "jointColor": [
+    50,
+    40,
+    41
+   ],
+   "r": 35.2,
+   "rect": [
+    461,
+    634,
+    214,
+    121
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/kael_santa/pelvis.webp",
+   "w": 173,
+   "h": 83,
+   "pivot": [
+    42.5,
+    -21.48
+   ],
+   "tip": [
+    42.5,
+    0.06
+   ],
+   "origin": [
+    251,
+    481
+   ],
+   "jointColor": [
+    163,
+    40,
+    39
+   ],
+   "r": 123.2,
+   "rect": [
+    680,
+    3,
+    173,
+    83
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/kael_santa/torso.webp",
+   "w": 246,
+   "h": 248,
+   "pivot": [
+    115.5,
+    -20.03
+   ],
+   "tip": [
+    115.5,
+    141.52
+   ],
+   "origin": [
+    178,
+    318
+   ],
+   "jointColor": [
+    141,
+    31,
+    28
+   ],
+   "r": 151.36,
+   "rect": [
+    431,
+    3,
+    246,
+    248
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/kael_santa/upArm_near.webp",
+   "w": 120,
+   "h": 138,
+   "pivot": [
+    34.01,
+    54.69
+   ],
+   "tip": [
+    83.28,
+    118.16
+   ],
+   "origin": [
+    351,
+    272
+   ],
+   "jointColor": [
+    156,
+    115,
+    107
+   ],
+   "r": 38.72,
+   "rect": [
+    346,
+    363,
+    120,
+    138
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/kael_santa/loArm_near.webp",
+   "w": 141,
+   "h": 268,
+   "pivot": [
+    58.28,
+    9.16
+   ],
+   "tip": [
+    93.48,
+    67.75
+   ],
+   "origin": [
+    376,
+    381
+   ],
+   "jointColor": [
+    166,
+    103,
+    99
+   ],
+   "r": 31.68,
+   "rect": [
+    469,
+    363,
+    141,
+    268
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/kael_santa/head.webp",
+   "w": 425,
+   "h": 357,
+   "pivot": [
+    245.5,
+    297.97
+   ],
+   "tip": [
+    256.06,
+    32.31
+   ],
+   "origin": [
+    48,
+    0
+   ],
+   "jointColor": [
+    93,
+    42,
+    44
+   ],
+   "r": 172.48,
+   "rect": [
+    3,
+    3,
+    425,
+    357
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   245.5,
+   297.97
+  ],
+  "torso": [
+   115.5,
+   -20.03
+  ],
+  "pelvis": [
+   42.5,
+   -21.48
+  ],
+  "upArm_far": [
+   139.23,
+   50.69
+  ],
+  "loArm_far": [
+   111.32,
+   62.16
+  ],
+  "upArm_near": [
+   34.01,
+   54.69
+  ],
+  "loArm_near": [
+   58.28,
+   9.16
+  ],
+  "thigh_far": [
+   214.25,
+   20.88
+  ],
+  "shin_far": [
+   242.9,
+   -1.83
+  ],
+  "thigh_near": [
+   23.05,
+   -24.12
+  ],
+  "shin_near": [
+   22.02,
+   -2.83
+  ]
+ }
+}

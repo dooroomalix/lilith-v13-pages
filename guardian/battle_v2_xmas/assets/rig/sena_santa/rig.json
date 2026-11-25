@@ -1,0 +1,420 @@
+{
+ "name": "sena_santa",
+ "w": 356,
+ "h": 718,
+ "cx": 249.5,
+ "bodyH": 718,
+ "atlas": "assets/rig/sena_santa/atlas.webp",
+ "arch": "human",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/sena_santa/upArm_far.webp",
+   "w": 154,
+   "h": 162,
+   "pivot": [
+    137.71,
+    24.69
+   ],
+   "tip": [
+    119.52,
+    88.16
+   ],
+   "origin": [
+    78,
+    302
+   ],
+   "jointColor": [
+    103,
+    20,
+    25
+   ],
+   "r": 16.72,
+   "rect": [
+    741,
+    3,
+    154,
+    162
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/sena_santa/loArm_far.webp",
+   "w": 127,
+   "h": 335,
+   "pivot": [
+    101.52,
+    7.16
+   ],
+   "tip": [
+    88.52,
+    65.75
+   ],
+   "origin": [
+    96,
+    383
+   ],
+   "jointColor": [
+    94,
+    24,
+    27
+   ],
+   "r": 13.68,
+   "rect": [
+    3,
+    432,
+    127,
+    335
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/sena_santa/thigh_far.webp",
+   "w": 162,
+   "h": 148,
+   "pivot": [
+    136.7,
+    11.88
+   ],
+   "tip": [
+    140.35,
+    123.17
+   ],
+   "origin": [
+    127,
+    462
+   ],
+   "jointColor": [
+    64,
+    44,
+    43
+   ],
+   "r": 19.76,
+   "rect": [
+    273,
+    432,
+    162,
+    148
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/sena_santa/shin_far.webp",
+   "w": 57,
+   "h": 126,
+   "pivot": [
+    34.35,
+    2.17
+   ],
+   "tip": [
+    36.78,
+    129.26
+   ],
+   "origin": [
+    233,
+    583
+   ],
+   "jointColor": [
+    59,
+    39,
+    39
+   ],
+   "r": 15.2,
+   "rect": [
+    438,
+    432,
+    57,
+    126
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/sena_santa/thigh_near.webp",
+   "w": 90,
+   "h": 112,
+   "pivot": [
+    15.5,
+    24.88
+   ],
+   "tip": [
+    23.73,
+    136.17
+   ],
+   "origin": [
+    266,
+    449
+   ],
+   "jointColor": [
+    126,
+    96,
+    100
+   ],
+   "r": 19.76,
+   "rect": [
+    498,
+    432,
+    90,
+    112
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/sena_santa/shin_near.webp",
+   "w": 45,
+   "h": 107,
+   "pivot": [
+    16.73,
+    -18.83
+   ],
+   "tip": [
+    22.22,
+    108.26
+   ],
+   "origin": [
+    273,
+    604
+   ],
+   "jointColor": [
+    84,
+    46,
+    40
+   ],
+   "r": 15.2,
+   "rect": [
+    591,
+    432,
+    45,
+    107
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/sena_santa/pelvis.webp",
+   "w": 87,
+   "h": 62,
+   "pivot": [
+    63.5,
+    -5.48
+   ],
+   "tip": [
+    63.5,
+    16.06
+   ],
+   "origin": [
+    186,
+    465
+   ],
+   "jointColor": [
+    109,
+    29,
+    28
+   ],
+   "r": 53.2,
+   "rect": [
+    651,
+    3,
+    87,
+    62
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/sena_santa/torso.webp",
+   "w": 286,
+   "h": 286,
+   "pivot": [
+    232.5,
+    -4.03
+   ],
+   "tip": [
+    232.5,
+    157.52
+   ],
+   "origin": [
+    17,
+    302
+   ],
+   "jointColor": [
+    99,
+    37,
+    33
+   ],
+   "r": 65.36,
+   "rect": [
+    362,
+    3,
+    286,
+    286
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/sena_santa/upArm_near.webp",
+   "w": 56,
+   "h": 95,
+   "pivot": [
+    16.33,
+    18.69
+   ],
+   "tip": [
+    35.08,
+    82.16
+   ],
+   "origin": [
+    268,
+    308
+   ],
+   "jointColor": [
+    100,
+    17,
+    22
+   ],
+   "r": 16.72,
+   "rect": [
+    133,
+    432,
+    56,
+    95
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/sena_santa/loArm_near.webp",
+   "w": 78,
+   "h": 111,
+   "pivot": [
+    25.08,
+    8.16
+   ],
+   "tip": [
+    38.48,
+    66.75
+   ],
+   "origin": [
+    278,
+    382
+   ],
+   "jointColor": [
+    104,
+    26,
+    27
+   ],
+   "r": 13.68,
+   "rect": [
+    192,
+    432,
+    78,
+    111
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/sena_santa/head.webp",
+   "w": 356,
+   "h": 426,
+   "pivot": [
+    249.5,
+    297.97
+   ],
+   "tip": [
+    254.06,
+    32.31
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "jointColor": [
+    58,
+    49,
+    58
+   ],
+   "r": 74.48,
+   "rect": [
+    3,
+    3,
+    356,
+    426
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   249.5,
+   297.97
+  ],
+  "torso": [
+   232.5,
+   -4.03
+  ],
+  "pelvis": [
+   63.5,
+   -5.48
+  ],
+  "upArm_far": [
+   137.71,
+   24.69
+  ],
+  "loArm_far": [
+   101.52,
+   7.16
+  ],
+  "upArm_near": [
+   16.33,
+   18.69
+  ],
+  "loArm_near": [
+   25.08,
+   8.16
+  ],
+  "thigh_far": [
+   136.7,
+   11.88
+  ],
+  "shin_far": [
+   34.35,
+   2.17
+  ],
+  "thigh_near": [
+   15.5,
+   24.88
+  ],
+  "shin_near": [
+   16.73,
+   -18.83
+  ]
+ }
+}

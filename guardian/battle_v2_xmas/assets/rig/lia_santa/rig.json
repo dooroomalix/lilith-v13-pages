@@ -1,0 +1,420 @@
+{
+ "name": "lia_santa",
+ "w": 518,
+ "h": 718,
+ "cx": 240.0,
+ "bodyH": 718,
+ "atlas": "assets/rig/lia_santa/atlas.webp",
+ "arch": "human",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/lia_santa/upArm_far.webp",
+   "w": 163,
+   "h": 162,
+   "pivot": [
+    118.08,
+    68.69
+   ],
+   "tip": [
+    52.42,
+    132.16
+   ],
+   "origin": [
+    0,
+    258
+   ],
+   "jointColor": [
+    164,
+    161,
+    168
+   ],
+   "r": 49.83,
+   "rect": [
+    3,
+    378,
+    163,
+    162
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/lia_santa/loArm_far.webp",
+   "w": 128,
+   "h": 206,
+   "pivot": [
+    52.42,
+    63.16
+   ],
+   "tip": [
+    5.53,
+    121.75
+   ],
+   "origin": [
+    0,
+    327
+   ],
+   "jointColor": [
+    156,
+    144,
+    182
+   ],
+   "r": 40.77,
+   "rect": [
+    169,
+    378,
+    128,
+    206
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/lia_santa/thigh_far.webp",
+   "w": 188,
+   "h": 110,
+   "pivot": [
+    114.0,
+    -26.12
+   ],
+   "tip": [
+    108.6,
+    85.17
+   ],
+   "origin": [
+    105,
+    500
+   ],
+   "jointColor": [
+    175,
+    149,
+    170
+   ],
+   "r": 58.89,
+   "rect": [
+    646,
+    378,
+    188,
+    110
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/lia_santa/shin_far.webp",
+   "w": 106,
+   "h": 123,
+   "pivot": [
+    42.6,
+    -5.83
+   ],
+   "tip": [
+    39.0,
+    121.26
+   ],
+   "origin": [
+    171,
+    591
+   ],
+   "jointColor": [
+    140,
+    127,
+    141
+   ],
+   "r": 45.3,
+   "rect": [
+    837,
+    378,
+    106,
+    123
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/lia_santa/thigh_near.webp",
+   "w": 163,
+   "h": 194,
+   "pivot": [
+    55.65,
+    57.88
+   ],
+   "tip": [
+    78.96,
+    169.17
+   ],
+   "origin": [
+    275,
+    416
+   ],
+   "jointColor": [
+    174,
+    148,
+    161
+   ],
+   "r": 58.89,
+   "rect": [
+    3,
+    728,
+    163,
+    194
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/lia_santa/shin_near.webp",
+   "w": 85,
+   "h": 129,
+   "pivot": [
+    34.96,
+    -3.83
+   ],
+   "tip": [
+    50.5,
+    123.26
+   ],
+   "origin": [
+    319,
+    589
+   ],
+   "jointColor": [
+    139,
+    125,
+    136
+   ],
+   "r": 45.3,
+   "rect": [
+    169,
+    728,
+    85,
+    129
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/lia_santa/pelvis.webp",
+   "w": 202,
+   "h": 76,
+   "pivot": [
+    133.0,
+    -31.48
+   ],
+   "tip": [
+    133.0,
+    -9.94
+   ],
+   "origin": [
+    107,
+    491
+   ],
+   "jointColor": [
+    146,
+    127,
+    143
+   ],
+   "r": 158.55,
+   "rect": [
+    681,
+    3,
+    202,
+    76
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/lia_santa/torso.webp",
+   "w": 280,
+   "h": 201,
+   "pivot": [
+    157.0,
+    -26.03
+   ],
+   "tip": [
+    157.0,
+    135.52
+   ],
+   "origin": [
+    83,
+    324
+   ],
+   "jointColor": [
+    152,
+    127,
+    160
+   ],
+   "r": 194.79,
+   "rect": [
+    398,
+    3,
+    280,
+    201
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/lia_santa/upArm_near.webp",
+   "w": 161,
+   "h": 148,
+   "pivot": [
+    35.76,
+    57.69
+   ],
+   "tip": [
+    92.18,
+    121.16
+   ],
+   "origin": [
+    309,
+    269
+   ],
+   "jointColor": [
+    163,
+    145,
+    165
+   ],
+   "r": 49.83,
+   "rect": [
+    300,
+    378,
+    161,
+    148
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/lia_santa/loArm_near.webp",
+   "w": 179,
+   "h": 347,
+   "pivot": [
+    62.18,
+    160.16
+   ],
+   "tip": [
+    102.47,
+    218.75
+   ],
+   "origin": [
+    339,
+    230
+   ],
+   "jointColor": [
+    124,
+    130,
+    180
+   ],
+   "r": 40.77,
+   "rect": [
+    464,
+    378,
+    179,
+    347
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/lia_santa/head.webp",
+   "w": 392,
+   "h": 372,
+   "pivot": [
+    177.0,
+    297.97
+   ],
+   "tip": [
+    190.59,
+    32.31
+   ],
+   "origin": [
+    63,
+    0
+   ],
+   "jointColor": [
+    165,
+    157,
+    158
+   ],
+   "r": 221.97,
+   "rect": [
+    3,
+    3,
+    392,
+    372
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   177.0,
+   297.97
+  ],
+  "torso": [
+   157.0,
+   -26.03
+  ],
+  "pelvis": [
+   133.0,
+   -31.48
+  ],
+  "upArm_far": [
+   118.08,
+   68.69
+  ],
+  "loArm_far": [
+   52.42,
+   63.16
+  ],
+  "upArm_near": [
+   35.76,
+   57.69
+  ],
+  "loArm_near": [
+   62.18,
+   160.16
+  ],
+  "thigh_far": [
+   114.0,
+   -26.12
+  ],
+  "shin_far": [
+   42.6,
+   -5.83
+  ],
+  "thigh_near": [
+   55.65,
+   57.88
+  ],
+  "shin_near": [
+   34.96,
+   -3.83
+  ]
+ }
+}

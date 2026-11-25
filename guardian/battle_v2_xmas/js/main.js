@@ -35,6 +35,39 @@
       background: 0x05070d,
       powerPreference: 'high-performance',
     });
+    // WebGL 컨텍스트 손실 감지 — 복구 가능하도록 기본 동작을 막는다
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      window.__ctxLost = (window.__ctxLost || 0) + 1;
+      window.__ctxLostAt = Date.now();
+      const g = window.__GAME;
+      window.__ctxLostInfo = { t: g ? +g.time.toFixed(2) : null, phase: g ? g.phase : null,
+        char: g ? g.deployChar : null, enemies: g ? g.enemies.length : null };
+      fail('webglcontextlost');
+      // 4초 안에 복구되지 않으면(검은 화면) 한 번만 새로고침해 플레이를 되살린다
+      clearTimeout(window.__ctxReloadT);
+      window.__ctxReloadT = setTimeout(() => {
+        if (window.__ctxRestoredNow) return;
+        let last = 0;
+        try { last = +(sessionStorage.getItem('xmas_ctx_reload') || 0); } catch (_) {}
+        if (Date.now() - last < 15000) return;   // 연속 새로고침 방지
+        try { sessionStorage.setItem('xmas_ctx_reload', String(Date.now())); } catch (_) {}
+        location.reload();
+      }, 4000);
+    }, false);
+    canvas.addEventListener('webglcontextrestored', () => {
+      window.__ctxRestored = (window.__ctxRestored || 0) + 1;
+      window.__ctxRestoredNow = true;
+      clearTimeout(window.__ctxReloadT);
+    }, false);
+
+    // Pixi v8 텍스처 GC — 오래 화면에 안 쓰인 텍스처를 내려서
+    // 로비에 오래 머문 뒤 전투에 들어가면 배경·캐릭터가 사라지는 문제를 막는다
+    try {
+      if (app.renderer.textureGC) { app.renderer.textureGC.active = false; app.renderer.textureGC.maxUnusedTime = 1e9; }
+      if (PIXI.TextureSource && PIXI.TextureSource.defaultOptions) PIXI.TextureSource.defaultOptions.autoGarbageCollect = false;
+    } catch (_) {}
+
     fit();
     window.addEventListener('resize', fit);
     window.addEventListener('orientationchange', () => setTimeout(fit, 120));
@@ -44,6 +77,20 @@
     } catch (e) {
       fail('asset load: ' + e.message);
       return;
+    }
+
+    // Step 6: 관절 파츠 리그 메타 + 궁극기 컷인 초상
+    try {
+      await G.Rigs.loadMeta('assets/rig/meta.json');
+      G.CHARS.order.forEach((k) => {
+        G.Assets._img(G.CHARS.portrait(k, 'basic')).then((img) => {
+          const t = PIXI.Texture.from(img);
+          t.source.scaleMode = 'linear';
+          G.Assets.tex['cutin_' + k] = t;
+        }).catch(() => {});
+      });
+    } catch (e) {
+      fail('rig meta: ' + e.message);
     }
 
     const game = new G.Game(app);
@@ -167,6 +214,9 @@
         jumping: game.kael.z > 0,
         bossTele: game.boss && game.boss.state === 'windup' ?
           (game.boss.teleTargets || []).map(q=>({kind:game.boss.kind,x:q.x,y:q.y,r:q.r,left:Math.max(0,game.boss.cfg.tele-game.boss.stateT)})) : [],
+        char: game.deployChar, skin: game.deploySkin,
+        rig: !!(game.kael && game.kael.rig),
+        lobby: !!(game.lobby && game.lobby.root.visible),
         support: game.support.state(),
         supportLog: game.support.log.slice(-8),
         stun: game.enemies.filter((e) => e.alive && e.stunT > 0).length,
@@ -253,6 +303,45 @@
         game.boss.startAttack(kind);
         return { kind: game.boss.kind, tele: game.boss.cfg.tele, dmg: game.boss.cfg.dmg, radius: Math.round(game.boss.cfg.radius) };
       },
+      /* ---- Step 6 : 로비·리그 검증용 ---- */
+      lobbyState: () => (game.lobby ? game.lobby.state() : null),
+      lobbySelect: (k) => { game.lobby.select(k); return game.lobby.state(); },
+      lobbySkin: (s) => { game.lobby.setSkin(s); return game.lobby.state(); },
+      lobbyTap: (x, y) => game.lobby.tap(x, y),
+      openLobby: () => game._openLobby(),
+      deploy: async (k, s) => {
+        if (k) game.lobby.select(k);
+        if (s) game.lobby.setSkin(s);
+        const ok = await game.lobby.deploy();
+        return { ok, char: game.deployChar, skin: game.deploySkin };
+      },
+      rigInfo: () => {
+        const r = game.kael && game.kael.rig;
+        return r ? Object.assign({ key: r.key, parts: r.partNames, artFacing: r.artFacing }, r.debug()) : null;
+      },
+      rigTurnLog: () => (game.kael && game.kael.rig ? game.kael.rig.turnLog.slice(-8) : []),
+      rigTurnNow: (dir) => {
+        const r = game.kael && game.kael.rig;
+        if (!r) return null;
+        game.kael.facing = dir;
+        r.setFacing(dir);
+        return r.debug();
+      },
+      rigPartSnapshot: () => {
+        const r = game.kael && game.kael.rig;
+        if (!r) return null;
+        return { state: r.state, yaw: +r.yaw.toFixed(3), turnT: +r.turnT.toFixed(3),
+          body: { sx: +r.body.scale.x.toFixed(4), sy: +r.body.scale.y.toFixed(4), rot: +r.body.rotation.toFixed(4) },
+          parts: Object.fromEntries(r.partNames.map((n) => [n, { rot: +r.nodes[n].rotation.toFixed(4), x: +r.nodes[n].x.toFixed(2), y: +r.nodes[n].y.toFixed(2), z: r.nodes[n].zIndex }])) };
+      },
+      enemyRigs: () => game.enemies.filter((e) => e.alive).map((e) => ({
+        variant: e.variant, rig: !!e.rig, state: e.rig ? e.rig.state : null,
+        yaw: e.rig ? +e.rig.yaw.toFixed(2) : null,
+        parts: e.rig ? Object.fromEntries(e.rig.partNames.slice(0, 4).map((n) => [n, +e.rig.nodes[n].rotation.toFixed(3)])) : null,
+      })),
+      bossRig: () => (game.boss && game.boss.rig ? { state: game.boss.rig.state, yaw: +game.boss.rig.yaw.toFixed(2),
+        parts: Object.fromEntries(game.boss.rig.partNames.map((n) => [n, +game.boss.rig.nodes[n].rotation.toFixed(3)])) } : null),
+      forceIdle: () => { if (game.kael) { game.kael.state = 'idle'; game.kael.stateT = 0; } },
       attack: () => game.hud.input.attack = true,
       jump: () => game.kael.jump(),
       summon: () => game.useSkill2(),

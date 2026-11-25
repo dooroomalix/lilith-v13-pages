@@ -1,0 +1,420 @@
+{
+ "name": "rudolph",
+ "w": 435,
+ "h": 718,
+ "cx": 210.0,
+ "bodyH": 718,
+ "atlas": "assets/rig/rudolph/atlas.webp",
+ "arch": "human",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/rudolph/upArm_far.webp",
+   "w": 125,
+   "h": 121,
+   "pivot": [
+    97.79,
+    41.69
+   ],
+   "tip": [
+    63.21,
+    105.16
+   ],
+   "origin": [
+    48,
+    285
+   ],
+   "jointColor": [
+    180,
+    146,
+    132
+   ],
+   "r": 27.61,
+   "rect": [
+    713,
+    3,
+    125,
+    121
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/rudolph/loArm_far.webp",
+   "w": 152,
+   "h": 332,
+   "pivot": [
+    109.21,
+    11.16
+   ],
+   "tip": [
+    84.51,
+    69.75
+   ],
+   "origin": [
+    2,
+    379
+   ],
+   "jointColor": [
+    30,
+    26,
+    24
+   ],
+   "r": 22.59,
+   "rect": [
+    841,
+    3,
+    152,
+    332
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/rudolph/thigh_far.webp",
+   "w": 111,
+   "h": 174,
+   "pivot": [
+    77.27,
+    45.88
+   ],
+   "tip": [
+    93.28,
+    157.17
+   ],
+   "origin": [
+    195,
+    428
+   ],
+   "jointColor": [
+    24,
+    22,
+    21
+   ],
+   "r": 32.63,
+   "rect": [
+    248,
+    348,
+    111,
+    174
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/rudolph/shin_far.webp",
+   "w": 209,
+   "h": 133,
+   "pivot": [
+    179.28,
+    0.17
+   ],
+   "tip": [
+    189.96,
+    127.26
+   ],
+   "origin": [
+    109,
+    585
+   ],
+   "jointColor": [
+    31,
+    27,
+    24
+   ],
+   "r": 25.1,
+   "rect": [
+    362,
+    348,
+    209,
+    133
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/rudolph/thigh_near.webp",
+   "w": 161,
+   "h": 172,
+   "pivot": [
+    13.73,
+    43.88
+   ],
+   "tip": [
+    33.72,
+    155.17
+   ],
+   "origin": [
+    274,
+    430
+   ],
+   "jointColor": [
+    37,
+    35,
+    34
+   ],
+   "r": 32.63,
+   "rect": [
+    574,
+    348,
+    161,
+    172
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/rudolph/shin_near.webp",
+   "w": 121,
+   "h": 133,
+   "pivot": [
+    15.72,
+    0.17
+   ],
+   "tip": [
+    29.04,
+    127.26
+   ],
+   "origin": [
+    292,
+    585
+   ],
+   "jointColor": [
+    33,
+    29,
+    26
+   ],
+   "r": 25.1,
+   "rect": [
+    738,
+    348,
+    121,
+    133
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/rudolph/pelvis.webp",
+   "w": 146,
+   "h": 141,
+   "pivot": [
+    98.0,
+    -12.48
+   ],
+   "tip": [
+    98.0,
+    9.06
+   ],
+   "origin": [
+    112,
+    472
+   ],
+   "jointColor": [
+    25,
+    23,
+    22
+   ],
+   "r": 87.85,
+   "rect": [
+    564,
+    3,
+    146,
+    141
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/rudolph/torso.webp",
+   "w": 169,
+   "h": 189,
+   "pivot": [
+    93.0,
+    -12.03
+   ],
+   "tip": [
+    93.0,
+    149.52
+   ],
+   "origin": [
+    117,
+    310
+   ],
+   "jointColor": [
+    29,
+    25,
+    22
+   ],
+   "r": 107.93,
+   "rect": [
+    392,
+    3,
+    169,
+    189
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/rudolph/upArm_near.webp",
+   "w": 84,
+   "h": 117,
+   "pivot": [
+    24.05,
+    37.69
+   ],
+   "tip": [
+    56.39,
+    101.16
+   ],
+   "origin": [
+    246,
+    289
+   ],
+   "jointColor": [
+    158,
+    137,
+    124
+   ],
+   "r": 27.61,
+   "rect": [
+    3,
+    348,
+    84,
+    117
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/rudolph/loArm_near.webp",
+   "w": 155,
+   "h": 118,
+   "pivot": [
+    39.39,
+    8.16
+   ],
+   "tip": [
+    62.49,
+    66.75
+   ],
+   "origin": [
+    263,
+    382
+   ],
+   "jointColor": [
+    33,
+    29,
+    26
+   ],
+   "r": 22.59,
+   "rect": [
+    90,
+    348,
+    155,
+    118
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/rudolph/head.webp",
+   "w": 386,
+   "h": 342,
+   "pivot": [
+    210.0,
+    297.97
+   ],
+   "tip": [
+    217.53,
+    32.31
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "jointColor": [
+    34,
+    31,
+    29
+   ],
+   "r": 122.99,
+   "rect": [
+    3,
+    3,
+    386,
+    342
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   210.0,
+   297.97
+  ],
+  "torso": [
+   93.0,
+   -12.03
+  ],
+  "pelvis": [
+   98.0,
+   -12.48
+  ],
+  "upArm_far": [
+   97.79,
+   41.69
+  ],
+  "loArm_far": [
+   109.21,
+   11.16
+  ],
+  "upArm_near": [
+   24.05,
+   37.69
+  ],
+  "loArm_near": [
+   39.39,
+   8.16
+  ],
+  "thigh_far": [
+   77.27,
+   45.88
+  ],
+  "shin_far": [
+   179.28,
+   0.17
+  ],
+  "thigh_near": [
+   13.73,
+   43.88
+  ],
+  "shin_near": [
+   15.72,
+   0.17
+  ]
+ }
+}

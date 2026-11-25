@@ -72,6 +72,7 @@
             const img = await this._img(info.file);
             const base = PIXI.Texture.from(img);
             base.source.scaleMode = 'linear';
+            base.source.autoGarbageCollect = false;
             if (info.frames) {
               // 가로 N칸 시퀀스 시트 → 프레임별 서브 텍스처
               const frames = [];
@@ -146,6 +147,7 @@
       const img = await this._img(m.file);
       const base = PIXI.Texture.from(img);
       base.source.scaleMode = 'linear';
+      base.source.autoGarbageCollect = false;
       const entry = {
         key, fps: m.fps, loop: m.loop, file: m.file,
         frames: [], ax: m.anchorX, ay: m.anchorY,
@@ -175,6 +177,7 @@
       return this._img(path).then((img) => {
         const t = PIXI.Texture.from(img);
         t.source.scaleMode = 'linear';
+        t.source.autoGarbageCollect = false;
         this.tex[key] = t;
         this.loaded++;
         if (onProgress) onProgress(this.loaded / this.total);

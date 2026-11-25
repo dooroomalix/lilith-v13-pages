@@ -1,0 +1,100 @@
+{
+ "version": "XMAS-2.0.0-build030",
+ "rigs": {
+  "ara_basic": {
+   "json": "assets/rig/ara_basic/rig.json",
+   "char": "ara",
+   "skin": "basic"
+  },
+  "ara_gala": {
+   "json": "assets/rig/ara_gala/rig.json",
+   "char": "ara",
+   "skin": "gala"
+  },
+  "ara_santa": {
+   "json": "assets/rig/ara_santa/rig.json",
+   "char": "ara",
+   "skin": "santa"
+  },
+  "born_basic": {
+   "json": "assets/rig/born_basic/rig.json",
+   "char": "born",
+   "skin": "basic"
+  },
+  "born_gala": {
+   "json": "assets/rig/born_gala/rig.json",
+   "char": "born",
+   "skin": "gala"
+  },
+  "born_santa": {
+   "json": "assets/rig/born_santa/rig.json",
+   "char": "born",
+   "skin": "santa"
+  },
+  "kael_basic": {
+   "json": "assets/rig/kael_basic/rig.json",
+   "char": "kael",
+   "skin": "basic"
+  },
+  "kael_gala": {
+   "json": "assets/rig/kael_gala/rig.json",
+   "char": "kael",
+   "skin": "gala"
+  },
+  "kael_santa": {
+   "json": "assets/rig/kael_santa/rig.json",
+   "char": "kael",
+   "skin": "santa"
+  },
+  "lia_basic": {
+   "json": "assets/rig/lia_basic/rig.json",
+   "char": "lia",
+   "skin": "basic"
+  },
+  "lia_gala": {
+   "json": "assets/rig/lia_gala/rig.json",
+   "char": "lia",
+   "skin": "gala"
+  },
+  "lia_santa": {
+   "json": "assets/rig/lia_santa/rig.json",
+   "char": "lia",
+   "skin": "santa"
+  },
+  "mimic": {
+   "json": "assets/rig/mimic/rig.json",
+   "char": "mimic",
+   "skin": "base"
+  },
+  "noel": {
+   "json": "assets/rig/noel/rig.json",
+   "char": "noel",
+   "skin": "base"
+  },
+  "rudolph": {
+   "json": "assets/rig/rudolph/rig.json",
+   "char": "rudolph",
+   "skin": "base"
+  },
+  "sena_basic": {
+   "json": "assets/rig/sena_basic/rig.json",
+   "char": "sena",
+   "skin": "basic"
+  },
+  "sena_gala": {
+   "json": "assets/rig/sena_gala/rig.json",
+   "char": "sena",
+   "skin": "gala"
+  },
+  "sena_santa": {
+   "json": "assets/rig/sena_santa/rig.json",
+   "char": "sena",
+   "skin": "santa"
+  },
+  "snowball": {
+   "json": "assets/rig/snowball/rig.json",
+   "char": "snowball",
+   "skin": "base"
+  }
+ }
+}
