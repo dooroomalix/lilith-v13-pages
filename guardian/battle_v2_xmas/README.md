@@ -136,3 +136,15 @@ WebGL 컨텍스트가 1회 끊깁니다. 실제 시간으로 플레이한 세션
   연출(`fx.slash`·`fx.speedLines`)과 적 타격이 `h.facing` 기준이 되며, 보스 타격은 `G.inFront(hero.x, boss.x, facing, 470)` 입니다.
   뒤돌아 써도 보스에게 데미지가 들어가던 `Math.abs` 판정을 없앴습니다.
 - 검증: `node --check` 15/15, `tools_xmas/verify_workflow_step8_xmas.py` **26/26 ALL PASS** — 스킬 정면 +300 → 782, 등 뒤 −300 → 0.
+
+## XMAS-2.2.0-build050 — 전 캐릭터 K 스킬 정면 반원 판정 · 모바일 세로 화면 HUD (2026-11-26)
+- **K 스킬 판정**: `js/battle.js` `_skillHit()` 에 히어로 기준 정면 반원 게이트를 넣어, 점 중심 원형 AoE라도
+  등 뒤(`G.LANE.back` 6px 밖) 적·보스에게는 데미지가 0이 되게 했습니다(`opts.facing`/`opts.fromX` 지원).
+  `_densestTarget(front)` 로 K·L 대상도 보는 쪽에서만 고르고, 대상이 없으면 앞쪽에 떨어뜨립니다.
+- **세로 화면**: `G.VIEW`(util.js) + `js/main.js` 가 화면 비율로 가로/세로를 정합니다. 세로에서는 캔버스가 화면을 꽉 채우고
+  `#rotate` 회전 안내는 뜨지 않습니다. `js/hud.js` 는 좌표계 그룹으로 나눠(가로는 항등 변환 — 종전과 동일)
+  세로에서 상태 판·타이머·미니맵·월드 띠·보스 HP(+P1/P2/P3 배지·등불 게이지)·자막·조이스틱·버튼을 화면 픽셀로 재배치합니다.
+  `js/lobby.js` 는 세로에서 제목 → 정보 판 → 리그 무대 → 카드 5장 → 스킨 3칸 → 출격을 화면 크기에 맞춰 다시 짓습니다.
+- **검증**: `node --check` 15/15, `tools_xmas/verify_workflow_step9_1_xmas.py` **56/56 ALL PASS**
+  (가로 35 — 5인 K 스킬 정면 데미지·등 뒤 −80/−300 0·보스 등 뒤 0 / 세로 22 — 로비·전투 터치 실사용·겹침 0·컷인 잘림 0, 오류 0),
+  `tools_xmas/verify_workflow_step8_xmas.py` **26/26 유지**. 증빙 `../guardian/evidence/workflow_step9_1_xmas_*`.

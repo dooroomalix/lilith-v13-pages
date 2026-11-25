@@ -58,12 +58,65 @@
       };
       this.joy = { active: false, id: null, bx: 150, by: 600, r: 80, kx: 150, ky: 600, vx: 0, vy: 0 };
       this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false };
+
+      /* ---- 좌표계 그룹 (Step 9-1) ----
+         가로(1280×720)에서는 모두 항등 변환이라 지금까지와 픽셀 단위로 같고,
+         세로 화면에서는 그룹마다 자리·배율을 따로 주어 화면 픽셀 좌표로 다시 배치한다. */
+      this.gStatus = new PIXI.Container();
+      this.gArea = new PIXI.Container();
+      this.gMap = new PIXI.Container();
+      this.gBoss = new PIXI.Container();
+      this.gJoy = new PIXI.Container();
+      this.gCombo = new PIXI.Container();
+      this.gPrompt = new PIXI.Container();
+      this.gBuff = new PIXI.Container();
+      this.gBtn = {};
+      this.btnGfx = {};
+      this.btnFxGfx = {};
+      [this.gStatus, this.gArea, this.gMap, this.gBoss, this.gJoy, this.gCombo, this.gPrompt, this.gBuff]
+        .forEach((g) => this.root.addChild(g));
+      ['attack', 'skill1', 'skill2', 'dodge', 'jump', 'potion', 'auto'].forEach((k) => {
+        const c = new PIXI.Container();
+        this.gBtn[k] = c;
+        this.btnFxGfx[k] = new PIXI.Graphics();
+        this.btnGfx[k] = new PIXI.Graphics();
+        c.addChild(this.btnFxGfx[k], this.btnGfx[k]);
+        this.root.addChild(c);
+      });
+      this.muteG = new PIXI.Graphics();
+      this.gArea.addChild(this.muteG);
+
       this.potionLabel = new PIXI.Text({ text: '3', style: G.style({ fontSize: 15, fill: 0xffffff, fontWeight: '900' }) });
-      this.potionLabel.zIndex = 8; this.root.addChild(this.potionLabel);
-      this.buffG = new PIXI.Graphics(); this.root.addChild(this.buffG);
+      this.potionLabel.zIndex = 8;
+      this.gBuff.addChild(this.buffG = new PIXI.Graphics());
       this.hpGhost = 1;
       this.mpGhost = 1;
       this.build();
+      this._groupify();
+      this.mode = 'landscape';
+      this.vw = G.W; this.vh = G.H;
+      this.relayout('landscape', G.W, G.H);
+    }
+
+    /* build() 가 root 에 만든 것들을 좌표계 그룹으로 옮긴다 */
+    _groupify() {
+      const put = (g, list) => list.forEach((o) => { if (o && o.parent !== g) g.addChild(o); });
+      put(this.gStatus, [this.panelG, this.bars, this.portraitMask, this.portrait,
+        this.nameText, this.classText, this.hpNum, this.mpNum]);
+      put(this.gArea, [this.rightG, this.areaText, this.timerText]);
+      put(this.gMap, [this.minimapG, this.minimapDots, this.mapLabel]);
+      put(this.gBoss, [this.bossG, this.bossName, this.bossHpText]);
+      put(this.gJoy, [this.joyG]);
+      put(this.gPrompt, [this.promptText, this.phaseText]);
+      put(this.gCombo, [this.comboText, this.comboSub]);
+      put(this.gBtn.potion, [this.potionLabel]);
+      put(this.gBtn.auto, [this.autoText, this.autoModeText]);
+      put(this.gBoss, [this.bossPhaseText, this.lanternG, this.lanternText]);
+      const jg = this._textCache['jumpGlyph'];
+      if (jg) this.gBtn.jump.addChild(jg);
+      Object.keys(this.cdTexts || {}).forEach((k) => {
+        if (this.gBtn[k]) this.gBtn[k].addChild(this.cdTexts[k]);
+      });
     }
 
     _text(key, str, style, parent) {
@@ -80,17 +133,11 @@
     build() {
       const root = this.root;
 
-      // ---- 상·하단 가독성 그라데이션 ----
-      const topGrad = new PIXI.Graphics();
-      for (let i = 0; i < 16; i++) {
-        topGrad.rect(0, (i * 170) / 16, G.W, 170 / 16 + 1).fill({ color: 0x03070f, alpha: 0.34 * (1 - i / 16) });
-      }
-      root.addChild(topGrad);
-      const botGrad = new PIXI.Graphics();
-      for (let i = 0; i < 14; i++) {
-        botGrad.rect(0, G.H - 180 + (i * 180) / 14, G.W, 180 / 14 + 1).fill({ color: 0x03070f, alpha: 0.30 * (i / 14) });
-      }
-      root.addChild(botGrad);
+      // ---- 상·하단 가독성 그라데이션 (화면 크기가 바뀌면 다시 그린다) ----
+      this.topGrad = new PIXI.Graphics();
+      this.botGrad = new PIXI.Graphics();
+      root.addChild(this.topGrad, this.botGrad);
+      this._drawGradients(G.W, G.H);
 
       // ---- 좌상단 상태 패널 ----
       this.panelG = new PIXI.Graphics();
@@ -105,6 +152,7 @@
         const m = new PIXI.Graphics();
         m.roundRect(24, 25, 68, 68, 8).fill({ color: 0xffffff });
         root.addChild(m);
+        this.portraitMask = m;
         return m;
       })();
       root.addChild(this.portrait);
@@ -257,9 +305,174 @@
 
     _drawMuteIcon() {
       const b = this.buttons.mute;
-      const g = this.btnFx;
-      // 아이콘은 버튼 다시 그릴 때 함께 그린다
+      // 아이콘은 _drawButtons 가 muteG 에 함께 그린다
       this._muteAt = { x: b.x, y: b.y };
+    }
+
+    /* ================================================================ 화면 배치 (Step 9-1) */
+    /* 전체 화면 그라데이션 — 화면 크기가 바뀌면 다시 그린다 */
+    _drawGradients(w, h) {
+      const tg = this.topGrad, bg = this.botGrad;
+      if (!tg || !bg) return;
+      tg.clear(); bg.clear();
+      const topH = Math.min(h * 0.24, Math.max(140, h * 0.22));
+      for (let i = 0; i < 16; i++) {
+        tg.rect(0, (i * topH) / 16, w, topH / 16 + 1).fill({ color: 0x03070f, alpha: 0.34 * (1 - i / 16) });
+      }
+      const botH = Math.min(h * 0.34, 180 * (w / G.W) + 120);
+      for (let i = 0; i < 14; i++) {
+        bg.rect(0, h - botH + (i * botH) / 14, w, botH / 14 + 1).fill({ color: 0x03070f, alpha: 0.30 * (i / 14) });
+      }
+    }
+
+    /* 내용 좌표(px,py)가 화면 좌표(vx,vy)에 오도록 그룹 변환을 만든다 */
+    _at(vx, vy, s, px, py) { return { x: vx - (px || 0) * s, y: vy - (py || 0) * s, s }; }
+
+    _landscapeLayout() {
+      const id = { x: 0, y: 0, s: 1 };
+      const out = {
+        viewW: G.W, viewH: G.H,
+        band: { x: 0, y: 0, w: G.W, h: G.H, scale: 1 },
+        status: id, area: id, map: id, boss: id, joy: id, combo: id, prompt: id, buff: id,
+        btn: {},
+      };
+      Object.keys(this.gBtn).forEach((k) => { out.btn[k] = id; });
+      return out;
+    }
+
+    /* 세로 화면(예: 390×844) — 월드는 폭에 맞춰 위로, HUD 는 화면 픽셀 좌표로 다시 배치 */
+    _portraitLayout(w, h) {
+      const k = G.clamp(w / 390, 0.8, 1.3);      // 폭 기준 배율
+      const ky = G.clamp(h / 844, 0.85, 1.2);    // 높이 기준 배율
+      const padY = 10;
+      let st = G.clamp((w * 0.94) / 340, 0.7, 1.3);    // 상태 판
+      let st2 = G.clamp((w * 0.96) / 376, 0.6, 1.3);   // 지역명·타이머
+      let sm = G.clamp((w * 0.36) / 178, 0.5, 1.05);   // 미니맵
+      const bandScale = w / G.W;
+      const bandH = G.H * bandScale;
+      let sb = G.clamp((w - 16) / 560, 0.5, 1.1);      // 보스 HP
+      const deckMin = 300 * ky;
+      // 화면이 짧으면 상단 정보 블록을 통째로 줄여 월드 띠·조작부 자리를 지킨다
+      const need = () => 96 * st + 44 * st2 + 108 * sm + 12;
+      const avail = h - (bandH + 62 * sb + deckMin + padY);
+      if (avail > 60 && need() > avail) {
+        const f = avail / need();
+        st *= f; st2 *= f; sm *= f;
+      }
+      // 상단: 상태 판 → 지역·타이머 → 미니맵
+      const statusTop = padY;
+      const status = this._at(2, statusTop, st, 14, 12);
+      const areaX0 = w - 4 - 376 * st2;
+      const areaY0 = statusTop + 96 * st + 6;
+      const area = this._at(areaX0, areaY0, st2, 892, 8);
+      const mapX0 = w - 4 - 178 * sm;
+      const mapY0 = areaY0 + 44 * st2 + 10;
+      const map = this._at(mapX0, mapY0, sm, 1086, 56);
+      // 월드 띠
+      const bandY = Math.round(mapY0 + 118 * sm + 6);
+      const band = { x: 0, y: bandY, w, h: bandH, scale: bandScale };
+      // 보스 HP — 월드 띠 바로 아래
+      const bossX0 = (w - 560 * sb) / 2;
+      const bossY0 = bandY + bandH + 4;
+      const boss = this._at(bossX0, bossY0, sb, 356, 42);
+      // 중앙 안내(스킬명·구역 배너) — 월드 띠 안쪽 아래에 자막처럼 걸어 둔다
+      const sp = G.clamp(w / 620, 0.58, 1);
+      const promptY = bandY + bandH - 6;
+      const prompt = this._at(w / 2, promptY, sp, 640, 208);
+      // 콤보 — 왼쪽 위(조이스틱 위)
+      const sc = G.clamp(w / 560, 0.62, 1);
+      const combo = this._at(10, h - 234 * ky, sc, 40, 462);
+      // 물약 버프 게이지 바
+      const buff = this._at(16, h - 300 * ky, G.clamp(k, 0.8, 1.2), 862, 671);
+      // 조이스틱 — 왼쪽 아래
+      const sj = 56 * k / 80;
+      const joy = this._at(76 * k, h - 78 * ky, sj, 150, 600);
+      // 액션 버튼 — 손이 닿는 자리마다 개별 배치
+      const btn = {};
+      const place = (key, vx, vy, rView, rContent) => { btn[key] = this._at(vx, vy, rView / rContent, this.buttons[key].x, this.buttons[key].y); };
+      place('attack', w - 64 * k, h - 76 * ky, 46 * k, 58);
+      place('skill1', w - 158 * k, h - 56 * ky, 34 * k, 41);
+      place('dodge', w - 228 * k, h - 156 * ky, 31 * k, 37);
+      place('jump', w - 134 * k, h - 160 * ky, 28 * k, 32);
+      place('potion', w - 44 * k, h - 156 * ky, 28 * k, 32);
+      place('skill2', w - 204 * k, h - 234 * ky, 34 * k, 41);
+      place('auto', w - 314 * k, h - 286 * ky, 0.8 * k, 1);
+      return { viewW: w, viewH: h, band, status, area, map, boss, joy, combo, prompt, buff, btn, box: { st, st2, sm, sb, k, ky } };
+    }
+
+    /* 가로/세로 배치 적용 — 월드 띠 사각형을 돌려준다 (Battle.applyLayout 이 쓴다) */
+    relayout(mode, w, h) {
+      this.mode = mode;
+      this.vw = w; this.vh = h;
+      const L = (mode === 'portrait') ? this._portraitLayout(w, h) : this._landscapeLayout(w, h);
+      this.L = L;
+      const put = (g, t) => {
+        if (!g || !t) return;
+        g.position.set(t.x, t.y);
+        g.scale.set(t.s, t.s);
+      };
+      put(this.gStatus, L.status);
+      put(this.gArea, L.area);
+      put(this.gMap, L.map);
+      put(this.gBoss, L.boss);
+      put(this.gJoy, L.joy);
+      put(this.gCombo, L.combo);
+      put(this.gPrompt, L.prompt);
+      put(this.gBuff, L.buff);
+      Object.keys(this.gBtn).forEach((key) => put(this.gBtn[key], L.btn[key]));
+      this._drawGradients(L.viewW, L.viewH);
+      this._drawStatic();
+      this._drawButtons();
+      this._drawJoystick();
+      return L.band;
+    }
+
+    /* 화면 좌표 → 그룹 내용 좌표 */
+    _local(group, x, y) {
+      const s = (group && group.scale.x) || 1;
+      return { x: (x - (group ? group.x : 0)) / s, y: (y - (group ? group.y : 0)) / s };
+    }
+
+    _hitCircle(key, x, y, pad) {
+      const b = this.buttons[key];
+      const g = this.gBtn[key];
+      if (!b || !g) return false;
+      const p = this._local(g, x, y);
+      return G.dist(p.x, p.y, b.x, b.y) <= b.r + (pad || 0);
+    }
+
+    /* 검증용: 지금 배치된 버튼·판의 화면 좌표 */
+    layoutInfo() {
+      const L = this.L || this._landscapeLayout();
+      const toView = (key) => {
+        const b = this.buttons[key];
+        const t = L.btn[key];
+        if (!b || !t) return null;
+        const cx = t.x + b.x * t.s;
+        const cy = t.y + b.y * t.s;
+        const out = { x: +cx.toFixed(1), y: +cy.toFixed(1), s: +t.s.toFixed(3) };
+        if (b.r) {
+          out.r = +(b.r * t.s).toFixed(1);
+        } else {
+          // 사각 버튼(AUTO)은 화면 좌상단 기준으로 돌려준다 — 검증이 겹침을 재기 좋게
+          out.w = +(b.w * t.s).toFixed(1);
+          out.h = +(b.h * t.s).toFixed(1);
+          out.x = +(cx - out.w / 2).toFixed(1);
+          out.y = +(cy - out.h / 2).toFixed(1);
+        }
+        return out;
+      };
+      const out = { mode: this.mode, vw: this.vw, vh: this.vh, band: L.band, buttons: {}, joy: {} };
+      Object.keys(this.gBtn).forEach((key) => { out.buttons[key] = toView(key) || null; });
+      const j = this.joy, jt = L.joy;
+      out.joy = {
+        x: +(jt.x + (j.bx) * jt.s).toFixed(1), y: +(jt.y + (j.by) * jt.s).toFixed(1),
+        r: +(j.r * jt.s).toFixed(1), scale: +jt.s.toFixed(3),
+      };
+      const pa = this.buttons.pause, ma = this.buttons.mute, at = L.area;
+      out.pause = { x: +(at.x + pa.x * at.s).toFixed(1), y: +(at.y + pa.y * at.s).toFixed(1), r: +(pa.r * at.s).toFixed(1) };
+      out.mute = { x: +(at.x + ma.x * at.s).toFixed(1), y: +(at.y + ma.y * at.s).toFixed(1), r: +(ma.r * at.s).toFixed(1) };
+      return out;
     }
 
     _drawJoystick() {
@@ -287,12 +500,12 @@
     }
 
     _drawButtons() {
-      const g = this.btnG;
-      g.clear();
       const b = this.buttons;
       const t = performance.now() / 1000;
+      Object.keys(this.btnGfx || {}).forEach((k) => this.btnGfx[k].clear());
 
-      const ring = (btn, color, icon) => {
+      const ring = (btn, key, color, icon) => {
+        const g = this.btnGfx[key];
         const press = btn.press > 0 ? 1 - btn.press / 0.16 : 0;
         const r = btn.r * (1 - press * 0.06);
         g.circle(btn.x, btn.y, r + 7).fill({ color, alpha: 0.10 });
@@ -302,10 +515,10 @@
         g.circle(btn.x, btn.y, r).stroke({ width: 2.4, color, alpha: 0.9 });
         g.circle(btn.x, btn.y, r * 0.84).stroke({ width: 1, color, alpha: 0.22 });
         g.circle(btn.x, btn.y - r * 0.42, r * 0.72).fill({ color, alpha: 0.06 + press * 0.08 });
-        icon(btn, r, color);
+        icon(btn, r, g);
       };
 
-      ring(b.attack, 0xbfe0ff, (btn, r) => {
+      ring(b.attack, 'attack', 0xbfe0ff, (btn, r, g) => {
         const x = btn.x, y = btn.y, s = r / 58;
         g.moveTo(x-19*s,y-16*s).lineTo(x+18*s,y+18*s).stroke({width:5*s,color:0x8ed6ff,alpha:.8});
         g.poly([
@@ -316,7 +529,7 @@
         g.moveTo(x - 22 * s, y + 8 * s).lineTo(x - 8 * s, y + 22 * s).stroke({ width: 4 * s, color: 0xffffff, alpha: 0.96 });
         g.circle(x - 20 * s, y + 22 * s, 3.2 * s).fill({ color: 0xffffff, alpha: 0.9 });
       });
-      ring(b.skill1, 0x5fb6ff, (btn, r) => {
+      ring(b.skill1, 'skill1', 0x5fb6ff, (btn, r, g) => {
         const x = btn.x, y = btn.y, s = r / 41;
         for (let i = 0; i < 3; i++) {
           const off = (i - 1) * 9 * s;
@@ -325,7 +538,7 @@
         }
         g.moveTo(x + 10 * s, y - 14 * s).lineTo(x + 17 * s, y - 7 * s).stroke({ width: 2 * s, color: 0x9fd0ff, alpha: 0.75 });
       });
-      ring(b.skill2, 0xb98bff, (btn, r) => {
+      ring(b.skill2, 'skill2', 0xb98bff, (btn, r, g) => {
         const x = btn.x, y = btn.y, s = r / 41;
         const pts = [];
         for (let i = 0; i < 8; i++) {
@@ -338,16 +551,16 @@
         g.moveTo(x-20*s,y+8*s).lineTo(x-20*s,y-10*s).lineTo(x-8*s,y-20*s).stroke({width:2.3*s,color:0xd8baff,alpha:.8});
         g.moveTo(x+20*s,y+8*s).lineTo(x+20*s,y-10*s).lineTo(x+8*s,y-20*s).stroke({width:2.3*s,color:0xd8baff,alpha:.8});
       });
-      ring(b.jump, 0x91caff, (btn,r) => {
-        this._text('jumpGlyph', '↑', G.style({fontSize:32,fill:0xe2f2ff,fontWeight:'900'}), this.root).position.set(btn.x-12,btn.y-23);
+      ring(b.jump, 'jump', 0x91caff, (btn, r, g) => {
+        this._text('jumpGlyph', '↑', G.style({fontSize:32,fill:0xe2f2ff,fontWeight:'900'}), this.gBtn.jump).position.set(btn.x-12,btn.y-23);
       });
-      ring(b.potion, 0x7df1aa, (btn, r) => {
+      ring(b.potion, 'potion', 0x7df1aa, (btn, r, g) => {
         g.roundRect(btn.x - 10, btn.y - 12, 20, 25, 5).fill({color:0x9fffe0,alpha:.85});
         g.roundRect(btn.x - 8, btn.y - 3, 16, 13, 3).fill({color:0x19b987,alpha:.95});
         g.rect(btn.x - 6, btn.y - 18, 12, 7).fill({color:0xd9fff1});
         g.moveTo(btn.x - 5,btn.y - 8).lineTo(btn.x - 5,btn.y + 6).stroke({width:2,color:0xffffff,alpha:.75});
       });
-      ring(b.dodge, 0xffffff, (btn, r) => {
+      ring(b.dodge, 'dodge', 0xffffff, (btn, r, g) => {
         const x = btn.x, y = btn.y, s = r / 37;
         const a0 = Math.PI * 0.25, a1 = Math.PI * 1.55;
         g.beginPath();
@@ -359,63 +572,76 @@
       });
 
       // AUTO 토글
+      const ag = this.btnGfx.auto;
       const a = b.auto;
       const on = this.game && this.game.autoMode !== 'manual';
-      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
+      ag.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
         .fill({ color: on ? 0x14395c : 0x0a1626, alpha: on ? 0.88 : 0.66 });
-      g.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
+      ag.roundRect(a.x - a.w / 2, a.y - a.h / 2, a.w, a.h, 14)
         .stroke({ width: 2, color: on ? 0x7fd8ff : 0x6a8aa8, alpha: 0.9 });
-      g.roundRect(a.x - a.w / 2 + 3, a.y - a.h / 2 + 2.5, a.w - 6, a.h * 0.38, 10)
+      ag.roundRect(a.x - a.w / 2 + 3, a.y - a.h / 2 + 2.5, a.w - 6, a.h * 0.38, 10)
         .fill({ color: 0xbfe8ff, alpha: on ? 0.10 : 0.04 });
       const ix = a.x - a.w / 2 + 22, iy = a.y - 6;
-      g.moveTo(ix - 8, iy + 8).lineTo(ix + 8, iy - 8).stroke({ width: 3, color: 0xdff0ff, alpha: 0.92 });
-      g.moveTo(ix - 10, iy + 3).lineTo(ix - 2, iy + 11).stroke({ width: 2, color: 0xdff0ff, alpha: 0.7 });
+      ag.moveTo(ix - 8, iy + 8).lineTo(ix + 8, iy - 8).stroke({ width: 3, color: 0xdff0ff, alpha: 0.92 });
+      ag.moveTo(ix - 10, iy + 3).lineTo(ix - 2, iy + 11).stroke({ width: 2, color: 0xdff0ff, alpha: 0.7 });
       this.autoText.x = a.x + 16;
       this.autoText.y = a.y - 6;
       this.autoModeText.x = a.x + 16;
       this.autoModeText.y = a.y + 17;
 
-      // 음소거 아이콘 (버튼 위)
+      // 음소거 아이콘 (지역·타이머 그룹 위)
+      const mg = this.muteG;
+      if (mg) mg.clear();
       const mx = b.mute.x, my = b.mute.y;
-      g.poly([mx - 9, my - 4, mx - 4, my - 4, mx + 1, my - 9, mx + 1, my + 9, mx - 4, my + 4, mx - 9, my + 4])
-        .fill({ color: 0xffffff, alpha: 0.85 });
-      if (this.game && this.game.muted) {
-        g.moveTo(mx + 5, my - 6).lineTo(mx + 13, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
-        g.moveTo(mx + 13, my - 6).lineTo(mx + 5, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
-      } else {
-        g.arc(mx + 2, my, 7, -0.9, 0.9).stroke({ width: 2, color: 0xffffff, alpha: 0.75 });
-        g.arc(mx + 2, my, 11, -0.8, 0.8).stroke({ width: 2, color: 0xffffff, alpha: 0.45 });
+      if (mg) {
+        mg.poly([mx - 9, my - 4, mx - 4, my - 4, mx + 1, my - 9, mx + 1, my + 9, mx - 4, my + 4, mx - 9, my + 4])
+          .fill({ color: 0xffffff, alpha: 0.85 });
+        if (this.game && this.game.muted) {
+          mg.moveTo(mx + 5, my - 6).lineTo(mx + 13, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
+          mg.moveTo(mx + 13, my - 6).lineTo(mx + 5, my + 6).stroke({ width: 2, color: 0xff7a8a, alpha: 0.95 });
+        } else {
+          mg.arc(mx + 2, my, 7, -0.9, 0.9).stroke({ width: 2, color: 0xffffff, alpha: 0.75 });
+          mg.arc(mx + 2, my, 11, -0.8, 0.8).stroke({ width: 2, color: 0xffffff, alpha: 0.45 });
+        }
       }
       // 퍼펙트 회피 창: 회피 버튼 발광
       if (this.game && this.game.perfectWindow) {
         const pulse = 0.5 + 0.5 * Math.sin(t * 18);
         const db = b.dodge;
-        g.circle(db.x, db.y, db.r + 10 + pulse * 8).stroke({ width: 3, color: 0xffffff, alpha: 0.35 + 0.45 * pulse });
-        g.circle(db.x, db.y, db.r + 2).fill({ color: 0xffffff, alpha: 0.08 + 0.12 * pulse });
+        const dg = this.btnFxGfx.dodge;
+        dg.circle(db.x, db.y, db.r + 10 + pulse * 8).stroke({ width: 3, color: 0xffffff, alpha: 0.35 + 0.45 * pulse });
+        dg.circle(db.x, db.y, db.r + 2).fill({ color: 0xffffff, alpha: 0.08 + 0.12 * pulse });
       }
     }
 
     /* ---------- 입력 ---------- */
     pointerDown(x, y, id) {
       const b = this.buttons;
-      const hit = (btn, pad = 0) => G.dist(x, y, btn.x, btn.y) <= btn.r + pad;
-      if (hit(b.pause, 6)) { this.input.pause = true; b.pause.press = 0.16; return; }
-      if (hit(b.mute, 6)) { this.input.mute = true; b.mute.press = 0.16; return; }
+      const hit = (key, pad = 0) => this._hitCircle(key, x, y, pad);
+      const pa = this._local(this.gArea, x, y);
+      if (G.dist(pa.x, pa.y, b.pause.x, b.pause.y) <= b.pause.r + 6) { this.input.pause = true; b.pause.press = 0.16; return; }
+      if (G.dist(pa.x, pa.y, b.mute.x, b.mute.y) <= b.mute.r + 6) { this.input.mute = true; b.mute.press = 0.16; return; }
       const ax = b.auto;
-      if (Math.abs(x - ax.x) < ax.w / 2 + 4 && Math.abs(y - ax.y) < ax.h / 2 + 4) {
+      const au = this._local(this.gBtn.auto, x, y);
+      if (Math.abs(au.x - ax.x) < ax.w / 2 + 4 && Math.abs(au.y - ax.y) < ax.h / 2 + 4) {
         this.input.auto = true; ax.press = 0.16; return;
       }
-      if (hit(b.attack, 10)) { this.input.attack = true; b.attack.press = 0.16; return; }
-      if (hit(b.jump, 8)) { this.input.jump = true; b.jump.press = 0.16; return; }
-      if (hit(b.potion, 8)) { this.input.potion = true; b.potion.press = 0.16; return; }
-      if (hit(b.skill1, 8)) { this.input.skill1 = true; b.skill1.press = 0.16; return; }
-      if (hit(b.skill2, 8)) { this.input.skill2 = true; b.skill2.press = 0.16; return; }
-      if (hit(b.dodge, 8)) { this.input.dodge = true; b.dodge.press = 0.16; return; }
-      if (x < G.W * 0.52 && y > G.H * 0.35) {
+      if (hit('attack', 10)) { this.input.attack = true; b.attack.press = 0.16; return; }
+      if (hit('jump', 8)) { this.input.jump = true; b.jump.press = 0.16; return; }
+      if (hit('potion', 8)) { this.input.potion = true; b.potion.press = 0.16; return; }
+      if (hit('skill1', 8)) { this.input.skill1 = true; b.skill1.press = 0.16; return; }
+      if (hit('skill2', 8)) { this.input.skill2 = true; b.skill2.press = 0.16; return; }
+      if (hit('dodge', 8)) { this.input.dodge = true; b.dodge.press = 0.16; return; }
+      const band = (this.L && this.L.band) || { y: 0, h: G.H };
+      const reg = this.mode === 'portrait'
+        ? { x0: 0, x1: this.vw * 0.56, y0: band.y + band.h + 16, y1: this.vh }
+        : { x0: 0, x1: G.W * 0.52, y0: G.H * 0.35, y1: G.H };
+      if (x >= reg.x0 && x <= reg.x1 && y >= reg.y0 && y <= reg.y1) {
+        const p = this._local(this.gJoy, x, y);
         const j = this.joy;
         j.active = true; j.id = id;
-        j.bx = G.clamp(x, 92, 300);
-        j.by = G.clamp(y, 430, 660);
+        j.bx = G.clamp(p.x, 92, 300);
+        j.by = G.clamp(p.y, 430, 660);
         j.kx = j.bx; j.ky = j.by;
         this._drawJoystick();
       }
@@ -424,7 +650,8 @@
     pointerMove(x, y, id) {
       const j = this.joy;
       if (!j.active || j.id !== id) return;
-      const dx = x - j.bx, dy = y - j.by;
+      const p = this._local(this.gJoy, x, y);
+      const dx = p.x - j.bx, dy = p.y - j.by;
       const d = Math.hypot(dx, dy);
       const max = j.r * 0.72;
       const k = d > max ? max / d : 1;
@@ -621,18 +848,19 @@
 
       // 쿨다운 (부채꼴 스윕)
       const cd = game.cooldowns;
-      this.btnFx.clear();
+      Object.keys(this.btnFxGfx || {}).forEach((k) => this.btnFxGfx[k].clear());
       const sweepCd = (key, btn, cur, max) => {
         const t2 = this.cdTexts[key];
+        const fx = this.btnFxGfx[key];
         if (cur > 0) {
           const p = G.clamp(cur / max, 0, 1);
           t2.visible = cur >= 0.1;
           t2.text = cur.toFixed(1) + "s";
           t2.x = btn.x; t2.y = btn.y;
-          this.btnFx.moveTo(btn.x, btn.y);
-          this.btnFx.arc(btn.x, btn.y, btn.r * 0.98, -Math.PI / 2, -Math.PI / 2 + G.TAU * p);
-          this.btnFx.closePath();
-          this.btnFx.fill({ color: 0x02060c, alpha: 0.55 });
+          fx.moveTo(btn.x, btn.y);
+          fx.arc(btn.x, btn.y, btn.r * 0.98, -Math.PI / 2, -Math.PI / 2 + G.TAU * p);
+          fx.closePath();
+          fx.fill({ color: 0x02060c, alpha: 0.55 });
         } else t2.visible = false;
       };
       sweepCd('skill1', b.skill1, cd.skill1, game.skillMax.skill1);

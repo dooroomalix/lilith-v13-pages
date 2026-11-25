@@ -14,23 +14,60 @@
   const loading = document.getElementById('loading');
   const loadbar = document.getElementById('loadbar');
 
+  let app = null;
+  let game = null;
+  let curW = G.W, curH = G.H;
+
+  /* 화면 배치 (Step 9-1)
+     가로(1280×720): 지금까지 그대로 — 16:9 판을 화면 안에 맞춰 가운데 둔다.
+     세로: 캔버스가 화면을 꽉 채우고, 월드는 폭에 맞춰 축소한 띠로 위쪽에 놓는다.
+           HUD·로비는 화면 픽셀 좌표로 다시 배치된다 (hud.relayout / lobby). */
+  function measure() {
+    const vw = Math.max(240, Math.round(window.innerWidth || 0) || 240);
+    const vh = Math.max(240, Math.round(window.innerHeight || 0) || 240);
+    const portrait = vw < vh;
+    return { vw, vh, portrait, mode: portrait ? 'portrait' : 'landscape' };
+  }
+
   function fit() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const s = Math.min(vw / G.W, vh / G.H);
-    canvas.style.width = Math.round(G.W * s) + 'px';
-    canvas.style.height = Math.round(G.H * s) + 'px';
+    const m = measure();
+    const tw = m.portrait ? m.vw : G.W;
+    const th = m.portrait ? m.vh : G.H;
+    if (!m.portrait) {
+      const s = Math.min(m.vw / G.W, m.vh / G.H);
+      canvas.style.width = Math.round(G.W * s) + 'px';
+      canvas.style.height = Math.round(G.H * s) + 'px';
+    }
+    if (app && (tw !== curW || th !== curH)) {
+      app.renderer.resize(tw, th);
+      curW = tw; curH = th;
+    }
+    if (m.portrait) {
+      canvas.style.width = m.vw + 'px';
+      canvas.style.height = m.vh + 'px';
+    }
+    G.VIEW.mode = m.mode;
+    G.VIEW.w = curW;
+    G.VIEW.h = curH;
+    if (game && game.applyLayout) game.applyLayout(m.mode, curW, curH);
+    return m;
   }
 
   async function boot() {
     const res = Math.min(window.devicePixelRatio || 1, 2);
-    const app = new PIXI.Application();
+    const m0 = measure();
+    curW = m0.portrait ? m0.vw : G.W;
+    curH = m0.portrait ? m0.vh : G.H;
+    G.VIEW.mode = m0.mode;
+    G.VIEW.w = curW;
+    G.VIEW.h = curH;
+    app = new PIXI.Application();
     // 검증(스크린샷) 세션에서만 프레임 버퍼를 보존한다 — ?capture=1
     const capture = typeof location !== 'undefined' && /[?&]capture=1/.test(location.search);
     await app.init({
       canvas,
-      width: G.W,
-      height: G.H,
+      width: curW,
+      height: curH,
       resolution: res,
       autoDensity: false,
       antialias: true,
@@ -52,8 +89,10 @@
     // 파츠 리그 목차(rig meta) — 로비 미리보기·전투 출전이 같은 표를 본다
     try { await G.Rigs.loadMeta('assets/rig/meta.json'); } catch (e) { fail('rig meta: ' + e.message); }
 
-    const game = new G.Game(app);
+    const game2 = new G.Game(app);
+    game = game2;
     window.__GAME = game;
+    if (game.applyLayout) game.applyLayout(G.VIEW.mode, G.VIEW.w, G.VIEW.h);
     app.ticker.add(() => {
       const dt = Math.min(app.ticker.deltaMS / 1000, 0.05);
       if (game.frozen) return;
@@ -68,7 +107,10 @@
     // ---- 입력 ----
     function localPos(e) {
       const r = canvas.getBoundingClientRect();
-      return { x: ((e.clientX - r.left) / r.width) * G.W, y: ((e.clientY - r.top) / r.height) * G.H };
+      return {
+        x: ((e.clientX - r.left) / Math.max(1, r.width)) * G.VIEW.w,
+        y: ((e.clientY - r.top) / Math.max(1, r.height)) * G.VIEW.h,
+      };
     }
     const active = new Map();
     canvas.addEventListener('pointerdown', (e) => {
@@ -333,6 +375,15 @@
           game.scene.shake(8, 0.2);
         }
       },
+      // ---- Step 9-1 : 화면 배치(가로/세로) ----
+      viewInfo: () => ({
+        mode: G.VIEW.mode, w: G.VIEW.w, h: G.VIEW.h,
+        world: { ...G.VIEW.world }, bandBottom: G.VIEW.bandBottom,
+        canvas: { w: canvas.width, h: canvas.height, css: { w: canvas.clientWidth, h: canvas.clientHeight } },
+      }),
+      hudLayout: () => (game.hud && game.hud.layoutInfo ? game.hud.layoutInfo() : null),
+      lobbyLayout: () => (game.lobby && game.lobby.layoutInfo ? game.lobby.layoutInfo() : null),
+      hitAt: (x, y) => ({ hud: game.hud && game.hud.ownerAt ? game.hud.ownerAt(x, y) : null }),
     };
   }
 

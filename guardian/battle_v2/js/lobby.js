@@ -59,26 +59,83 @@
     ['M', '소리 켜기 · 끄기'],
   ];
 
-  /* ---------------------------------------------------------------- 배치(1280×720) */
-  const P = {
-    headerH: 56,
-    sound: { x: 1148, y: 11, w: 110, h: 38 },
-    stageSel: { x0: 432, y: 9, w: 334, h: 38, gap: 12 },
-    infoX: 20,
-    infoW: 390,
-    support: { x: 20, y: 60, w: 390, h: 252 },
-    keys: { x: 20, y: 324, w: 390, h: 304 },
-    keyToggle: { x: 232, y: 332, w: 124, h: 30 },
-    stage: { x: 566, y: 58, w: 340, h: 300 },
-    name: { x: 566, y: 362, w: 340, h: 54 },
-    skins: { x: 566, y: 422, w: 340, h: 34, gap: 5 },
-    sdX: 512, sdFoot: 402, sdBody: 238,
-    bubble: { x: 466, y: 462, w: 540, h: 78 },
-    stageHit: { x: 424, y: 92, w: 622, h: 362 },
-    hintY: 548,
-    sortie: { x: 570, y: 566, w: 320, h: 86 },
-    rail: { x: 1138, y: 62, w: 126, h: 540, cy0: 118, step: 100, r: 38 },
-  };
+  /* ---------------------------------------------------------------- 배치
+     가로(1280×720)는 지금까지 그대로. 세로는 화면 픽셀 기준으로 다시 짠다 (Step 9-1). */
+  function layoutLandscape() {
+    return {
+      mode: 'landscape',
+      V: { w: 1280, h: 720 },
+      headerH: 56,
+      sound: { x: 1148, y: 11, w: 110, h: 38 },
+      stageSel: { x0: 432, y: 9, w: 334, h: 38, gap: 12 },
+      infoX: 20,
+      infoW: 390,
+      support: { x: 20, y: 60, w: 390, h: 252 },
+      keys: { x: 20, y: 324, w: 390, h: 304 },
+      keyToggle: { x: 232, y: 332, w: 124, h: 30 },
+      stage: { x: 566, y: 58, w: 340, h: 300 },
+      name: { x: 566, y: 362, w: 340, h: 54 },
+      skins: { x: 566, y: 422, w: 340, h: 34, gap: 5 },
+      sdX: 512, sdFoot: 402, sdBody: 238,
+      bubble: { x: 466, y: 462, w: 540, h: 78 },
+      stageHit: { x: 424, y: 92, w: 622, h: 362 },
+      hintY: 548,
+      hintX: 730,
+      sortie: { x: 570, y: 566, w: 320, h: 86 },
+      rail: { x: 1138, y: 62, w: 126, h: 540, cy0: 118, step: 100, r: 38, dir: 'v' },
+      supRow: { y0: 46, step: 66 },
+      keyRow: { y0: 52, step: 27 },
+      tabs: null,
+      tab: null,
+    };
+  }
+
+  /* 세로 — 헤더 → 스테이지 카드 → 동료 레일(가로) → 캐릭터 전시 → 이름·스킨 → 말풍선
+     → (지원 편성 / 조작 안내 탭) → 출격. 넘치지 않게 모든 값이 화면 크기에서 나온다. */
+  function layoutPortrait(w, h) {
+    const m = 8;
+    const W1 = w - m * 2;
+    const stageY = 160;
+    const stageH = Math.round(G.clamp(h * 0.24, 168, 224));
+    const nameY = stageY + stageH + 6;
+    const skinY = nameY + 44;
+    const bubbleY = skinY + 34;
+    const hintY = bubbleY + 70;
+    const tabY = hintY + 18;
+    const tabH = 26;
+    const padY = tabY + tabH + 6;
+    const sortieH = 68;
+    const sortieY = h - sortieH - 26;
+    const panelH = Math.max(150, sortieY - 8 - padY);
+    return {
+      mode: 'portrait',
+      V: { w, h },
+      headerH: 52,
+      sound: { x: w - m - 92, y: 8, w: 92, h: 32 },
+      stageSel: { x0: m, y: 54, w: (W1 - 6) / 2, h: 32, gap: 6 },
+      infoX: m,
+      infoW: W1,
+      support: { x: m, y: padY, w: W1, h: panelH },
+      keys: { x: m, y: padY, w: W1, h: panelH },
+      keyToggle: { x: w - m - 92, y: padY + 6, w: 84, h: 26 },
+      stage: { x: 26, y: stageY, w: w - 52, h: stageH },
+      name: { x: 26, y: nameY, w: w - 52, h: 40 },
+      skins: { x: 26, y: skinY, w: w - 52, h: 30, gap: 4 },
+      sdX: w / 2, sdFoot: stageY + stageH - 4, sdBody: Math.round(stageH * 0.84),
+      bubble: { x: m, y: bubbleY, w: W1, h: 64 },
+      stageHit: { x: 12, y: stageY - 6, w: w - 24, h: stageH + 50 },
+      hintY,
+      hintX: w / 2,
+      sortie: { x: 24, y: sortieY, w: w - 48, h: sortieH },
+      rail: { x: m, y: 94, w: W1, h: 52, cy0: 0, step: Math.min(70, (W1 - 12) / 4), r: 21, dir: 'h' },
+      supRow: { y0: 14, step: Math.round((panelH - 20) / 3) },
+      keyRow: { y0: 12, step: Math.round((panelH - 16) / 9) },
+      tabs: { x: m, y: tabY, w: W1, h: tabH },
+      tab: null,
+    };
+  }
+
+  let P = layoutLandscape();
 
   /* 판타지 패널 헬퍼 */
   function platePath(g, x, y, w, h, cut) {
@@ -110,12 +167,21 @@
       this.portraitFade = 1;   // 캐릭터 전환 페이드
       this.bubbleT = 0;        // 말풍선 등장 애니메이션
       this.controlsOpen = true;
+      this.tab = 'support';       // 세로 화면의 지원 편성 / 조작 안내 탭
       this.tips = 0;           // 말풍선 힌트를 몇 번 눌렀는지
       this.embers = [];
       this.mists = [];
       this.playLog = [];       // 검증용: 대사·보이스 재생 기록
 
+      // 부팅 시점의 화면 방향으로 바로 짓는다 (세로면 처음부터 세로 배치)
+      P = (G.VIEW && G.VIEW.mode === 'portrait')
+        ? layoutPortrait(G.VIEW.w, G.VIEW.h) : layoutLandscape();
+      this.mode = P.mode;
+      this.bw = P.V.w;
+      this.bh = P.V.h;
+
       this._build();
+      this.built = true;
       game.root.addChild(this.root);
     }
 
@@ -129,6 +195,65 @@
       this._buildStage();
       this._buildRail();
       this._buildSortie();
+      this._buildTabs();
+      this._applyTab();
+    }
+
+    /* ---- 지원 편성 / 조작 안내 탭 (세로 화면) ---- */
+    _buildTabs() {
+      this.tabBtns = null;
+      if (!P.tabs) { this.tabC = null; return; }
+      const T = P.tabs;
+      const c = new PIXI.Container();
+      this.tabC = c;
+      this.root.addChild(c);
+      const half = (T.w - 6) / 2;
+      this.tabBtns = {};
+      [['support', '지원 편성'], ['keys', '조작 안내']].forEach(([key, label], i) => {
+        const r = { x: T.x + i * (half + 6), y: T.y, w: half, h: T.h };
+        const g = new PIXI.Graphics();
+        const t = new PIXI.Text({ text: label, style: G.style({ fontSize: 14, fontWeight: '900', fill: 0xdff0ff, letterSpacing: 1 }) });
+        t.anchor.set(0.5); t.x = r.x + r.w / 2; t.y = r.y + r.h / 2;
+        c.addChild(g, t);
+        this.tabBtns[key] = { r, g, t };
+      });
+      this._drawTabs();
+    }
+
+    _drawTabs() {
+      if (!this.tabBtns) return;
+      Object.keys(this.tabBtns).forEach((k) => {
+        const b = this.tabBtns[k];
+        const on = (this.tab || 'support') === k;
+        b.g.clear();
+        b.g.roundRect(b.r.x, b.r.y, b.r.w, b.r.h, 9).fill({ color: on ? 0x241b06 : 0x0c1d2f, alpha: on ? 0.96 : 0.7 });
+        b.g.roundRect(b.r.x, b.r.y, b.r.w, b.r.h, 9).stroke({ width: on ? 2 : 1.2, color: on ? COL.gold : 0x5f86ad, alpha: on ? 0.95 : 0.4 });
+        b.t.style.fill = on ? 0xfff2c8 : 0x9fb8d0;
+      });
+    }
+
+    setTab(k) {
+      if (!this.tabBtns || (k !== 'support' && k !== 'keys')) return false;
+      if (this.tab === k) return false;
+      this.tab = k;
+      this._drawTabs();
+      this._applyTab();
+      G.Sfx.ui(true);
+      return true;
+    }
+
+    /* 탭에 따라 한 패널만 보여 준다 (가로 화면은 둘 다 그대로) */
+    _applyTab() {
+      if (!this.tabBtns) {
+        if (this.supportC) this.supportC.visible = true;
+        if (this.keysC) this.keysC.visible = true;
+        return;
+      }
+      const k = this.tab || 'support';
+      if (this.supportC) this.supportC.visible = k === 'support';
+      if (this.keysC) this.keysC.visible = k === 'keys';
+      if (this.supportTitle) this.supportTitle.visible = false;
+      if (this.keysTitle) this.keysTitle.visible = false;
     }
 
     /* ---- 스테이지 선택 (상단 · 1/2 스테이지) ---- */
@@ -219,25 +344,26 @@
       const tex = G.Assets.tex.bg;
       const bg = new PIXI.Sprite(tex);
       bg.anchor.set(0.5);
-      const s = Math.max(G.W / bg.width, G.H / bg.height) * 1.04;
+      const V = P.V;
+      const s = Math.max(V.w / bg.width, V.h / bg.height) * 1.04;
       bg.scale.set(s);
-      bg.x = G.W / 2; bg.y = G.H / 2;
+      bg.x = V.w / 2; bg.y = V.h / 2;
       bg.tint = 0xa8b6cc;           // 전투보다 한 톤 가라앉힌 조명
       this.bgSpr = bg;
       c.addChild(bg);
 
       // 화면을 어둡게 눌러 UI 가독성 확보
       const dark = new PIXI.Graphics();
-      dark.rect(0, 0, G.W, G.H).fill({ color: 0x03060c, alpha: 0.44 });
-      dark.rect(0, 0, G.W, 120).fill({ color: 0x02040a, alpha: 0.5 });
-      dark.rect(0, G.H - 120, G.W, 120).fill({ color: 0x02040a, alpha: 0.45 });
+      dark.rect(0, 0, V.w, V.h).fill({ color: 0x03060c, alpha: 0.44 });
+      dark.rect(0, 0, V.w, Math.min(120, V.h * 0.17)).fill({ color: 0x02040a, alpha: 0.5 });
+      dark.rect(0, V.h - Math.min(120, V.h * 0.17), V.w, Math.min(120, V.h * 0.17)).fill({ color: 0x02040a, alpha: 0.45 });
       c.addChild(dark);
 
       // 성문에서 흘러내리는 빛줄기 (가운데 = 전시 위치)
       const beam = new PIXI.Sprite(G.Assets.tex.beam);
       beam.anchor.set(0.5, 0);
-      beam.x = 730; beam.y = 46;
-      beam.width = 340; beam.height = 470;
+      beam.x = V.w * 0.5703; beam.y = V.h * 0.0639;
+      beam.width = Math.min(V.w * 0.6, V.w * 0.2656); beam.height = V.h * 0.6527;
       beam.alpha = 0.16;
       beam.tint = 0xffe6bd;
       beam.blendMode = 'add';
@@ -247,8 +373,8 @@
       // 캐릭터 뒤 따뜻한 조명
       const glow = new PIXI.Sprite(G.Assets.tex.glow);
       glow.anchor.set(0.5);
-      glow.x = 730; glow.y = 250;
-      glow.width = 900; glow.height = 760;
+      glow.x = V.w * 0.5703; glow.y = V.h * 0.3472;
+      glow.width = V.w * 0.703; glow.height = V.h * 1.0556;
       glow.tint = 0xffcf8f;
       glow.alpha = 0.2;
       glow.blendMode = 'add';
@@ -259,10 +385,10 @@
       for (let i = 0; i < 4; i++) {
         const m = new PIXI.Sprite(G.Assets.tex.mist);
         m.anchor.set(0.5);
-        m.width = 1400 + i * 120;
-        m.height = 220;
-        m.x = 300 + i * 260;
-        m.y = 470 + i * 22;
+        m.width = V.w * 1.09375 + i * 120;
+        m.height = V.h * 0.3056;
+        m.x = V.w * 0.2344 + i * 260;
+        m.y = V.h * 0.6528 + i * 22;
         m.alpha = 0.16 - i * 0.025;
         m.tint = 0x9fc6ff;
         m.blendMode = 'add';
@@ -278,7 +404,7 @@
 
       // 좌우 가장자리 비네트 (UI 뒤로 살짝 어둡게)
       const vg = new PIXI.Sprite(G.Assets.tex.vignette);
-      vg.width = G.W; vg.height = G.H;
+      vg.width = P.V.w; vg.height = P.V.h;
       vg.alpha = 0.55;
       c.addChild(vg);
     }
@@ -286,8 +412,8 @@
     _makeEmber(randomY) {
       const s = new PIXI.Sprite(G.Assets.tex.softDot);
       s.anchor.set(0.5);
-      s.x = G.rand(G.W + 40, -40);
-      s.y = randomY ? G.rand(G.H + 30, -30) : G.H + G.rand(30, 10);
+      s.x = G.rand(P.V.w + 40, -40);
+      s.y = randomY ? G.rand(P.V.h + 30, -30) : P.V.h + G.rand(30, 10);
       const sz = G.rand(11, 3.5);
       s.width = sz; s.height = sz;
       const warm = G.chance(0.72);
@@ -308,8 +434,8 @@
       this.root.addChild(c);
 
       const bar = new PIXI.Graphics();
-      bar.rect(0, 0, G.W, P.headerH).fill({ color: 0x03080f, alpha: 0.62 });
-      bar.moveTo(0, P.headerH).lineTo(G.W, P.headerH).stroke({ width: 1, color: COL.goldDim, alpha: 0.5 });
+      bar.rect(0, 0, P.V.w, P.headerH).fill({ color: 0x03080f, alpha: 0.62 });
+      bar.moveTo(0, P.headerH).lineTo(P.V.w, P.headerH).stroke({ width: 1, color: COL.goldDim, alpha: 0.5 });
       c.addChild(bar);
 
       const title = new PIXI.Text({
@@ -378,6 +504,7 @@
     _buildSupportPanel() {
       const R = P.support;
       const c = new PIXI.Container();
+      this.supportC = c;
       this.root.addChild(c);
 
       const g = new PIXI.Graphics();
@@ -390,6 +517,7 @@
       const t = new PIXI.Text({ text: '지원 편성', style: G.style({ fontSize: 18, fontWeight: '900', fill: COL.goldSoft, letterSpacing: 2 }) });
       t.x = R.x + 26; t.y = R.y + 13;
       c.addChild(t);
+      this.supportTitle = t;
 
       const sub = new PIXI.Text({ text: 'SUPPORT  ·  쿨타임이 차면 달려옵니다', style: G.style({ fontSize: 10, fill: COL.dim, letterSpacing: 0.6 }) });
       sub.anchor.set(1, 0);
@@ -398,7 +526,7 @@
       this.supportRows = [];
 
       SUPPORT.forEach((s, i) => {
-        const y = R.y + 46 + i * 66;
+        const y = R.y + (P.supRow.y0) + i * P.supRow.step;
         const row = new PIXI.Container();
         c.addChild(row);
 
@@ -444,6 +572,7 @@
     _buildKeyPanel() {
       const R = P.keys;
       const c = new PIXI.Container();
+      this.keysC = c;
       this.root.addChild(c);
 
       // 접기/펼치기에 따라 높이가 바뀌므로 패널 배경은 따로 그린다
@@ -453,6 +582,7 @@
       const t = new PIXI.Text({ text: '조작 안내', style: G.style({ fontSize: 18, fontWeight: '900', fill: 0xd8ecff, letterSpacing: 2 }) });
       t.x = R.x + 26; t.y = R.y + 13;
       c.addChild(t);
+      this.keysTitle = t;
 
       // 토글 버튼
       const b = P.keyToggle;
@@ -472,7 +602,7 @@
       this.keyRows = new PIXI.Container();
       c.addChild(this.keyRows);
       KEYS.forEach(([key, desc], i) => {
-        const y = R.y + 52 + i * 27;
+        const y = R.y + (P.keyRow.y0) + i * P.keyRow.step;
         if (i % 2 === 0) {
           const band = new PIXI.Graphics();
           band.roundRect(R.x + 14, y - 3, R.w - 28, 25, 6).fill({ color: 0x0e2033, alpha: 0.4 });
@@ -480,12 +610,12 @@
         }
         const kt = new PIXI.Text({
           text: key,
-          style: G.style({ fontSize: 12.5, fontWeight: '900', fill: 0xffe4b0, letterSpacing: 0.4 }),
+          style: G.style({ fontSize: P.mode === 'portrait' ? 11.5 : 12.5, fontWeight: '900', fill: 0xffe4b0, letterSpacing: 0.4 }),
         });
         kt.x = R.x + 26; kt.y = y;
         this.keyRows.addChild(kt);
 
-        const dt2 = new PIXI.Text({ text: desc, style: G.style({ fontSize: 12, fill: 0xbcd6ec }) });
+        const dt2 = new PIXI.Text({ text: desc, style: G.style({ fontSize: P.mode === 'portrait' ? 11 : 12, fill: 0xbcd6ec }) });
         dt2.anchor.set(1, 0);
         dt2.x = R.x + R.w - 26; dt2.y = y + 0.5;
         this.keyRows.addChild(dt2);
@@ -504,17 +634,20 @@
 
     _applyControls() {
       const R = P.keys;
-      const h = this.controlsOpen ? R.h : 108;
+      const tabbed = P.mode === 'portrait';     // 세로는 탭으로 펼침/접기 없이 항상 보여 준다
+      const h = tabbed ? R.h : (this.controlsOpen ? R.h : 108);
       const g = this.keyPanelG;
       g.clear();
       plate(g, R.x, R.y, R.w, h, 14, COL.plate, 0.72);
       edge(g, R.x, R.y, R.w, h, 14, COL.edge, 0.3);
       gem(g, R.x + 12, R.y + 24, 5.5, COL.edge, 0.8);
       g.moveTo(R.x + 24, R.y + 40).lineTo(R.x + R.w - 14, R.y + 40).stroke({ width: 1, color: COL.edge, alpha: 0.16 });
-      this.keyRows.visible = this.controlsOpen;
-      this.keyHint.visible = !this.controlsOpen;
+      this.keyRows.visible = tabbed ? true : this.controlsOpen;
+      this.keyHint.visible = tabbed ? false : !this.controlsOpen;
       this.keyHint.y = R.y + 56;
       this.keyToggleText.text = this.controlsOpen ? '접기' : '펼치기';
+      if (this.keyToggleBg) this.keyToggleBg.visible = !tabbed;
+      if (this.keyToggleText) this.keyToggleText.visible = !tabbed;
     }
 
     /* ---- 캐릭터 전시(초상화 + SD) ---- */
@@ -555,6 +688,15 @@
 
       // 이름판
       const N = P.name;
+      // 세로 화면: 이판·스킨 칸 뒤에 어두운 띠를 깔아 밝은 초상 위에서도 읽히게
+      if (P.mode === 'portrait') {
+        const back = new PIXI.Graphics();
+        const bx0 = N.x - 12, by0 = N.y - 8;
+        const bh0 = (P.skins.y + P.skins.h + 8) - by0;
+        back.roundRect(bx0, by0, N.w + 24, bh0, 12).fill({ color: 0x03080f, alpha: 0.84 });
+        back.roundRect(bx0, by0, N.w + 24, bh0, 12).stroke({ width: 1, color: COL.gold, alpha: 0.25 });
+        c.addChild(back);
+      }
       const np = new PIXI.Graphics();
       np.roundRect(N.x, N.y, N.w, N.h, 10).fill({ color: 0x050d16, alpha: 0.86 });
       np.roundRect(N.x, N.y, N.w, N.h, 10).stroke({ width: 1.2, color: COL.gold, alpha: 0.35 });
@@ -643,7 +785,8 @@
         style: G.style({ fontSize: 11.5, fill: COL.dim, letterSpacing: 0.6 }),
       });
       this.hintText.anchor.set(0.5);
-      this.hintText.x = 730; this.hintText.y = P.hintY;
+      this.hintText.x = P.hintX != null ? P.hintX : 730;
+      this.hintText.y = P.hintY;
       c.addChild(this.hintText);
 
       this.stageC = c;
@@ -664,11 +807,14 @@
       t.anchor.set(0.5, 0);
       t.x = R.x + R.w / 2; t.y = R.y + 12;
       c.addChild(t);
+      t.visible = R.dir !== 'h';
 
       this.thumbs = [];
+      const horiz = R.dir === 'h';
+      const hx0 = R.x + (R.w - (CAST.length - 1) * R.step) / 2;
       CAST.forEach((cast, i) => {
-        const cx = R.x + R.w / 2;
-        const cy = R.cy0 + i * R.step + 22;
+        const cx = horiz ? (hx0 + i * R.step) : (R.x + R.w / 2);
+        const cy = horiz ? (R.y + R.h / 2 - 5) : (R.cy0 + i * R.step + 22);
         const holder = new PIXI.Container();
         c.addChild(holder);
 
@@ -743,7 +889,11 @@
         style: G.style({ fontSize: 12.5, fontWeight: '800', fill: 0xffd166, letterSpacing: 0.6 }),
       });
       this.resultBadge.anchor.set(1, 0);
-      this.resultBadge.x = 1116; this.resultBadge.y = 552;
+      if (P.mode === 'portrait') {
+        this.resultBadge.x = P.V.w - 14; this.resultBadge.y = P.hintY - 14;
+      } else {
+        this.resultBadge.x = 1116; this.resultBadge.y = 552;
+      }
       this.resultBadge.visible = false;
       c.addChild(this.resultBadge);
     }
@@ -963,7 +1113,12 @@
         if (inRect(this.stagePills[i].r)) { this.selectStage(i); return true; }
       }
       if (inRect(P.sound)) { this.toggleSound(); return true; }
-      if (inRect(P.keyToggle)) { this.toggleControls(); return true; }
+      if (this.tabBtns) {
+        for (const k of Object.keys(this.tabBtns)) {
+          if (inRect(this.tabBtns[k].r)) { this.setTab(k); return true; }
+        }
+      }
+      if (inRect(P.keyToggle) && P.mode !== 'portrait') { this.toggleControls(); return true; }
       for (const b of (this.skinBtns || [])) {
         if (inRect(b)) { this.setSkin(b.skin); return true; }
       }
@@ -988,23 +1143,23 @@
 
       // 배경 호흡
       if (this.bgSpr) {
-        this.bgSpr.x = G.W / 2 + Math.sin(t * 0.09) * 7;
-        this.bgSpr.y = G.H / 2 + Math.sin(t * 0.07 + 1) * 4;
+        this.bgSpr.x = P.V.w / 2 + Math.sin(t * 0.09) * 7;
+        this.bgSpr.y = P.V.h / 2 + Math.sin(t * 0.07 + 1) * 4;
       }
       this.beam.alpha = 0.14 + Math.sin(t * 0.6) * 0.035;
       this.warmGlow.alpha = 0.18 + Math.sin(t * 0.5 + 0.6) * 0.04;
 
       for (const m of this.mists) {
         m.x += m._vx * dt;
-        if (m.x - m.width / 2 > G.W + 60) m.x = -m.width / 2 - 60;
+        if (m.x - m.width / 2 > P.V.w + 60) m.x = -m.width / 2 - 60;
       }
 
       for (const s of this.embers) {
         s.y -= s._vy * dt;
         s.x += Math.sin(t * 0.7 + s._ph) * 9 * dt + s._vx * dt;
         if (s.y < -24) {
-          s.y = G.H + G.rand(24, 6);
-          s.x = G.rand(G.W + 40, -40);
+          s.y = P.V.h + G.rand(24, 6);
+          s.x = G.rand(P.V.w + 40, -40);
         }
       }
 
@@ -1068,6 +1223,81 @@
         if (!th.sel.visible) return;
         th.sel.alpha = 0.75 + Math.sin(t * 3 + i) * 0.22;
       });
+    }
+
+    /* ================================================================ 화면 배치 (Step 9-1) */
+    /* 가로↔세로나 화면 크기가 바뀌면 로비를 새 배치로 다시 만든다 (선택·탭 상태는 이어진다) */
+    applyLayout(mode, w, h) {
+      const same = this.built && this.mode === mode && this.bw === w && this.bh === h;
+      this.mode = mode;
+      this.bw = w;
+      this.bh = h;
+      P = (mode === 'portrait') ? layoutPortrait(w, h) : layoutLandscape();
+      if (same) return false;
+      this._rebuild();
+      return true;
+    }
+
+    _rebuild() {
+      const keep = {
+        sel: this.sel, skin: this.skin, controlsOpen: this.controlsOpen,
+        tab: this.tab || 'support', lineIdx: this.lineIdx,
+        resultEcho: this.resultEcho, tips: this.tips,
+      };
+      const vis = this.root.visible;
+      const kids = this.root.removeChildren();
+      kids.forEach((c) => { try { c.destroy({ children: true }); } catch (e) { /* 이미 없어진 것 */ } });
+      this.thumbs = [];
+      this.skinBtns = [];
+      this.supportRows = [];
+      this.mists = [];
+      this.embers = [];
+      this.stagePills = [];
+      this.rig = null;
+      this.rigKey = null;
+      Object.assign(this, keep);
+      this.playLog = this.playLog || [];
+      this._build();
+      this.built = true;
+      this.root.visible = vis;
+      this._applyChar(false);
+      this._drawSound();
+      this._applyControls();
+      this._drawStageSel();
+      this._drawTabs();
+      this._applyTab();
+      if (this.resultBadge) {
+        const win = this.resultEcho === 'victory';
+        this.resultBadge.visible = !!this.resultEcho;
+        this.resultBadge.text = win ? '직전 전투 · 승리' : '직전 전투 · 패배';
+        this.resultBadge.style.fill = win ? 0xffd166 : 0xff8091;
+      }
+    }
+
+    /* 검증용: 지긌 배치된 로비 요소의 화면 좌표 */
+    layoutInfo() {
+      const h = this.hits();
+      const r = (o) => ({ x: +o.x.toFixed(1), y: +o.y.toFixed(1), w: +o.w.toFixed(1), h: +o.h.toFixed(1) });
+      return {
+        mode: P.mode, vw: P.V.w, vh: P.V.h,
+        sound: r(h.sound), controls: r(h.keyToggle || P.keyToggle), sortie: r(h.sortie), stage: r(h.stage),
+        stages: h.stages.map(r),
+        skins: h.skins.map((s) => Object.assign(r(s), { skin: s.skin })),
+        chars: h.chars.map((c) => Object.assign(r(c), { key: c.key })),
+        tabs: this.tabBtns ? Object.keys(this.tabBtns).map((k) => Object.assign({ key: k }, r(this.tabBtns[k].r))) : [],
+        panels: {
+          support: r(P.support), keys: r(P.keys),
+          supportVisible: !!(this.supportC && this.supportC.visible),
+          keysVisible: !!(this.keysC && this.keysC.visible),
+        },
+        stageFrame: r({ x: P.stage.x - 10, y: P.stage.y - 10, w: P.stage.w + 20, h: P.stage.h + 20 }),
+        bubble: r(P.bubble),
+        name: r(P.name),
+        skinBar: r(P.skins),
+        rail: r(P.rail),
+        hint: { x: +this.hintText.x.toFixed(1), y: +this.hintText.y.toFixed(1) },
+        title: { x: 26, y: 8 },
+      };
     }
 
     /* ================================================================ 검증용 */

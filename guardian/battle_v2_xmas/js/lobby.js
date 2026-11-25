@@ -3,7 +3,54 @@
  * - 고른 캐릭터·스킨이 그대로 전투 메인으로 출전한다
  */
 (function () {
-  const W = 1280, H = 720;
+  /* 화면 배치 (Step 9-1) — 가로 1280×720 은 종전 그대로,
+     세로는 화면 픽셀 기준으로 다시 짠다. W/H 는 지금 배치의 화면 크기다. */
+  let W = 1280, H = 720;
+  let LY = null;
+
+  function layoutLandscape() {
+    W = 1280; H = 720;
+    return {
+      mode: 'landscape', w: W, h: H,
+      headH: 104, t1: { x: 48, y: 30, size: 30 }, t2: { x: 50, y: 68, size: 15 },
+      stageC: { x: W * 0.34, y: H - 196, rx: 190, ry: 42 },
+      rig: { x: W * 0.34, foot: H - 188, body: 330 },
+      info: { x: 760, y: 150, w: 470, h: 300 },
+      name: { x: 792, y: 172, size: 34 }, role: { x: 794, y: 216, size: 15 },
+      stat: { x: 794, y: 248, size: 14, lh: 24 }, line: { x: 794, y: 366, size: 15, lh: 22, wrap: 410 },
+      skinLabel: { x: 792, y: 462, size: 14 },
+      skins: { x: 760, y: 486, w: 146, h: 48, gap: 12, size: 14 },
+      cards: { x: 40, y: H - 172, w: 142, h: 150, gap: 8, name: 15 },
+      deploy: { x: 800, y: H - 134, w: 420, h: 84 }, deployText: { x: 1010, y: H - 92, size: 26 },
+      hint: { x: 46, y: H - 20, size: 12 },
+    };
+  }
+
+  /* 세로 — 제목 → 정보 → 리그 무대 → 카드 5장 → 스킨 3칸 → 출격 */
+  function layoutPortrait(w, h) {
+    W = w; H = h;
+    const m = 8, W1 = w - m * 2;
+    const cardW = (W1 - 4 * 6) / 5;
+    const cardH = 112;
+    const cardY = h - 330;
+    return {
+      mode: 'portrait', w, h,
+      headH: 76, t1: { x: 14, y: 12, size: 21 }, t2: { x: 15, y: 44, size: 11.5 },
+      stageC: { x: w / 2, y: cardY - 8, rx: 150, ry: 24 },
+      rig: { x: w / 2, foot: cardY - 12, body: 200 },
+      info: { x: m, y: 82, w: W1, h: 152 },
+      name: { x: m + 16, y: 94, size: 24 }, role: { x: m + 17, y: 126, size: 12 },
+      stat: { x: m + 17, y: 146, size: 11, lh: 15 }, line: { x: m + 17, y: 194, size: 12, lh: 16, wrap: W1 - 34 },
+      skinLabel: { x: m + 4, y: h - 210, size: 12 },
+      skins: { x: m, y: h - 192, w: (W1 - 12) / 3, h: 40, gap: 6, size: 12 },
+      cards: { x: m, y: cardY, w: cardW, h: cardH, gap: 0, name: 11 },
+      deploy: { x: m, y: h - 104, w: W1, h: 66 }, deployText: { x: w / 2, y: h - 71, size: 22 },
+      hint: { x: m + 4, y: h - 16, size: 9.5 },
+      hintText: '← → 이동 · J 공격 · K 스킬 · L 궁극기 · Shift 회피 · Q 물약',
+    };
+  }
+
+  LY = layoutLandscape();
 
   function plate(g, x, y, w, h, cut, fill, alpha) {
     const p = [x + cut, y, x + w - cut, y, x + w, y + cut, x + w, y + h - cut,
@@ -35,7 +82,53 @@
       this.loaded = {};
       this.deployLock = false;
       this.log = [];
+      // 부팅 시점의 화면 방향으로 바로 짓는다 (세로면 처음부터 세로 배치)
+      LY = (G.VIEW && G.VIEW.mode === 'portrait')
+        ? layoutPortrait(G.VIEW.w, G.VIEW.h) : layoutLandscape();
+      this.mode = LY.mode;
+      this.bw = LY.w;
+      this.bh = LY.h;
       this._build();
+      this.built = true;
+    }
+
+    /* ================================================================ 화면 배치 (Step 9-1) */
+    applyLayout(mode, w, h) {
+      const same = this.built && this.mode === mode && this.bw === w && this.bh === h;
+      this.mode = mode;
+      this.bw = w;
+      this.bh = h;
+      LY = (mode === 'portrait') ? layoutPortrait(w, h) : layoutLandscape();
+      if (same) return false;
+      const keep = { charKey: this.charKey, skin: this.skin };
+      const vis = this.root.visible;
+      const kids = this.root.removeChildren();
+      kids.forEach((c) => { try { c.destroy({ children: true }); } catch (e) { /* 이미 없어진 것 */ } });
+      this.cards = [];
+      this.skinBtns = [];
+      this.flakes = [];
+      this.rig = null;
+      this.rigKey = null;
+      Object.assign(this, keep);
+      this._build();
+      this.built = true;
+      this.root.visible = vis;
+      return true;
+    }
+
+    /* 검증용: 지금 배치된 로비 요소의 화면 좌표 */
+    layoutInfo() {
+      const r = (o) => ({ x: +o.x.toFixed(1), y: +o.y.toFixed(1), w: +o.w.toFixed(1), h: +o.h.toFixed(1) });
+      return {
+        mode: LY.mode, vw: LY.w, vh: LY.h,
+        title: { x: LY.t1.x, y: LY.t1.y, size: LY.t1.size },
+        info: r(LY.info),
+        skins: this.skinBtns.map((b) => Object.assign(r(b), { skin: b.skin })),
+        cards: this.cards.map((c) => Object.assign(r(c), { key: c.key })),
+        deploy: r(this.depBtn),
+        hint: { x: LY.hint.x, y: LY.hint.y },
+        rig: { x: LY.rig.x, foot: LY.rig.foot, body: LY.rig.body },
+      };
     }
 
     /* ---------------- 화면 ---------------- */
@@ -63,28 +156,28 @@
 
       // 상단 타이틀
       const head = new PIXI.Graphics();
-      head.rect(0, 0, W, 104).fill({ color: 0x030812, alpha: 0.55 });
-      head.rect(0, 104, W, 26).fill({ color: 0x030812, alpha: 0.22 });
+      head.rect(0, 0, W, LY.headH).fill({ color: 0x030812, alpha: 0.55 });
+      head.rect(0, LY.headH, W, 26).fill({ color: 0x030812, alpha: 0.22 });
       c.addChild(head);
 
       const t1 = new PIXI.Text({
         text: '메리 크리스마스! 성문을 지켜라',
-        style: { fontFamily: G.FONT, fontSize: 30, fontWeight: '900', fill: 0xf6fbff, letterSpacing: 3,
+        style: { fontFamily: G.FONT, fontSize: LY.t1.size, fontWeight: '900', fill: 0xf6fbff, letterSpacing: 3,
           stroke: { color: 0x0a1c38, width: 6 }, dropShadow: { color: 0x5fa8ff, blur: 10, distance: 0, alpha: 0.45 } },
       });
-      t1.x = 48; t1.y = 30;
+      t1.x = LY.t1.x; t1.y = LY.t1.y;
       c.addChild(t1);
       const t2 = new PIXI.Text({
         text: '축제 대기실  ·  출전할 수호자를 고르세요',
-        style: { fontFamily: G.FONT, fontSize: 15, fill: 0xa8c8e8, letterSpacing: 1 },
+        style: { fontFamily: G.FONT, fontSize: LY.t2.size, fill: 0xa8c8e8, letterSpacing: 1 },
       });
-      t2.x = 50; t2.y = 68;
+      t2.x = LY.t2.x; t2.y = LY.t2.y;
       c.addChild(t2);
 
       // 왼쪽: 리그 미리보기 무대
       this.stageG = new PIXI.Graphics();
-      this.stageG.ellipse(W * 0.34, H - 196, 190, 42).fill({ color: 0x2a4a78, alpha: 0.30 });
-      this.stageG.ellipse(W * 0.34, H - 196, 130, 28).fill({ color: 0x8fd6ff, alpha: 0.16 });
+      this.stageG.ellipse(LY.stageC.x, LY.stageC.y, LY.stageC.rx, LY.stageC.ry).fill({ color: 0x2a4a78, alpha: 0.30 });
+      this.stageG.ellipse(LY.stageC.x, LY.stageC.y, LY.stageC.rx * 0.68, LY.stageC.ry * 0.66).fill({ color: 0x8fd6ff, alpha: 0.16 });
       c.addChild(this.stageG);
       this.rigLayer = new PIXI.Container();
       c.addChild(this.rigLayer);
@@ -93,30 +186,31 @@
       this.info = new PIXI.Container();
       c.addChild(this.info);
       const ig = new PIXI.Graphics();
-      plate(ig, 760, 150, 470, 300, 18, 0x0a1626, 0.82);
-      plateEdge(ig, 760, 150, 470, 300, 18, 0x6fa8e0, 0.45, 1.6);
+      plate(ig, LY.info.x, LY.info.y, LY.info.w, LY.info.h, 18, 0x0a1626, 0.82);
+      plateEdge(ig, LY.info.x, LY.info.y, LY.info.w, LY.info.h, 18, 0x6fa8e0, 0.45, 1.6);
       this.info.addChild(ig);
-      this.nameT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: 34, fontWeight: '900', fill: 0xf6fbff, letterSpacing: 2 } });
-      this.nameT.x = 792; this.nameT.y = 172;
+      this.nameT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: LY.name.size, fontWeight: '900', fill: 0xf6fbff, letterSpacing: 2 } });
+      this.nameT.x = LY.name.x; this.nameT.y = LY.name.y;
       this.info.addChild(this.nameT);
-      this.roleT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: 15, fill: 0x9fd6ff, letterSpacing: 1 } });
-      this.roleT.x = 794; this.roleT.y = 216;
+      this.roleT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: LY.role.size, fill: 0x9fd6ff, letterSpacing: 1 } });
+      this.roleT.x = LY.role.x; this.roleT.y = LY.role.y;
       this.info.addChild(this.roleT);
-      this.statT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: 14, fill: 0xc8dcf0, lineHeight: 24 } });
-      this.statT.x = 794; this.statT.y = 248;
+      this.statT = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: LY.stat.size, fill: 0xc8dcf0, lineHeight: LY.stat.lh } });
+      this.statT.x = LY.stat.x; this.statT.y = LY.stat.y;
       this.info.addChild(this.statT);
-      this.lineT2 = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: 15, fill: 0xffe6b8, lineHeight: 22, wordWrap: true, wordWrapWidth: 410 } });
-      this.lineT2.x = 794; this.lineT2.y = 366;
+      this.lineT2 = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: LY.line.size, fill: 0xffe6b8, lineHeight: LY.line.lh, wordWrap: true, wordWrapWidth: LY.line.wrap } });
+      this.lineT2.x = LY.line.x; this.lineT2.y = LY.line.y;
       this.info.addChild(this.lineT2);
 
       // 스킨 선택
-      const sk = new PIXI.Text({ text: '스킨', style: { fontFamily: G.FONT, fontSize: 14, fontWeight: '900', fill: 0x9fd6ff, letterSpacing: 2 } });
-      sk.x = 792; sk.y = 462;
+      const sk = new PIXI.Text({ text: '스킨', style: { fontFamily: G.FONT, fontSize: LY.skinLabel.size, fontWeight: '900', fill: 0x9fd6ff, letterSpacing: 2 } });
+      sk.x = LY.skinLabel.x; sk.y = LY.skinLabel.y;
       c.addChild(sk);
       for (let i = 0; i < 3; i++) {
         const g = new PIXI.Graphics();
-        const bx = 760 + i * 158, by = 486, bw = 146, bh = 48;
-        const t = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: 14, fontWeight: '800', fill: 0xdfeaf7, align: 'center' } });
+        const bx = LY.skins.x + i * (LY.skins.w + LY.skins.gap);
+        const by = LY.skins.y, bw = LY.skins.w, bh = LY.skins.h;
+        const t = new PIXI.Text({ text: '', style: { fontFamily: G.FONT, fontSize: LY.skins.size, fontWeight: '800', fill: 0xdfeaf7, align: 'center' } });
         t.anchor.set(0.5); t.x = bx + bw / 2; t.y = by + bh / 2;
         c.addChild(g, t);
         this.skinBtns.push({ g, t, x: bx, y: by, w: bw, h: bh, skin: G.CHARS.skins[i] });
@@ -126,14 +220,15 @@
       for (let i = 0; i < 5; i++) {
         const key = G.CHARS.order[i];
         const cd = new PIXI.Container();
-        const bw = 142, bh = 150, bx = 40 + i * 150, by = H - 172;
+        const bw = LY.cards.w, bh = LY.cards.h;
+        const bx = LY.cards.x + i * (bw + LY.cards.gap), by = LY.cards.y;
         const g = new PIXI.Graphics();
         const frame = new PIXI.Container();
         const img = new PIXI.Sprite(PIXI.Texture.WHITE);
         img.width = bw - 12; img.height = bh - 40;
         img.x = 6; img.y = 6;
         frame.addChild(img);
-        const nm = new PIXI.Text({ text: G.CHARS[key].name, style: { fontFamily: G.FONT, fontSize: 15, fontWeight: '900', fill: 0xf6fbff } });
+        const nm = new PIXI.Text({ text: G.CHARS[key].name, style: { fontFamily: G.FONT, fontSize: LY.cards.name, fontWeight: '900', fill: 0xf6fbff } });
         nm.anchor.set(0.5); nm.x = bw / 2; nm.y = bh - 16;
         cd.addChild(g, frame, nm);
         cd.x = bx; cd.y = by;
@@ -143,18 +238,18 @@
 
       // 출격 버튼
       this.depG = new PIXI.Graphics();
-      this.depT = new PIXI.Text({ text: '전투 출격', style: { fontFamily: G.FONT, fontSize: 26, fontWeight: '900', fill: 0xfff3d0, letterSpacing: 4 } });
+      this.depT = new PIXI.Text({ text: '전투 출격', style: { fontFamily: G.FONT, fontSize: LY.deployText.size, fontWeight: '900', fill: 0xfff3d0, letterSpacing: 4 } });
       this.depT.anchor.set(0.5);
-      this.depT.x = 1010; this.depT.y = H - 92;
+      this.depT.x = LY.deployText.x; this.depT.y = LY.deployText.y;
       c.addChild(this.depG, this.depT);
-      this.depBtn = { x: 800, y: H - 134, w: 420, h: 84 };
+      this.depBtn = { x: LY.deploy.x, y: LY.deploy.y, w: LY.deploy.w, h: LY.deploy.h };
 
       // 하단 안내
       const hint = new PIXI.Text({
-        text: '← → 이동 · W S 깊이 · Space 점프 · J 공격 · K 스킬 · L 궁극기 · Shift 회피 · Q 물약 · P 일시정지 · T 오토',
-        style: { fontFamily: G.FONT, fontSize: 12, fill: 0x7f9dbb, letterSpacing: 0.5 },
+        text: LY.hintText || '← → 이동 · W S 깊이 · Space 점프 · J 공격 · K 스킬 · L 궁극기 · Shift 회피 · Q 물약 · P 일시정지 · T 오토',
+        style: { fontFamily: G.FONT, fontSize: LY.hint.size, fill: 0x7f9dbb, letterSpacing: 0.5 },
       });
-      hint.x = 46; hint.y = H - 20;
+      hint.x = LY.hint.x; hint.y = LY.hint.y;
       c.addChild(hint);
 
       this._refreshCards();
@@ -242,9 +337,9 @@
       if (this.rig) { this.rigLayer.removeChild(this.rig.root); this.rig = null; }
       const C = G.CHARS.get(this.charKey);
       const rig = new G.Rig(def, { artFacing: C.artFacing, mainArm: C.mainArm });
-      rig.setBodyPx(330);
-      rig.root.x = W * 0.34;
-      rig.root.y = H - 188;
+      rig.setBodyPx(LY.rig.body);
+      rig.root.x = LY.rig.x;
+      rig.root.y = LY.rig.foot;
       rig.setState('idle', 0.5, {});
       rig.setState('victory', 0.5, {});
       rig.update(0.016);

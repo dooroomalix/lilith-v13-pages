@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.8.1-build481';
+G.VERSION = 'v5.9.0-build490';
 G.ASSET_V = 'a5.8.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
@@ -126,6 +126,23 @@ G.spawnX = (side) => {
   const s = G.SPAWN[side === 'left' ? 'left' : 'right'];
   return G.rand(s[1], s[0]);
 };
+
+/* ------------------------------------------------------------------
+ * 화면 배치 (Step 9-1) — 모바일 세로 화면 대응
+ *   가로(1280×720)는 종전 그대로: 세계·HUD·로비가 모두 1280×720 한 좌표계다.
+ *   세로(aspect < 1)는 두 좌표계로 나뉜다.
+ *     · 세계(월드)  : 1280×720 캔버스를 화면 폭에 맞춰 축소해 위쪽 띠에 둔다
+ *     · UI(HUD·로비) : 화면 픽셀(= CSS px) 좌표계. 폭·높이에 맞춰 다시 배치한다
+ *   V.mode / V.w · V.h 는 지금 화면, V.world 는 월드 띠의 배율·위치를 든다.
+ * ------------------------------------------------------------------ */
+G.VIEW = {
+  mode: 'landscape',
+  w: G.W,
+  h: G.H,
+  world: { x: 0, y: 0, scale: 1, w: G.W, h: G.H },
+  bandBottom: G.H,
+};
+G.isPortrait = () => G.VIEW.mode === 'portrait';
 
 G.fmtTime = (sec) => {
   sec = Math.max(0, Math.ceil(sec));

@@ -47,6 +47,13 @@
       this.root.sortableChildren = true;
       this.root.addChild(this.scene.root);
 
+      /* 1280×720 화면 좌표계를 쓰는 연출(사선 컷인·보스 컷인) — 세로 화면에서는
+         월드 띠와 같은 배율로 함께 줄어 화면 밖으로 잘리지 않는다 (Step 9-1) */
+      this.screenC = new PIXI.Container();
+      this.screenC.sortableChildren = true;
+      this.screenC.zIndex = 15;
+      this.root.addChild(this.screenC);
+
       this.hud = new G.Hud(app, this);
       this.hud.root.zIndex = 10;
       this.root.addChild(this.hud.root);
@@ -61,6 +68,11 @@
       this.overlay = new PIXI.Container();
       this.overlay.zIndex = 20;
       this.root.addChild(this.overlay);
+      /* 세로 화면에서 결과·일시정지 판이 화면 일부만 어둡게 남지 않도록 깔는 전체 안개 */
+      this.overlayDark = new PIXI.Graphics();
+      this.overlayDark.zIndex = 19;
+      this.overlayDark.visible = false;
+      this.root.addChild(this.overlayDark);
 
       /* Step 7: 로비에서 고른 캐릭터·스킨이 그대로 전투 메인으로 출전한다 */
       this.deployChar = 'kael';
@@ -495,6 +507,56 @@
       this.root.addChild(c);
     }
 
+    /* ================================================================ 화면 배치 (Step 9-1)
+       가로(1280×720): 모든 변환이 항등 — 지금까지와 픽셀 단위로 같다.
+       세로: 월드(장면·컷인·비네트)는 폭에 맞춰 줄여 위쪽 띠에, HUD·로비는 화면 픽셀로 재배치. */
+    applyLayout(mode, w, h) {
+      const portrait = mode === 'portrait';
+      G.VIEW.mode = mode;
+      G.VIEW.w = w;
+      G.VIEW.h = h;
+      const band = this.hud.relayout(mode, w, h);
+      G.VIEW.world = { x: band.x, y: band.y, scale: band.scale, w: band.w, h: band.h };
+      G.VIEW.bandBottom = band.y + band.h;
+      if (this.lobby && this.lobby.applyLayout) this.lobby.applyLayout(mode, w, h);
+
+      this.scene.root.scale.set(band.scale);
+      this.scene.root.position.set(band.x, band.y);
+      this.screenC.scale.set(band.scale);
+      this.screenC.position.set(band.x, band.y);
+      this.vignette.scale.set(band.scale);
+      this.vignette.position.set(band.x, band.y);
+
+      // 결과·일시정지 판 — 세로에서는 화면 폭에 맞춰 줄여 가운데에 둔다
+      const so = portrait ? G.clamp((w * 0.96) / 580, 0.4, 1) : 1;
+      this.overlay.scale.set(so);
+      this.overlay.position.set(portrait ? w / 2 - 640 * so : 0, portrait ? h * 0.42 - 360 * so : 0);
+
+      // 타이틀 화면
+      const fi = this.introC || this.introFade;
+      if (fi) {
+        fi.scale.set(portrait ? band.scale : 1);
+        fi.position.set(portrait ? band.x : 0, portrait ? band.y : 0);
+      }
+
+      // 화면 전체를 덮는 판들 — 캔버스 크기를 따라간다
+      this.fadeG2.clear();
+      this.fadeG2.rect(0, 0, portrait ? w : G.W, portrait ? h : G.H).fill({ color: 0x02040a, alpha: 1 });
+      this.overlayDark.clear();
+      if (portrait) this.overlayDark.rect(0, 0, w, h).fill({ color: 0x02060d, alpha: 0.9 });
+      if (this.scene.flashG) {
+        this.scene.flashG.clear();
+        this.scene.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xffffff, alpha: 1 });
+      }
+      return band;
+    }
+
+    /* 화면 좌표 → 결과 판(1280×720 설계 좌표) 좌표 */
+    _overlayLocal(x, y) {
+      const s = this.overlay.scale.x || 1;
+      return { x: (x - this.overlay.x) / s, y: (y - this.overlay.y) / s };
+    }
+
     /* ---------------- 입력 ---------------- */
     handlePointerDown(x, y, id) {
       G.Sfx.resume();
@@ -507,12 +569,14 @@
         return;
       }
       if (this.resultActive) {
-        const hit = this.overlayButtons.find((b) => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
+        const p = this._overlayLocal(x, y);
+        const hit = this.overlayButtons.find((b) => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h);
         if (hit) { hit.fn(); G.Sfx.ui(true); }
         return;
       }
       if (this.paused) {
-        const hit = this.overlayButtons.find((b) => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
+        const p = this._overlayLocal(x, y);
+        const hit = this.overlayButtons.find((b) => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h);
         if (hit) { hit.fn(); G.Sfx.ui(true); }
         return;
       }
@@ -914,8 +978,8 @@
         return true;
       }
       if (kind === 'starfall') {
-        const target = this._densestTarget();
-        const tx = target ? G.clamp(target.x, 220, 1060) : G.clamp(h.x + 380, 220, 1060);
+        const target = this._densestTarget(true);
+        const tx = target ? G.clamp(target.x, 220, 1060) : G.clamp(h.x + 380 * f, 220, 1060);
         const ty = target ? target.y : G.GROUND_Y;
         this.fx.rune(tx, ty - 6, C.colors.slash, 150, 0.9);
         this.fx.pillar(tx, ty - 10, C.colors.slash2, 520, 0.8, 160);
@@ -948,11 +1012,17 @@
       return true;
     }
 
-    /* 스킬 공통 판정 — 적·보스에 한 번에 적용 */
+    /* 스킬 공통 판정 — 적·보스에 한 번에 적용
+       Step 9-1: 원형 AoE 라도 데미지는 히어로가 보는 쪽(h.x · h.facing)의 반원 안에만 들어간다.
+       뒤쪽 허용은 G.LANE.back(6px)까지 — 등 뒤·허공 데미지 0 원칙을 전 캐릭터에 통일. */
     _skillHit(cx, cy, radius, dmg, opts = {}) {
+      const h = this.kael;
+      const hf = opts.facing != null ? opts.facing : ((h && h.facing) || 1);
+      const hx = opts.fromX != null ? opts.fromX : (h ? h.x : cx);
+      const front = (x) => G.inFront(hx, x, hf, 1e9);
       let n = 0;
       this.enemies.forEach((e) => {
-        if (!e.alive || e.dying) return;
+        if (!e.alive || e.dying || !front(e.x)) return;
         if (Math.abs(e.x - cx) < radius && Math.abs(e.y - cy) < radius * 0.75) {
           n++;
           this.stats.damage += dmg;
@@ -963,7 +1033,8 @@
           this._coopGain(G.COOP.hitGain);
         }
       });
-      if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - cx) < radius + 40) {
+      if (this.boss && this.boss.alive && !this.boss.dying && front(this.boss.x)
+        && Math.abs(this.boss.x - cx) < radius + 40) {
         this.stats.damage += dmg;
         const dir = Math.sign(this.boss.x - cx) || 1;
         this.boss.takeDamage(dmg, { crit: !!opts.crit, kb: opts.knock ? opts.knock * 0.12 : 40, dir });
@@ -996,8 +1067,8 @@
       G.Sfx.magic();
       if (G.Sfx.playVoice && C.voice.ult) G.Sfx.playVoice(C.voice.ult, { min: 1200, chance: 1 });
 
-      const target = this._densestTarget();
-      const tx = target ? G.clamp(target.x, 260, 1060) : 900;
+      const target = this._densestTarget(true);
+      const tx = target ? G.clamp(target.x, 260, 1060) : G.clamp(h.x + 380 * (h.facing || 1), 260, 1060);
       const ty = target ? target.y : G.GROUND_Y;
       const dmg = Math.round(h.atk * (u.dmg || 3));
       const kind = u.kind;
@@ -1391,7 +1462,7 @@
 
       c.x = -660;
       c.alpha = 0;
-      this.root.addChild(c);
+      this.screenC.addChild(c);
       this.coopCutin = c;
       this.coopCutT = 0;
     }
@@ -1500,7 +1571,7 @@
 
       c.x = 760;
       c.alpha = 0;
-      this.root.addChild(c);
+      this.screenC.addChild(c);
       this.bossCutin = c;
       this.bossCutT = 0;
     }
@@ -1565,7 +1636,7 @@
 
       c.x = -640;
       c.alpha = 0;
-      this.root.addChild(c);
+      this.screenC.addChild(c);
       this.cutin = c;
       this.cutT = 0;
     }
@@ -1617,7 +1688,7 @@
 
       c.x = -640;
       c.alpha = 0;
-      this.root.addChild(c);
+      this.screenC.addChild(c);
       this.cutin = c;
       this.cutT = 0;
     }
@@ -1678,14 +1749,19 @@
       G.Sfx.magic();
     }
 
-    _densestTarget() {
+    /* 스킬 대상 고르기 — front 를 주면 "히어로가 보는 쪽"만 후보로 본다 (Step 9-1).
+       등 뒤 대상에 스킬을 내리찍어 허공만 때리는 일을 없앤다. */
+    _densestTarget(front) {
+      const h = this.kael;
+      const hf = (h && h.facing) || 1;
+      const ok = (o) => !front || G.inFront(h.x, o.x, hf, 1e9);
       let best = null, bestScore = -1;
       this.enemies.forEach((e) => {
-        if (!e.alive || e.dying) return;
+        if (!e.alive || e.dying || !ok(e)) return;
         const score = this.enemies.filter((o) => o.alive && Math.abs(o.x - e.x) < 180).length + (e.x > 700 ? 0.5 : 0);
         if (score > bestScore) { bestScore = score; best = e; }
       });
-      if (!best && this.boss && this.boss.alive) return this.boss;
+      if (!best && this.boss && this.boss.alive && !this.boss.dying && ok(this.boss)) return this.boss;
       return best;
     }
 
@@ -2224,6 +2300,7 @@
       this.overlayButtons = [];
       this.resultActive = false;
       this.pauseActive = false;
+      if (this.overlayDark) this.overlayDark.visible = false;
     }
 
     _buildPauseOverlay() {
@@ -2262,6 +2339,7 @@
       mkBtn('처음부터', 428, () => { this.togglePause(); this._defeat('처음부터'); });
       this.overlay.addChild(c);
       this.pauseActive = true;
+      if (this.overlayDark && G.isPortrait()) this.overlayDark.visible = true;
     }
 
     _defeat(reason = '') {
@@ -2353,6 +2431,7 @@
       this.overlay.addChild(c);
       this.resultActive = true;
       this.overlay.alpha = 1;
+      if (this.overlayDark && G.isPortrait()) this.overlayDark.visible = true;
     }
 
     restart() {

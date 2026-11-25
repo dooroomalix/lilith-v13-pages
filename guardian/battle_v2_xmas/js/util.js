@@ -3,10 +3,21 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'XMAS-2.1.1-build041';
+G.VERSION = 'XMAS-2.2.0-build050';
 G.ASSET_V = 'axmas2.1.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
+
+/* 화면 배치 (Step 9-1) — 가로 1280×720 은 종전 그대로, 세로는 월드를 위쪽 띠로 두고
+   HUD·로비를 화면 픽셀 좌표로 다시 배치한다. */
+G.VIEW = {
+  mode: 'landscape',
+  w: G.W,
+  h: G.H,
+  world: { x: 0, y: 0, scale: 1, w: G.W, h: G.H },
+  bandBottom: G.H,
+};
+G.isPortrait = () => G.VIEW.mode === 'portrait';
 
 G.TAU = Math.PI * 2;
 
