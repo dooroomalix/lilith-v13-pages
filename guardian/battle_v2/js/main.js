@@ -148,7 +148,7 @@
         if (!e.repeat) {
           if (k === 'm') game.lobby.toggleSound();
           else if (k === 'Enter') { const ch = game.lobby.chosen(); game.deployFromLobby(ch.key, ch.skin); }
-          else if (k === '1' || k === '2') game.lobby.selectStage(Number(k) - 1);
+          else if (/^[1-9]$/.test(k) && Number(k) <= G.STAGES.length) game.lobby.selectStage(Number(k) - 1);
         }
         return;
       }
@@ -368,6 +368,37 @@
       // ---- 스테이지 · 구역 (Step 4-3) ----
       setStage: (i) => { game.setStage(i); if (game.lobby) game.lobby.syncStage(); return game.stage.key; },
       stages: () => G.STAGES.map((s) => ({ key: s.key, order: s.order, name: s.name, zones: s.zones.map((z) => z.name) })),
+      // ---- Step 9-3 : 3스테이지 확장 ----
+      stageLoad: () => G.STAGES.map((s) => G.stageLoad(s)),
+      stageLookInfo: () => ({
+        stage: game.stage ? game.stage.key : null,
+        order: game.stage ? game.stage.order : null,
+        look: game.scene ? game.scene.stageLook : null,
+        bgTint: game.scene && game.scene.bg ? game.scene.bg.tint : null,
+        citadel: !!(game.scene && game.scene.citadelC && game.scene.citadelC.visible),
+        warmTint: game.scene && game.scene.warmGlow ? game.scene.warmGlow.tint : null,
+        ringTint: game.scene && game.scene.ringG ? game.scene.ringG.tint : null,
+        floorTint: game.scene && game.scene.floorGlow ? game.scene.floorGlow.tint : null,
+        beamTint: game.scene && game.scene.beamList && game.scene.beamList[0] ? game.scene.beamList[0].s.tint : null,
+        lookChildren: game.scene && game.scene.citadelC ? game.scene.citadelC.children.length : 0,
+        area: game.zoneInfo ? game.zoneInfo().area : null,
+        bossArea: game.stage ? game.stage.bossArea : null,
+        reward: game.stage ? game.stage.reward : null,
+        bossHp: game.stage ? game.stage.bossHp : null,
+        bossTime: game.stage ? game.stage.bossTime : null,
+        timeLimit: game.stage ? game.stage.timeLimit : null,
+      }),
+      resultTexts: () => {
+        const out = [];
+        const walk = (n) => { if (!n) return; if (typeof n.text === 'string' && n.text) out.push(n.text); if (n.children) n.children.forEach(walk); };
+        walk(game.overlay);
+        return out;
+      },
+      rewardText: () => (game.rewardText && !game.rewardText.destroyed ? game.rewardText.text : null),
+      stageFlow: () => ({ stage: game.stage ? game.stage.key : null, order: game.stage ? game.stage.order : null,
+        phase: game.phase, waveIndex: game.waveIndex, waveCount: game.waves.length,
+        zoneIndex: game.zoneIndex, zoneCount: game.zones.length, zoneInfo: game.zoneInfo ? game.zoneInfo() : null,
+        banner: game.phaseMsg }),
       zoneInfo: () => game.zoneInfo(),
       forceZone: (zi) => {
         // 검증용: n번째 구역의 첫 웨이브로 건너뛴다

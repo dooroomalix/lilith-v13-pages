@@ -161,6 +161,7 @@
       // 기본은 1스테이지(성문 외곽 수비전) — 웨이브 표가 v5.5.0 까지와 완전히 같다.
       this.stageIndex = 0;
       this.stage = G.STAGES[0];
+      this.stageLook = 'gate';     // 지금 깔린 배경 공기 (scene.applyStageLook)
       this.waves = [];
       this.zones = [];
       this.zoneIndex = 0;
@@ -255,10 +256,15 @@
       G.Sfx.resume();
     }
 
-    /* 스테이지별 배경 색온도 — 결전(2스테이지)은 노을·핏빛으로 물든다 */
+    /* 스테이지별 배경 색온도 — 결전(2스테이지)은 노을·핏빛, 성채(3스테이지)는 자줏빛 어둠.
+       실제 색·오버레이는 장면(scene.js applyStageLook)이 한 곳에서 맞춘다. */
     _applyStageLook() {
       const st = this.stage;
-      if (this.scene && this.scene.bg) this.scene.bg.tint = st.bgTint || 0xffffff;
+      if (this.scene && this.scene.applyStageLook) {
+        this.stageLook = this.scene.applyStageLook(st);
+      } else if (this.scene && this.scene.bg) {
+        this.scene.bg.tint = st.bgTint || 0xffffff;
+      }
     }
 
     /* ---------------- 로비 ↔ 전투 ----------------
@@ -2488,6 +2494,20 @@
         vt.anchor.set(1, 0); vt.x = G.W / 2 + 170; vt.y = 318 + i * 36;
         c.addChild(vt);
       });
+
+      // 스테이지 보상 — 이긴 판에서만 표시한다 (Step 9-3)
+      const rw = this.stage && this.stage.reward;
+      if (win && rw) {
+        const rt = new PIXI.Text({
+          text: `${this.stage.order}스테이지 보상  ·  ${rw.name} ×${rw.count}`,
+          style: G.style({ fontSize: 16, fontWeight: '900', fill: 0xffd166, letterSpacing: 0.4 }),
+        });
+        rt.anchor.set(0.5); rt.x = G.W / 2; rt.y = 448;
+        c.addChild(rt);
+        this.rewardText = rt;
+      } else {
+        this.rewardText = null;
+      }
 
       const btnY = 496;
       const mkResultBtn = (label, x, w, fill, edgeColor) => {

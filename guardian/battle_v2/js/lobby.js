@@ -67,7 +67,8 @@
       V: { w: 1280, h: 720 },
       headerH: 56,
       sound: { x: 1148, y: 11, w: 110, h: 38 },
-      stageSel: { x0: 432, y: 9, w: 334, h: 38, gap: 12 },
+      // 스테이지 카드 3장 (Step 9-3) — 1280 폭에서 겹치지 않게 폭·간격을 다시 잡았다
+      stageSel: { x0: 424, y: 9, w: 224, h: 38, gap: 10, compact: false },
       infoX: 20,
       infoW: 390,
       support: { x: 20, y: 60, w: 390, h: 252 },
@@ -103,6 +104,9 @@
     const railY = px(94);
     const railH = px(52);
     const stageY = px(160);
+    // 스테이지 카드는 개수에 맞춰 폭을 나눈다 (1/2/3 … 장)
+    const nStage = Math.max(1, (G.STAGES || [1]).length);
+    const stageCardW = (W1 - 6 * (nStage - 1)) / nStage;
     // 아래에서부터 자리를 잡는다 — 출격 → (탭) 패널 → 힌트 → 말풍선 → 스킨 → 이름
     const sortieH = px(68);
     const sortieY = h - sortieH - px(22);
@@ -123,7 +127,7 @@
       V: { w, h },
       headerH: px(52),
       sound: { x: w - m - 92, y: 8, w: 92, h: px(32) },
-      stageSel: { x0: m, y: pillsY, w: (W1 - 6) / 2, h: pillsH, gap: 6 },
+      stageSel: { x0: m, y: pillsY, w: stageCardW, h: pillsH, gap: 6, compact: stageCardW < 150 },
       infoX: m,
       infoW: W1,
       support: { x: m, y: padY, w: W1, h: panelH },
@@ -267,11 +271,13 @@
       if (this.keysTitle) this.keysTitle.visible = false;
     }
 
-    /* ---- 스테이지 선택 (상단 · 1/2 스테이지) ---- */
+    /* ---- 스테이지 선택 (상단 · 1/2/3 스테이지) ---- */
     _buildStageSelect() {
       const c = new PIXI.Container();
       this.stageSelC = c;
       this.root.addChild(c);
+      const compact = !!P.stageSel.compact;
+      this.stageCompact = compact;
       this.stagePills = G.STAGES.map((st, i) => {
         const S = {
           x: P.stageSel.x0 + i * (P.stageSel.w + P.stageSel.gap),
@@ -280,25 +286,35 @@
         const bg = new PIXI.Graphics();
         c.addChild(bg);
 
-        const num = new PIXI.Text({ text: String(st.order), style: G.style({ fontSize: 14, fontWeight: '900', fill: 0x1a1206 }) });
+        // 번호 배지 — 좁은 카드(세로 3장)에서는 작게
+        const badge = compact
+          ? { x: S.x + 5, y: S.y + 6, w: 20, h: S.h - 12 }
+          : { x: S.x + 9, y: S.y + 7, w: 23, h: 24 };
+        const num = new PIXI.Text({ text: String(st.order), style: G.style({ fontSize: compact ? 11 : 14, fontWeight: '900', fill: 0x1a1206 }) });
         num.anchor.set(0.5);
-        num.x = S.x + 20; num.y = S.y + S.h / 2;
+        num.x = badge.x + badge.w / 2; num.y = badge.y + badge.h / 2;
         c.addChild(num);
 
-        const nm = new PIXI.Text({ text: st.name, style: G.style({ fontSize: 14, fontWeight: '900', fill: 0xeaf4ff, letterSpacing: 0.8 }) });
-        nm.x = S.x + 38; nm.y = S.y + 5;
+        const nameX = badge.x + badge.w + (compact ? 5 : 6);
+        const nm = new PIXI.Text({
+          text: compact ? st.short : st.name,
+          style: G.style({ fontSize: compact ? 11.5 : 14, fontWeight: '900', fill: 0xeaf4ff, letterSpacing: compact ? 0.2 : 0.8 }),
+        });
+        nm.x = nameX; nm.y = compact ? S.y + (S.h - 15) / 2 : S.y + 5;
         c.addChild(nm);
 
         const en = new PIXI.Text({ text: st.en, style: G.style({ fontSize: 8.5, fill: 0x8fb0cc, letterSpacing: 1.1 }) });
-        en.x = S.x + 39; en.y = S.y + 23;
+        en.x = nameX + (compact ? 0 : 1); en.y = S.y + 23;
+        en.visible = !compact;
         c.addChild(en);
 
         const zone = new PIXI.Text({ text: st.zones.length + '구역', style: G.style({ fontSize: 11, fontWeight: '800', fill: 0x8fb0cc }) });
         zone.anchor.set(1, 0.5);
         zone.x = S.x + S.w - 13; zone.y = S.y + S.h / 2;
+        zone.visible = !compact;
         c.addChild(zone);
 
-        return { r: S, bg, num, nm, en, zone, stage: st };
+        return { r: S, bg, num, nm, en, zone, badge, stage: st };
       });
       this._drawStageSel();
     }
@@ -309,10 +325,11 @@
         const on = i === cur;
         const R = p.r;
         const g = p.bg;
+        const bd = p.badge;
         g.clear();
         plate(g, R.x, R.y, R.w, R.h, 11, on ? 0x241b06 : COL.plate, on ? 0.96 : 0.66);
         edge(g, R.x, R.y, R.w, R.h, 11, on ? COL.gold : 0x6f8fb0, on ? 0.95 : 0.32, on ? 2.2 : 1.2);
-        g.roundRect(R.x + 9, R.y + 7, 23, 24, 6).fill({ color: on ? COL.gold : 0x16283c, alpha: on ? 0.95 : 0.9 });
+        g.roundRect(bd.x, bd.y, bd.w, bd.h, 6).fill({ color: on ? COL.gold : 0x16283c, alpha: on ? 0.95 : 0.9 });
         if (on) gem(g, R.x + R.w - 13, R.y + 9, 4, COL.goldSoft, 0.9);
         p.num.style.fill = on ? 0x1a1206 : 0x9fc0e0;
         p.nm.style.fill = on ? 0xfff2c8 : 0xbcd6ec;
@@ -323,6 +340,16 @@
       const st = G.STAGES[cur] || G.STAGES[0];
       if (this.sortieSub) {
         this.sortieSub.text = st.order + '스테이지 · ' + st.zones.length + '구역 · 보스 아르카논';
+      }
+      // 대기실 배경도 고른 스테이지의 공기를 먼저 보여 준다 (성채 = 자줏빛, 결전 = 노을)
+      if (this.bgSpr) {
+        const t = st.bgTint == null ? 0xffffff : st.bgTint;
+        const mix = (base, ch) => Math.round(base * (ch / 255));
+        const r = mix(0xa8, (t >> 16) & 255), gg = mix(0xb6, (t >> 8) & 255), b = mix(0xcc, t & 255);
+        this.bgSpr.tint = (r << 16) | (gg << 8) | b;
+        const cit = (st.look || st.key) === 'citadel';
+        if (this.beam) this.beam.tint = cit ? 0xc9a8ff : 0xffe6bd;
+        if (this.warmGlow) this.warmGlow.tint = cit ? 0x8a5cff : 0xffcf8f;
       }
     }
 
@@ -1293,6 +1320,8 @@
         mode: P.mode, vw: P.V.w, vh: P.V.h,
         sound: r(h.sound), controls: r(h.keyToggle || P.keyToggle), sortie: r(h.sortie), stage: r(h.stage),
         stages: h.stages.map(r),
+        stageTexts: h.stageTexts,
+        stageCompact: !!this.stageCompact,
         skins: h.skins.map((s) => Object.assign(r(s), { skin: s.skin })),
         chars: h.chars.map((c) => Object.assign(r(c), { key: c.key })),
         tabs: this.tabBtns ? Object.keys(this.tabBtns).map((k) => Object.assign({ key: k }, r(this.tabBtns[k].r))) : [],
@@ -1354,6 +1383,15 @@
         sortie: { ...P.sortie },
         stage: { ...P.stageHit },
         stages: (this.stagePills || []).map((p) => ({ ...p.r, key: p.stage.key })),
+        stageTexts: (this.stagePills || []).map((p) => {
+          const out = [];
+          [p.num, p.nm, p.en, p.zone].forEach((t) => {
+            if (!t || t.destroyed || !t.visible) return;
+            const b = t.getBounds();
+            out.push({ t: t.text, x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) });
+          });
+          return out;
+        }),
         skins: (this.skinBtns || []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h, skin: b.skin })),
         chars: this.thumbs.map((th) => ({
           key: th.cast.key, x: th.cx - R.r, y: th.cy - R.r, w: R.r * 2, h: R.r * 2,

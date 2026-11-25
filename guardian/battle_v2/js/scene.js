@@ -1,4 +1,5 @@
-/* scene.js : 배경(황혼 폐허) 입체 레이어 — 원경 안개 · 성문 빛줄기 · 바닥 안개 · 전경 안개 · 부유 입자 · 카메라 */
+/* scene.js : 배경(황혼 폐허) 입체 레이어 — 원경 안개 · 성문 빛줄기 · 바닥 안개 · 전경 안개 · 부유 입자 · 카메라
+ *            + 스테이지별 공기(look) — 3스테이지 '그림자 성채'는 자줏빛 어둠·왕좌·봉인진을 덧입는다 (Step 9-3) */
 (function () {
   function gradTexture(w, h, stops) {
     const c = document.createElement('canvas');
@@ -169,6 +170,132 @@
     return g;
   }
 
+  /* ---- 3스테이지 '그림자 성채' 전용 오버레이 (Step 9-3) -----------------
+   * 1·2스테이지(성문 외곽·최전선)는 이 레이어를 끈 채 지금까지와 똑같이 보인다.
+   * 성채에서는 (1) 자줏빛 암막 (2) 성채 기둥·왕좌 실루엣 (3) 바닥 봉인진
+   * (4) 자줏빛 안개·부유 입자 를 얹어 한눈에 다른 구역임을 알린다.
+   * 레이어 순서: 바닥(near) 위, 2.5D 링 가이드 아래 → 링·캐릭터는 그대로 읽힌다. */
+  function citadelLook() {
+    const c = new PIXI.Container();
+    const W = 1280, H = 720;
+
+    // (1) 암막 — 위쪽은 짙게, 발밑은 옅게 깔아 시야를 성채 안으로 모은다
+    const veil = new PIXI.Graphics();
+    veil.rect(0, 0, W, H).fill({ color: 0x140628, alpha: 0.34 });
+    veil.rect(0, 0, W, 300).fill({ color: 0x0a0218, alpha: 0.42 });
+    veil.rect(0, H - 250, W, 250).fill({ color: 0x0b0318, alpha: 0.30 });
+    c.addChild(veil);
+
+    // (2) 성채 실루엣 — 좌·우 거대 기둥과 그 사이로 이어진 성벽·첨탑
+    const wall = new PIXI.Graphics();
+    const rimColor = 0xb49cff;
+    const stone = 0x0d041e;
+    // 좌 기둥
+    wall.poly([0, 0, 108, 0, 138, 96, 112, 210, 150, 318, 104, 430, 128, 720, 0, 720])
+      .fill({ color: stone, alpha: 0.9 });
+    wall.moveTo(108, 0).lineTo(138, 96).lineTo(112, 210).lineTo(150, 318).lineTo(104, 430).lineTo(128, 720)
+      .stroke({ color: rimColor, width: 2, alpha: 0.22 });
+    // 우 기둥
+    wall.poly([1280, 0, 1176, 0, 1146, 104, 1178, 224, 1140, 340, 1186, 452, 1162, 720, 1280, 720])
+      .fill({ color: stone, alpha: 0.9 });
+    wall.moveTo(1176, 0).lineTo(1146, 104).lineTo(1178, 224).lineTo(1140, 340).lineTo(1186, 452).lineTo(1162, 720)
+      .stroke({ color: rimColor, width: 2, alpha: 0.22 });
+    // 성벽 — 톱니 같은 첨탑 능선. 아래 끝은 링 뒤쪽(원경 지평선 470)에 맞춰
+    // 무대 바닥을 덮지 않는다 (캐릭터·판정선이 그대로 읽혀야 한다)
+    const ridge = [110, 470];
+    const top = (x) => 196 + Math.sin(x * 0.021) * 26 + ((x / 64) % 2 < 1 ? 0 : 34);
+    for (let x = 110; x <= 1170; x += 62) ridge.push(x, top(x));
+    ridge.push(1170, 470);
+    wall.poly(ridge).fill({ color: 0x0a0320, alpha: 0.72 });
+    // 첨탑 5개
+    [[250, 96, 150], [430, 74, 120], [880, 118, 210], [1040, 86, 168], [640, 66, 108]].forEach(([x, w, h], i) => {
+      const t0 = top(x + w / 2);
+      wall.poly([x, t0 + 6, x + w * 0.5, t0 - h, x + w, t0 + 6])
+        .fill({ color: 0x0c0322, alpha: 0.82 });
+      wall.moveTo(x, t0 + 6).lineTo(x + w * 0.5, t0 - h).lineTo(x + w, t0 + 6)
+        .stroke({ color: rimColor, width: 1.4, alpha: i === 2 ? 0.30 : 0.18 });
+    });
+    c.addChild(wall);
+
+    // (3) 어둠의 왕좌 — 보스가 서는 자리 뒤의 아치
+    const throne = new PIXI.Graphics();
+    const tx = 880, ty = 470;
+    throne.poly([tx - 132, ty, tx - 132, ty - 168, tx - 96, ty - 210, tx, ty - 236,
+      tx + 96, ty - 210, tx + 132, ty - 168, tx + 132, ty]).fill({ color: 0x12042a, alpha: 0.78 });
+    throne.moveTo(tx - 132, ty).lineTo(tx - 132, ty - 168).lineTo(tx - 96, ty - 210)
+      .lineTo(tx, ty - 236).lineTo(tx + 96, ty - 210).lineTo(tx + 132, ty - 168).lineTo(tx + 132, ty)
+      .stroke({ color: 0xc9a8ff, width: 2.4, alpha: 0.34 });
+    throne.moveTo(tx - 96, ty).lineTo(tx - 96, ty - 158).lineTo(tx, ty - 196)
+      .lineTo(tx + 96, ty - 158).lineTo(tx + 96, ty).stroke({ color: 0x8f7dff, width: 1.2, alpha: 0.20 });
+    // 왕좌 앞 계단
+    for (let i = 0; i < 3; i++) {
+      throne.poly([tx - 168 - i * 22, ty + 6 + i * 12, tx + 168 + i * 22, ty + 6 + i * 12,
+        tx + 168 + i * 22, ty + 14 + i * 12, tx - 168 - i * 22, ty + 14 + i * 12])
+        .fill({ color: 0x1a0734, alpha: 0.34 - i * 0.08 });
+    }
+    c.addChild(throne);
+
+    // (4) 바닥 봉인진 — 링 중심을 도는 자줏빛 마법진
+    const runesC = new PIXI.Container();
+    runesC.position.set(580, 588);
+    const runes = new PIXI.Graphics();
+    runes.ellipse(0, 0, 330, 104).stroke({ color: 0xb49cff, width: 2.2, alpha: 0.26 });
+    runes.ellipse(0, 0, 240, 76).stroke({ color: 0xc9a8ff, width: 1.4, alpha: 0.18 });
+    runes.ellipse(0, 0, 120, 38).stroke({ color: 0x8f7dff, width: 1.2, alpha: 0.14 });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * G.TAU;
+      const x = Math.cos(a) * 330, y = Math.sin(a) * 104;
+      runes.poly([x, y - 9, x + 6, y, x, y + 9, x - 6, y]).fill({ color: 0xd6c4ff, alpha: 0.30 });
+      const x2 = Math.cos(a + 0.26) * 240, y2 = Math.sin(a + 0.26) * 76;
+      runes.moveTo(x, y).lineTo(x2, y2).stroke({ color: 0xb49cff, width: 1, alpha: 0.13 });
+    }
+    runesC.addChild(runes);
+    c.addChild(runesC);
+
+    // (5) 자줏빛 안개 · 부유 입자
+    const fogC = new PIXI.Container();
+    c.addChild(fogC);
+    const fogs = [];
+    for (let i = 0; i < 3; i++) {
+      const s = new PIXI.Sprite(G.Assets.tex.mist);
+      s.anchor.set(0.5);
+      s.width = 1500 + i * 180; s.height = 300 - i * 40;
+      s.x = 640 + i * 90; s.y = 520 + i * 46;
+      s.alpha = 0.16 - i * 0.04;
+      s.tint = i % 2 ? 0x8a5cff : 0xb49cff;
+      s.blendMode = 'add';
+      fogC.addChild(s);
+      fogs.push({ s, ph: G.rand(G.TAU), sp: G.rand(0.13, 0.05), amp: G.rand(110, 40) });
+    }
+    const moteC = new PIXI.Container();
+    c.addChild(moteC);
+    const motes = [];
+    for (let i = 0; i < 26; i++) {
+      const s = new PIXI.Sprite(G.Assets.tex.soft);
+      s.anchor.set(0.5);
+      s.blendMode = 'add';
+      const sz = G.rand(9, 3);
+      s.width = sz; s.height = sz;
+      s.x = G.rand(1240, 40); s.y = G.rand(640, 60);
+      s.tint = G.chance(0.6) ? 0xc9a8ff : 0x8f7dff;
+      s.alpha = G.rand(0.55, 0.18);
+      moteC.addChild(s);
+      motes.push({ s, vy: G.rand(26, 7), vx: G.rand(10, -10), ph: G.rand(G.TAU) });
+    }
+
+    // 왕좌 발광 (보스 자리 표시)
+    const throneGlow = new PIXI.Sprite(G.Assets.tex.glow);
+    throneGlow.anchor.set(0.5);
+    throneGlow.x = 880; throneGlow.y = 380;
+    throneGlow.width = 620; throneGlow.height = 520;
+    throneGlow.tint = 0x8a5cff;
+    throneGlow.alpha = 0.16;
+    throneGlow.blendMode = 'add';
+    c.addChild(throneGlow);
+
+    return { c, runesC, runes, fogs, motes, throneGlow };
+  }
+
   class Scene {
     constructor(app) {
       this.app = app;
@@ -182,12 +309,13 @@
       this.farLayer = new PIXI.Container();     // 원경 안개
       this.midLayer = new PIXI.Container();     // 바닥·바닥 안개 (캐릭터 뒤)
       this.nearLayer = new PIXI.Container();    // 원근 바닥·잔해
+      this.lookLayer = new PIXI.Container();    // 스테이지별 공기 (3스테이지 성채)
       this.ringLayer = new PIXI.Container();    // 2.5D 사각 링 바닥 가이드 (시차 없음)
       this.actorLayer = new PIXI.Container();   // 캐릭터 (battle.js가 채운다)
       this.fxLayer = new PIXI.Container();      // 이펙트·데미지
       this.frontLayer = new PIXI.Container();   // 전경 안개·근경 입자 (캐릭터 앞)
       this.world.addChild(this.skyLayer, this.farLayer, this.midLayer,
-        this.nearLayer, this.ringLayer, this.actorLayer, this.fxLayer, this.frontLayer);
+        this.nearLayer, this.lookLayer, this.ringLayer, this.actorLayer, this.fxLayer, this.frontLayer);
       this.actorLayer.sortableChildren = true;
 
       this.zoom = 1;
@@ -373,6 +501,43 @@
 
       // 불티
       for (let i = 0; i < 40; i++) this._makeEmber(true);
+
+      // 스테이지별 공기 — 3스테이지(그림자 성채) 전용. 기본은 꺼 둔다.
+      const look = citadelLook();
+      this.citadelC = look.c;
+      this.citadelC.visible = false;
+      this.lookRunes = look.runes;
+      this.lookRunesC = look.runesC;
+      this.lookFogs = look.fogs;
+      this.lookMotes = look.motes;
+      this.lookThroneGlow = look.throneGlow;
+      this.lookLayer.addChild(this.citadelC);
+      this.stageLook = 'gate';
+      this.warmBase = 0.16;
+    }
+
+    /* ---- 스테이지별 공기 적용 (Step 9-3) ----
+     * 1·2스테이지는 지금까지의 색 그대로. 3스테이지 '그림자 성채'만
+     * 배경 tint·성문 발광·바닥 반사광·링 가이드·안개를 자줏빛으로 식힌다. */
+    applyStageLook(stage) {
+      const key = (stage && (stage.look || stage.key)) || 'gate';
+      this.stageLook = key;
+      const cit = key === 'citadel';
+      if (this.bg) this.bg.tint = (stage && stage.bgTint != null) ? stage.bgTint : 0xffffff;
+      if (this.citadelC) this.citadelC.visible = cit;
+      if (this.warmGlow) {
+        this.warmGlow.tint = cit ? 0x8a5cff : 0xff9a5a;
+        this.warmBase = cit ? 0.22 : 0.16;
+      }
+      if (this.floorGlow) {
+        this.floorGlow.tint = cit ? 0x7d5cff : 0x5a86d8;
+        this.floorGlow.alpha = cit ? 0.20 : 0.16;
+      }
+      if (this.beamList) this.beamList.forEach((b) => { b.s.tint = cit ? 0xb49cff : 0xffe0b8; });
+      if (this.sheen) this.sheen.tint = cit ? 0xb9a6ff : 0xffffff;
+      if (this.ringG) this.ringG.tint = cit ? 0xd6c4ff : 0xffffff;
+      if (this.fogA) this.fogA.tint = cit ? 0xa88cff : 0x9fb6e8;
+      return key;
     }
 
     _makeEmber(initial = false) {
@@ -453,7 +618,7 @@
 
       // 하늘 호흡
       this.bg.scale.set(this.bgScale * (1 + Math.sin(t * 0.21) * 0.004));
-      this.warmGlow.alpha = 0.16 + Math.sin(t * 0.7) * 0.035;
+      this.warmGlow.alpha = (this.warmBase == null ? 0.16 : this.warmBase) + Math.sin(t * 0.7) * 0.035;
       this.floorGlow.alpha = 0.14 + Math.sin(t * 0.9 + 1) * 0.02;
       this.sheen.alpha = 0.42 + Math.sin(t * 0.6) * 0.1;
 
@@ -493,6 +658,26 @@
         }
         if (m.s.x < -40) m.s.x = 1320;
         if (m.s.x > 1320) m.s.x = -40;
+      }
+
+      // 3스테이지 성채 — 봉인진이 천천히 돌고, 자줏빛 안개·입자가 흐른다
+      if (this.citadelC && this.citadelC.visible) {
+        if (this.lookRunesC) {
+          this.lookRunesC.rotation = Math.sin(t * 0.10) * 0.04;
+          if (this.lookRunes) this.lookRunes.alpha = 0.72 + Math.sin(t * 0.9) * 0.2;
+        }
+        this.lookFogs.forEach((f, i) => {
+          f.s.x = 640 + i * 90 + Math.sin(t * f.sp + f.ph) * f.amp;
+          f.s.alpha = (0.15 - i * 0.038) * (0.78 + 0.22 * Math.sin(t * 0.45 + f.ph));
+        });
+        this.lookMotes.forEach((m) => {
+          m.s.y -= m.vy * dt;
+          m.s.x += (m.vx + Math.sin(t * 0.9 + m.ph) * 10) * dt;
+          if (m.s.y < 20) { m.s.y = 660; m.s.x = G.rand(1240, 40); }
+          if (m.s.x < 20) m.s.x = 1250;
+          if (m.s.x > 1250) m.s.x = 20;
+        });
+        if (this.lookThroneGlow) this.lookThroneGlow.alpha = 0.14 + Math.sin(t * 0.8 + 1) * 0.045;
       }
 
       // 불티

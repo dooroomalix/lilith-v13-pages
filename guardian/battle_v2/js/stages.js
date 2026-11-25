@@ -1,7 +1,11 @@
-/* stages.js : 스테이지 · 구역 · 보스 페이즈 정의 (Step 4-3 → Step 9-2, v5.10.0-build500)
+/* stages.js : 스테이지 · 구역 · 보스 페이즈 정의 (Step 4-3 → Step 9-3, v5.11.0-build510)
  *
  * 성문 앞 전장을 **구역(zone)** 으로 나눠 횡스크롤 웨이브를 이어 붙인다.
  *   1구역 척후대 돌파  →  2구역 정예 웨이브  →  보스 아르카논 결전
+ *
+ * 3스테이지(Step 9-3)는 같은 성문 전장을 '그림자 성채'로 옮긴 심층전이다.
+ *   배경 tint·전용 오버레이(look: 'citadel')로 자줏빛 어둠을 깔고, 웨이브·보스
+ *   체력·제한 시간·보상을 한 단계 더 올린다. 조작·판정 체계는 그대로다.
  *
  * 설계 원칙
  *  - 스테이지 1(기본)의 웨이브 표는 v5.5.0 까지 쓰던 값 그대로다
@@ -31,6 +35,8 @@
       bossTime: 180,
       bgTint: 0xffffff,            // 기본(푸른 밤) 그대로
       accent: 0x9fd0ff,
+      look: 'gate',
+      reward: { name: '성문의 파편', count: 1 },
       zones: [
         {
           name: '1구역 · 척후대 돌파',
@@ -66,6 +72,8 @@
       bossTime: 210,
       bgTint: 0xffb08a,            // 노을·핏빛으로 물든 결전의 전장
       accent: 0xffc247,
+      look: 'frontline',
+      reward: { name: '결전의 증표', count: 2 },
       zones: [
         {
           name: '1구역 · 정예 선봉',
@@ -81,6 +89,43 @@
           waves: [
             { count: 7, hp: 430, atk: 24, elite: 3 },
             { count: 6, hp: 470, atk: 26, elite: 3, dual: true },
+          ],
+        },
+      ],
+    },
+    {
+      key: 'citadel',
+      order: 3,
+      name: '그림자 성채',
+      short: '성채',
+      en: 'SHADOW CITADEL',
+      tag: '성채 깊은 곳 — 아르카논의 본체가 기다린다',
+      area: '성채 회랑',
+      bossArea: '어둠의 왕좌',
+      bossName: '그림자 군주 아르카논 · 본체',
+      bossTitle: '아르카논 · 어둠의 본체',
+      bossHp: 40000,
+      timeLimit: 78,
+      bossTime: 240,
+      bgTint: 0x8f7dff,            // 자줏빛 어둠 — 성채의 공기
+      accent: 0xc9a8ff,
+      look: 'citadel',
+      reward: { name: '성채의 봉인 조각', count: 3 },
+      zones: [
+        {
+          name: '1구역 · 성채 외벽',
+          short: '1구역',
+          waves: [
+            { count: 6, hp: 470, atk: 27, elite: 2 },
+            { count: 7, hp: 520, atk: 29, elite: 3, dual: true },
+          ],
+        },
+        {
+          name: '2구역 · 어둠의 회랑',
+          short: '2구역',
+          waves: [
+            { count: 7, hp: 580, atk: 31, elite: 4 },
+            { count: 8, hp: 640, atk: 34, elite: 4, dual: true },
           ],
         },
       ],
@@ -145,6 +190,19 @@
   G.stageByKey = function (key) {
     for (let i = 0; i < STAGES.length; i++) if (STAGES[i].key === key) return STAGES[i];
     return STAGES[0];
+  };
+
+  /* 스테이지 난이도 요약 — 로비 카드·검증이 같은 숫자를 본다 */
+  G.stageLoad = function (stage) {
+    const st = stage || STAGES[0];
+    const built = G.buildStageWaves(st);
+    let enemies = 0, hp = 0, elite = 0;
+    built.waves.forEach((w) => { enemies += w.count; hp += w.hp * w.count; elite += w.elite; });
+    return {
+      key: st.key, order: st.order, zones: built.zones.length, waves: built.waves.length,
+      enemies, hp, elite, bossHp: st.bossHp, bossTime: st.bossTime, timeLimit: st.timeLimit,
+      reward: st.reward || null,
+    };
   };
 
   G.STAGES = STAGES;
