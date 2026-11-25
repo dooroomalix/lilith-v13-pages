@@ -1,95 +1,132 @@
 {
- "version": "v5.7.1-build471",
+ "version": 3,
  "rigs": {
   "ara_basic": {
    "json": "assets/rig/ara_basic/rig.json",
    "char": "ara",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/ara_basic/mesh.json",
+   "body": "assets/rig/ara_basic/body.webp"
   },
   "ara_elite": {
    "json": "assets/rig/ara_elite/rig.json",
    "char": "ara",
-   "skin": "elite"
+   "skin": "elite",
+   "mesh": "assets/rig/ara_elite/mesh.json",
+   "body": "assets/rig/ara_elite/body.webp"
   },
   "ara_gala": {
    "json": "assets/rig/ara_gala/rig.json",
    "char": "ara",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/ara_gala/mesh.json",
+   "body": "assets/rig/ara_gala/body.webp"
   },
   "arcanon": {
    "json": "assets/rig/arcanon/rig.json",
    "char": "arcanon",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/arcanon/mesh.json",
+   "body": "assets/rig/arcanon/body.webp"
   },
   "born_basic": {
    "json": "assets/rig/born_basic/rig.json",
    "char": "born",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/born_basic/mesh.json",
+   "body": "assets/rig/born_basic/body.webp"
   },
   "born_elite": {
    "json": "assets/rig/born_elite/rig.json",
    "char": "born",
-   "skin": "elite"
+   "skin": "elite",
+   "mesh": "assets/rig/born_elite/mesh.json",
+   "body": "assets/rig/born_elite/body.webp"
   },
   "born_gala": {
    "json": "assets/rig/born_gala/rig.json",
    "char": "born",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/born_gala/mesh.json",
+   "body": "assets/rig/born_gala/body.webp"
   },
   "elite": {
    "json": "assets/rig/elite/rig.json",
    "char": "elite",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/elite/mesh.json",
+   "body": "assets/rig/elite/body.webp"
   },
   "kael_basic": {
    "json": "assets/rig/kael_basic/rig.json",
    "char": "kael",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/kael_basic/mesh.json",
+   "body": "assets/rig/kael_basic/body.webp"
   },
   "kael_elite": {
    "json": "assets/rig/kael_elite/rig.json",
    "char": "kael",
-   "skin": "elite"
+   "skin": "elite",
+   "mesh": "assets/rig/kael_elite/mesh.json",
+   "body": "assets/rig/kael_elite/body.webp"
   },
   "kael_gala": {
    "json": "assets/rig/kael_gala/rig.json",
    "char": "kael",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/kael_gala/mesh.json",
+   "body": "assets/rig/kael_gala/body.webp"
   },
   "lia_basic": {
    "json": "assets/rig/lia_basic/rig.json",
    "char": "lia",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/lia_basic/mesh.json",
+   "body": "assets/rig/lia_basic/body.webp"
   },
   "lia_elite": {
    "json": "assets/rig/lia_elite/rig.json",
    "char": "lia",
-   "skin": "elite"
+   "skin": "elite",
+   "mesh": "assets/rig/lia_elite/mesh.json",
+   "body": "assets/rig/lia_elite/body.webp"
   },
   "lia_gala": {
    "json": "assets/rig/lia_gala/rig.json",
    "char": "lia",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/lia_gala/mesh.json",
+   "body": "assets/rig/lia_gala/body.webp"
   },
   "scout": {
    "json": "assets/rig/scout/rig.json",
    "char": "scout",
-   "skin": "base"
+   "skin": "base",
+   "mesh": "assets/rig/scout/mesh.json",
+   "body": "assets/rig/scout/body.webp"
   },
   "sena_basic": {
    "json": "assets/rig/sena_basic/rig.json",
    "char": "sena",
-   "skin": "basic"
+   "skin": "basic",
+   "mesh": "assets/rig/sena_basic/mesh.json",
+   "body": "assets/rig/sena_basic/body.webp"
   },
   "sena_elite": {
    "json": "assets/rig/sena_elite/rig.json",
    "char": "sena",
-   "skin": "elite"
+   "skin": "elite",
+   "mesh": "assets/rig/sena_elite/mesh.json",
+   "body": "assets/rig/sena_elite/body.webp"
   },
   "sena_gala": {
    "json": "assets/rig/sena_gala/rig.json",
    "char": "sena",
-   "skin": "gala"
+   "skin": "gala",
+   "mesh": "assets/rig/sena_gala/mesh.json",
+   "body": "assets/rig/sena_gala/body.webp"
   }
- }
+ },
+ "kind": "mesh-skeleton"
 }

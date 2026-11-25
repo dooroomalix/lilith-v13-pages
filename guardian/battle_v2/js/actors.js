@@ -724,6 +724,9 @@
       this.stunSpr = null;
       this.windupDur = this.cfg.windup || 0.52;
       this.stepPhase = 0;
+      this.facing = opts.facing || -1;   // 왼쪽 스폰은 1, 오른쪽 스폰은 -1 (링 안쪽을 본다)
+      this.atkDir = this.facing;
+      this.atkY = this.y;
 
       this.addHalo(this.cfg.halo, 240 + (this.cfg.bodyPx - 186) * 1.2, 0.16);
       this.addShadow(132 + (this.cfg.bodyPx - 186) * 0.7, 0.5);
@@ -897,7 +900,9 @@
       else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.34, 0, 1); }
       else if (S === 'recover') { st = 'idle'; p = 0; }
       else if (S === 'dying') { st = 'dead'; p = G.clamp(this.stateT / 0.62, 0, 1); }
-      const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
+      // 예고·타격 중에는 방향을 잠근다 — 휘두르는 순간에만 플레이어 쪽으로 돌면
+      // "보고 피하기"가 성립하지 않는다
+      const dir = this.facing || (target ? Math.sign(target.x - this.x) || -1 : -1);
       r.setFacing(dir);
       r.setState(st, p, { stepPhase: this.stepPhase || 0 });
       r.update(dt);
@@ -951,23 +956,33 @@
         if (p >= 1) this.state = 'walk';
       } else if (this.state === 'walk') {
         this._setAttackTex(false);
-        const dist = this.x - target.x;
-        if (dist > (this.stopDist || 172)) {
-          this.x -= this.speed * dt;
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const stopDist = this.stopDist || 172;
+        this.facing = Math.sign(dx) || this.facing || -1;
+        // 2.5D 링 — 어느 쪽에서 왔든 플레이어의 깊이(Y) 레인까지 따라 내려온다
+        if (Math.abs(dy) > 12) {
+          this.y = G.clamp(this.y + Math.sign(dy) * this.speed * 0.55 * dt, 500, 664);
+        }
+        if (Math.abs(dx) > stopDist) {
+          this.x = G.clamp(this.x + Math.sign(dx) * this.speed * dt, 60, 1240);
           this.sprite.y = bob;
           this.rim.y = bob - 6;
           this.walkT += dt;
           if (this.walkT > 0.42 / (this.speed / 190)) {
             this.walkT = 0;
             this.contactPulse = 0.8;
-            this.game.fx.dust(this.x + 12, this.y, -1, 0.4);
+            this.game.fx.dust(this.x - 12 * this.facing, this.y, -this.facing, 0.4);
           }
-        } else {
+        } else if (Math.abs(dy) <= 16) {
           this.state = 'windup';
           this.stateT = 0;
           this.telegraph = true;
+          this.atkDir = this.facing;    // 예고 순간의 방향·깊이를 잠근다
+          this.atkY = this.y;
         }
         this.obj.x = this.x;
+        this.obj.y = this.y;
       } else if (this.state === 'windup') {
         const p = G.clamp(this.stateT / this.windupDur, 0, 1);
         this._setAttackTex(true);
@@ -993,11 +1008,14 @@
           this.state = 'strike';
           this.stateT = 0;
           this.sprite.scale.set(-s, s);
-          if (Math.abs(this.x - target.x) < 210 && Math.abs(this.y - target.y) < 120) {
+          /* 2.5D 판정 (Step 8) — 예고 때 잠근 정면 방향 + 좁은 깊이 레인(±44).
+             위아래(W/S)로 레인을 벗어나거나 등 뒤로 돌면 허공만 가른다. */
+          if (G.inFront(this.x, target.x, this.atkDir || this.facing || -1, 210)
+            && G.inLane(target.y, this.atkY == null ? this.y : this.atkY, G.LANE.enemy)) {
             this.game.damageHero(this.atk, this.x);
           }
-          this.game.fx.slash(this.x - 60, this.centerY, {
-            radius: 80, spread: 1.4, angle: Math.PI * 0.85, width: 10,
+          this.game.fx.slash(this.x + 60 * (this.facing || -1), this.centerY, {
+            radius: 80, spread: 1.4, angle: (this.facing || -1) > 0 ? Math.PI * 0.15 : Math.PI * 0.85, width: 10,
             color: 0x8a3bff, color2: 0xc9a8ff, dur: 0.2, scale: 0.9,
           });
           this.game.fx.burst(target.x, target.centerY, { color: 0xb45bff, core: 0xf0e0ff, rays: 10, length: 90, width: 6 });
@@ -1033,6 +1051,7 @@
 
       if (this.state !== 'dying') {
         this.obj.zIndex = this.y;
+        this.obj.y = this.y;
         this.updateGroundFx(dt, 0, 1, 0);
       }
     }
@@ -1285,6 +1304,8 @@
       this.stateT += dt;
       this.bobT += dt;
       this.tickDefDown(dt);
+      // 보스도 항상 플레이어를 바라본다 — 등 뒤 판정이 생기지 않는다
+      if (!this.dying && target) this.facing = Math.sign(target.x - this.x) || this.facing || -1;
       if (this.hitFlash > 0) this.hitFlash -= dt;
       if (this.flashT > 0) {
         this.flashT -= dt;
@@ -1476,7 +1497,10 @@
           if (this.game.perfectCounter) {
             this.stagger = 2.2;
             this.game.onPerfectCounter(this);
-          } else if (dist < this.cfg.radius) {
+          } else if (dist < this.cfg.radius
+            && G.inFront(this.x, target.x, this.facing || -1, this.cfg.radius * 1.4, 36)
+            && G.inLane(target.y, this.y, G.LANE.enemy + 6)) {
+            // 암흑의 심판도 정면·깊이 레인 안에서만 꽂힌다 (뒤로 돌면 벗어난다)
             this.game.damageHero(this.cfg.dmg, this.x);
           }
         }

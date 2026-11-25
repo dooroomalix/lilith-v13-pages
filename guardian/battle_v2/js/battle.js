@@ -35,6 +35,14 @@
       this.scene.world.addChildAt(this.bossTeleLayer, 4);
       this.fx = new G.Fx(this.scene.fxLayer);
 
+      // 2.5D 판정 디버그 (H 키) — 발밑 좌표·타점/피격 박스 표시용. 기본 OFF
+      this.debugBoxes = false;
+      this.debugT = 0;
+      this.debugG = new PIXI.Graphics();
+      this.debugG.zIndex = 9;
+      this.scene.fxLayer.addChild(this.debugG);
+      this.debugText = null;
+
       this.root = new PIXI.Container();
       this.root.sortableChildren = true;
       this.root.addChild(this.scene.root);
@@ -242,6 +250,11 @@
     _teardownBattle() {
       this._clearOverlay();
       this.overlay.alpha = 1;
+      // 2.5D 디버그 박스는 판을 넘기지 않는다
+      this.debugBoxes = false;
+      this.debugT = 0;
+      if (this.debugG) this.debugG.clear();
+      if (this.debugText) this.debugText.visible = false;
       // 협동 연출·게이지 정리 (Step 4-3)
       if (this.coopShield) { this.coopShield.obj.destroy({ children: true }); this.coopShield = null; }
       if (this.coopLia && this.coopLia.obj) { this.coopLia.obj.destroy({ children: true }); this.coopLia = null; }
@@ -583,11 +596,11 @@
         color: cfg.c1 != null ? cfg.c1 : (COL ? (heavy ? COL.slash : COL.slash2) : (heavy ? 0x2f6bff : 0x3f7dff)),
         color2: cfg.c2 != null ? cfg.c2 : (COL ? COL.slash2 : (heavy ? 0x9fd6ff : 0x8fd0ff)),
         edge: cfg.edge != null ? cfg.edge : (COL ? COL.edge : (heavy ? 0xffd166 : 0xbfe4ff)),
-        dur: heavy ? 0.26 : 0.19, scale: 1.0,
+        dur: heavy ? 0.26 : 0.19, scale: 1.0, flip: f < 0,
       });
       this.fx.slash(cx + 10 * f, cy - 4, {
         radius: heavy ? 156 : 126, spread: cfg.spread * 0.72, angle: cfg.ang - 0.07, width: 8,
-        color: 0xffffff, color2: 0xffffff, dur: 0.13, scale: 1.0,
+        color: 0xffffff, color2: 0xffffff, dur: 0.13, scale: 1.0, flip: f < 0,
       });
       this.fx.trail(hero, cfg, idx);
       // 타격 지점 섬광 (별 + 방사 버스트 + 스파크)
@@ -605,26 +618,28 @@
 
       let hits = 0;
       let critHit = false;
+      /* 2.5D 링 타점 (Step 8) — 바라보는 정면 + 무기 리치 + 좁은 깊이 레인.
+         등 뒤(G.LANE.back = 6px 허용)나 다른 깊이 레인(±48px 밖)의 적은 절대 맞지 않는다. */
+      const reachX = cfg.reach + 40;
       this.enemies.forEach((e) => {
         if (!e.alive || e.dying) return;
-        const inFront = (e.x - hero.x) * f > -30;
-        const inRange = Math.abs(e.x - hero.x) < cfg.reach + 40 && Math.abs(e.y - hero.y) < 150;
-        if (inFront && inRange) {
+        if (G.inFront(hero.x, e.x, f, reachX) && G.inLane(e.y, hero.y, G.LANE.hero)) {
           hits++;
           if (this._hitEnemy(e, hero, cfg.dmg, cfg, idx, air)) critHit = true;
         }
       });
+      let bossDidHit = false;
       if (this.boss && this.boss.alive && !this.boss.dying) {
-        if (Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && Math.abs(this.boss.y - hero.y) < 125) {
-          if ((this.boss.x - hero.x) * f > -60) {
-            hits++;
-            if (this._hitBoss(hero, cfg.dmg, cfg, idx, air)) critHit = true;
-          }
+        // 보스도 같은 정면·레인 기준 — 몸집이 커서 사거리·레인만 조금 넓다
+        if (G.inFront(hero.x, this.boss.x, f, cfg.reach + 260) && G.inLane(this.boss.y, hero.y, G.LANE.boss)) {
+          hits++;
+          bossDidHit = true;
+          if (this._hitBoss(hero, cfg.dmg, cfg, idx, air)) critHit = true;
         }
       }
       if (hits > 0) {
         // 콤보·공중·보스·크리티컬별로 히트스톱·셰이크 강도를 구분한다 (G.FEEL 기준표)
-        const bossHit = !!(this.boss && this.boss.alive && Math.abs(this.boss.x - hero.x) < cfg.reach + 260 && (this.boss.x - hero.x) * f > -60);
+        const bossHit = bossDidHit;
         const multi = idx >= 2 && hits > 1 ? G.FEEL.multiFinisher : { stopScale: 1, shakeScale: 1 };
         const sStop = F.stop * (bossHit ? G.FEEL.bossHit.stopScale : critHit ? G.FEEL.crit.stopScale : 1) * multi.stopScale;
         const sShake = F.shake * (bossHit ? G.FEEL.bossHit.shakeScale : critHit ? G.FEEL.crit.shakeScale : 1) * multi.shakeScale;
@@ -747,23 +762,29 @@
           G.Sfx.ui(true);
         }
       }
+      /* 2.5D 링 양방향 스폰 (Step 8) — 오른쪽 편중을 없애고 좌·우를 번갈아 들여보낸다.
+         dual 웨이브(구역 마지막)는 첫 두 기가 양쪽에서 동시에 진입한다. */
       for (let i = 0; i < cfg.count; i++) {
-        const delay = i * G.rand(0.28, 0.12) + G.rand(0.2, 0);
+        const side = i % 2 === 0 ? 'right' : 'left';
+        const delay = (cfg.dual && i < 2) ? G.rand(0.18, 0)
+          : i * G.rand(0.28, 0.12) + G.rand(0.2, 0);
         const elite = cfg.elite && i >= cfg.count - cfg.elite ? 'elite' : 'scout';
         this.after(delay, () => {
           if (this.phase !== 'wave') return;
-          this._spawnEnemy(cfg, 1000 + G.rand(140, 0), elite);
+          this._spawnEnemy(cfg, null, elite, side);
         });
       }
     }
 
-    _spawnEnemy(cfg, x, variant) {
+    _spawnEnemy(cfg, x, variant, side) {
+      const s = side === 'left' ? 'left' : 'right';
       const e = new G.Enemy(this, {
         variant: variant || 'scout',
         hp: cfg.hp + this.waveIndex * 12,
         atk: cfg.atk,
-        x: x || 1240,
-        y: G.GROUND_Y - 2 + G.rand(34, -30),
+        x: x == null ? G.spawnX(s) : x,
+        y: G.GROUND_Y - 2 + G.rand(G.SPAWN.lane, -G.SPAWN.lane),
+        facing: s === 'left' ? 1 : -1,        // 링 안쪽(플레이어 쪽)을 본다
         scale: G.rand(0.6, 0.46),
         lv: 2 + Math.min(3, this.waveIndex),
       });
@@ -776,7 +797,7 @@
       for (let i = 0; i < n; i++) {
         this.after(0.38 * i, () => {
           if (this.phase !== 'boss') return;
-          this._spawnEnemy({ hp: 200, atk: 12 }, 1180 + G.rand(120, 0), 'scout');
+          this._spawnEnemy({ hp: 200, atk: 12 }, null, 'scout', i % 2 === 0 ? 'left' : 'right');
         });
       }
     }
@@ -873,6 +894,7 @@
       const sk = C.skill;
       if (this.phase !== 'wave' && this.phase !== 'boss' && this.phase !== 'bossIntro') return false;
       if (this.cooldowns.skill1 > 0 || h.mp < (sk.mp || 25) || h.state === 'dead') return false;
+      this._faceForAttack();
       h.mp -= (sk.mp || 25);
       this.skillMax.skill1 = sk.cd || 7;
       this.cooldowns.skill1 = this.skillMax.skill1;
@@ -1905,26 +1927,29 @@
         if (this.kaelSkillTick <= 0) {
           this.kaelSkillTick = 0.11;
           const h = this.kael;
+          const hf = h.facing || 1;
           const HC = (h.char && h.char.colors) || { slash: 0x2f7bff, slash2: 0x7fc8ff, edge: 0xffd166 };
-          this.fx.slash(h.x + 150, h.centerY - 20, {
+          this.fx.slash(h.x + 150 * hf, h.centerY - 20, {
             radius: 160, spread: 1.1, angle: G.rand(-0.15, -0.75), width: 17,
             color: HC.slash, color2: HC.slash2, edge: HC.edge, dur: 0.24,
           });
-          this.fx.slash(h.x + 175, h.centerY, {
+          this.fx.slash(h.x + 175 * hf, h.centerY, {
             radius: 176, spread: 1.0, angle: G.rand(0.45, 0.05), width: 7,
             color: 0xffffff, color2: 0xffffff, dur: 0.17,
           });
-          this.fx.speedLines(h.x + 120, h.centerY, 1, 4, 1.1);
+          this.fx.speedLines(h.x + 120 * hf, h.centerY, hf, 4, 1.1);
           let tickHit = false;
           this.enemies.forEach((e) => {
-            if (e.alive && !e.dying && e.x > h.x && Math.abs(e.x - h.x) < 340) {
+            if (e.alive && !e.dying && G.inFront(h.x, e.x, h.facing || 1, 340)
+              && G.inLane(e.y, h.y, G.LANE.hero + 22)) {
               const dmg = Math.round(h.atk * 1.35 * G.rand(1.05, 0.95));
               this.stats.damage += dmg;
               e.takeDamage(dmg, { crit: G.chance(0.3), knock: G.FEEL.skillTick.knock, dir: 1 });
               tickHit = true;
             }
           });
-          if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - h.x) < 470) {
+          if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - h.x) < 470
+            && G.inLane(this.boss.y, h.y, G.LANE.boss + 22)) {
             const dmg = Math.round(h.atk * 1.2);
             this.stats.damage += dmg;
             this.boss.takeDamage(dmg, { kb: 30, dir: 1 });
@@ -1943,9 +1968,87 @@
       this.support.update(dt, realDt);
       this.hud.update(realDt, this);
       this.phaseT += realDt;
+      this._updateDebugBoxes(realDt);
+    }
+
+    /* ---------------- 2.5D 판정 디버그 (H 키) ---------------- */
+    /* 발밑 링 좌표·전방 타점 박스·피격 레인을 화면에 잠깐 보여 준다. 기본은 OFF. */
+    toggleDebugBoxes(on) {
+      this.debugBoxes = on == null ? !this.debugBoxes : !!on;
+      this.debugT = this.debugBoxes ? 8 : 0;     // 8초 뒤 저절로 꺼진다
+      if (!this.debugBoxes && this.debugG) this.debugG.clear();
+      if (this.debugText) this.debugText.visible = this.debugBoxes;
+      return this.debugBoxes;
+    }
+
+    _updateDebugBoxes(dt) {
+      if (!this.debugBoxes) return;
+      this.debugT -= dt;
+      if (this.debugT <= 0) { this.toggleDebugBoxes(false); return; }
+      this._drawDebug();
+    }
+
+    _drawDebug() {
+      const g = this.debugG, h = this.kael;
+      if (!g || !h) return;
+      g.clear();
+      const f = h.facing || 1;
+      const reach = (h.atkCfg && h.atkCfg.reach ? h.atkCfg.reach : 252) + 40;
+      // 내 전방 타점 박스(초록) — 정면 + 무기 리치, 이 안의 적만 맞는다
+      const x0 = f > 0 ? h.x - 6 : h.x - reach;
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).fill({ color: 0x54ffa8, alpha: 0.10 });
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x54ffa8, width: 1.4, alpha: 0.6 });
+      // 내 피격 레인(노랑) — 적 공격이 나에게 닿는 깊이
+      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).fill({ color: 0xffe066, alpha: 0.12 });
+      g.moveTo(h.x, h.y).lineTo(h.x + 46 * f, h.y).stroke({ color: 0x54ffa8, width: 2, alpha: 0.9 });
+      // 적·보스 피격 레인(빨강)
+      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero); });
+      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss);
+      const txt = 'X ' + Math.round(h.x) + ' · Y ' + Math.round(h.y)
+        + ' · 레인 ±' + G.LANE.hero + ' · ' + (f > 0 ? '오른쪽' : '왼쪽') + ' 보기';
+      if (!this.debugText) {
+        this.debugText = new PIXI.Text({ text: txt, style: G.style({ fontSize: 15, fontWeight: '800', fill: 0xd8ffe8, stroke: { color: 0x06210f, width: 4 } }) });
+        this.scene.fxLayer.addChild(this.debugText);
+      }
+      this.debugText.text = txt;
+      this.debugText.visible = true;
+      this.debugText.x = h.x - 96;
+      this.debugText.y = h.y + 10;
+    }
+
+    _dbgActor(e, color, lane) {
+      const g = this.debugG;
+      const L = lane || G.LANE.hero;
+      g.rect(e.x - 20, e.y - L, 40, L * 2).fill({ color, alpha: 0.10 });
+      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 1.2, alpha: 0.55 });
+      g.moveTo(e.x, e.y).lineTo(e.x + 30 * (e.facing || -1), e.y).stroke({ color, width: 1.6, alpha: 0.7 });
     }
 
     _lateBossSpawn() {}
+
+    /* 공격 직전에 몸을 돌린다 (Step 8) — 뒤돌아 허공에 휘두르는 일을 없앤다.
+       수동: 눌린 이동 방향(또는 조이스틱)을 먼저 본다.
+       오토: 가장 가까운 적 쪽으로 먼저 돌아 정면을 보고 때린다. */
+    _faceForAttack() {
+      const h = this.kael;
+      if (!h || h.state === 'dead') return;
+      let dir = 0;
+      if (this.autoMode !== 'manual') {
+        const t = this._nearestEnemy();
+        if (t) dir = Math.sign(t.x - h.x);
+      } else {
+        const k = this.keys || {};
+        const left = (k['ArrowLeft'] || k['a']) ? 1 : 0;
+        const right = (k['ArrowRight'] || k['d']) ? 1 : 0;
+        if (left && !right) dir = -1;
+        else if (right && !left) dir = 1;
+        else {
+          const j = this.hud && this.hud.joy;
+          if (j && Math.abs(j.vx) > 0.25) dir = Math.sign(j.vx);
+        }
+      }
+      if (dir) h.facing = dir >= 0 ? 1 : -1;
+    }
 
     _tryAttack() {
       if (this.kael.state === 'dead') return;
@@ -1955,6 +2058,7 @@
         return;
       }
       if (this.kael.state === 'dodge' || this.kael.state === 'cast') return;
+      this._faceForAttack();
       if (this.kael.attack(this.comboStep)) {
         // 2·3타는 앞으로 미세 전진 (콤보 손맛)
         const adv = this.kael.atkCfg.advance;

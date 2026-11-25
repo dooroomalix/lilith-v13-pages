@@ -3,8 +3,8 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.7.1-build471';
-G.ASSET_V = 'a5.7.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
+G.VERSION = 'v5.8.0-build480';
+G.ASSET_V = 'a5.8.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
 
@@ -91,6 +91,40 @@ G.COOP = {
   followDelay: 0.11,    // 호응타가 꽂히는 지연(초)
   followGap: 0.05,      // 호응타 최소 간격(연타 폭주 방지)
   followRange: 470,     // 호응타가 닿는 거리(px)
+};
+
+/* ------------------------------------------------------------------
+ * 2.5D 사각 링 — 타점·좌표 판정의 단일 기준 (Step 8, v5.8.0)
+ *   무대는 X(가로) × Y(깊이) 사각 링이다. 세로 레인 폭을 좁혀
+ *   W/S(위아래) 이동과 회피(Shift)가 실제로 공격을 피하게 만든다.
+ *     lane.hero  : 내 근접 공격이 적에게 닿는 깊이 반폭
+ *     lane.boss  : 보스에게 닿는 깊이 반폭(몸집이 커서 조금 넓다)
+ *     lane.enemy : 적 근접 공격이 나에게 닿는 깊이 반폭
+ *     back       : 정면 판정의 뒤쪽 허용치 — 등 뒤는 절대 맞지 않는다
+ *   inFront(공격자x, 대상x, 바라보는방향, 사거리): 정면 + 사거리 안인가
+ *   inLane (a, b, 폭): 두 좌표의 깊이 차가 레인 안인가
+ * ------------------------------------------------------------------ */
+G.LANE = { hero: 48, boss: 58, enemy: 44, back: 6 };
+G.inLane = (a, b, lane) => Math.abs((a || 0) - (b || 0)) <= lane;
+G.inFront = (ax, tx, facing, reach, back) => {
+  const dx = ((tx || 0) - (ax || 0)) * (facing >= 0 ? 1 : -1);
+  return dx >= -(back == null ? G.LANE.back : back) && dx <= reach;
+};
+
+/* 무대(사각 링) 좌표 — 바닥 가이드·스폰·검증이 같은 값을 본다 */
+G.RING = {
+  left: 104, right: 1056,            // 링 좌우 끝(원근 보정 전 기준)
+  far: 470, near: 690,               // 링 앞·뒤 끝(화면 y)
+  centerX: 580, centerY: 588,
+  laneY: [540, 636],                 // 주 타점 레인(588 ± 48)의 깊이선
+  heroY: [492, 664],                 // 플레이어가 걸을 수 있는 깊이
+};
+
+/* 스폰은 좌·우 양쪽에서 — 한쪽 편중을 없앤다 */
+G.SPAWN = { left: [70, 132], right: [1116, 1222], lane: 34 };
+G.spawnX = (side) => {
+  const s = G.SPAWN[side === 'left' ? 'left' : 'right'];
+  return G.rand(s[1], s[0]);
 };
 
 G.fmtTime = (sec) => {

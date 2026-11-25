@@ -119,14 +119,15 @@
     slash(x, y, opts = {}) {
       const o = Object.assign(
         { radius: 150, spread: 1.15, angle: -0.18, width: 22, color: 0x2f6bff,
-          color2: 0x8fd0ff, edge: null, dir: 1, dur: 0.17, scale: 1, spiral: 0.16, flare: 1 },
+          color2: 0x8fd0ff, edge: null, dir: 1, dur: 0.17, scale: 1, spiral: 0.16, flare: 1, flip: false },
         opts
       );
       const g = new PIXI.Graphics();
       g.x = x; g.y = y;
       g.blendMode = 'add';
       g.rotation = o.angle;
-      g.scale.set(o.scale * 0.9);
+      const mir = o.flip ? -1 : 1;      // 왼쪽을 보고 벨 때는 검궤적도 좌우로 뒤집는다
+      g.scale.set(o.scale * 0.9 * mir, o.scale * 0.9);
       this.layer.addChild(g);
 
       const a0 = -o.spread / 2;
@@ -170,7 +171,7 @@
           const p = item.t / o.dur;
           if (p >= 1) return false;
           const e = G.easeOutCubic(p);
-          g.scale.set(o.scale * (0.9 + 0.22 * e), o.scale * (0.95 + 0.1 * e));
+          g.scale.set(o.scale * (0.9 + 0.22 * e) * mir, o.scale * (0.95 + 0.1 * e));
           g.rotation = o.angle + 0.14 * o.dir * e;
           g.alpha = Math.pow(1 - p, 1.6);
           return true;
@@ -186,7 +187,7 @@
         this._particle(x + Math.cos(a) * rr, y + Math.sin(a) * rr, {
           color: G.chance(0.5) ? 0xffffff : o.color2,
           size: G.rand(22, 7),
-          vx: Math.cos(a) * G.rand(340, 110),
+          vx: Math.cos(a) * G.rand(340, 110) * mir,
           vy: Math.sin(a) * G.rand(340, 110),
           life: G.rand(0.36, 0.14),
           grav: 180,
@@ -475,6 +476,7 @@
       g.blendMode = 'add';
       g.x = hero.x + 64 * hero.facing;
       g.y = hero.centerY;
+      g.scale.x = (hero.facing >= 0 ? 1 : -1);   // 검궤적도 보는 방향을 따른다
       this.layer.addChild(g);
       const r0 = cfg.ang - dir * (heavy ? 0.85 : 0.6);
       const r1 = cfg.ang + dir * (heavy ? 0.95 : 0.65);
@@ -525,7 +527,7 @@
           const head = G.lerp(r0, r1, G.easeOutCubic(Math.min(1, p * 1.6)));
           draw(head, Math.pow(1 - p, 1.3));
           g.alpha = Math.pow(1 - p, 1.1);
-          g.scale.set(0.94 + 0.12 * p);
+          g.scale.set((0.94 + 0.12 * p) * (hero.facing >= 0 ? 1 : -1), 0.94 + 0.12 * p);
           return true;
         },
       };
