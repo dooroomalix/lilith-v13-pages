@@ -49,6 +49,9 @@
       return;
     }
 
+    // 파츠 리그 목차(rig meta) — 로비 미리보기·전투 출전이 같은 표를 본다
+    try { await G.Rigs.loadMeta('assets/rig/meta.json'); } catch (e) { fail('rig meta: ' + e.message); }
+
     const game = new G.Game(app);
     window.__GAME = game;
     app.ticker.add(() => {
@@ -102,7 +105,7 @@
       if (game.phase === 'lobby') {
         if (!e.repeat) {
           if (k === 'm') game.lobby.toggleSound();
-          else if (k === 'Enter') game.sortieWithFade();
+          else if (k === 'Enter') { const ch = game.lobby.chosen(); game.deployFromLobby(ch.key, ch.skin); }
           else if (k === '1' || k === '2') game.lobby.selectStage(Number(k) - 1);
         }
         return;
@@ -218,6 +221,43 @@
       lobbyHits: () => game.lobby.hits(),
       sortie: () => { if (game.phase === 'lobby') game.sortie(); },
       enterLobby: () => game.enterLobby(),
+      // ---- Step 7 : 캐릭터·스킨 출전 / 관절 리그 ----
+      deploy: (key, skin) => game.deployFromLobby(key, skin),
+      lobbySelect: (key) => {
+        const i = G.CHARS.order.indexOf(key);
+        if (i >= 0) game.lobby.select(i);
+        return game.lobby.state();
+      },
+      lobbySkin: (skin) => { game.lobby.setSkin(skin); return game.lobby.state(); },
+      heroInfo: () => {
+        const h = game.kael;
+        if (!h) return null;
+        return {
+          char: h.char ? h.char.key : null, skin: h.skin,
+          name: h.name, hp: Math.round(h.hp), hpMax: h.hpMax, atk: h.atk,
+          rig: !!h.rig, rigKey: h.rig ? h.rig.key : null,
+          parts: h.rig ? h.rig.partNames.length : 0,
+          state: h.state, facing: h.facing,
+          pose: h.rig ? h.rig.debug() : null,
+          skill: h.char ? h.char.skill.name : null,
+          ult: h.char ? h.char.ult.name : null,
+        };
+      },
+      enemyInfo: () => game.enemies.filter((e) => e.alive && !e.dying).map((e) => ({
+        variant: e.variant, hp: Math.round(e.hp), state: e.state,
+        rig: !!e.rig, parts: e.rig ? e.rig.partNames.length : 0,
+        pose: e.rig ? e.rig.debug() : null,
+      })),
+      bossInfo: () => (game.boss ? {
+        name: game.boss.name, hp: Math.round(game.boss.hp), state: game.boss.state,
+        rig: !!game.boss.rig, parts: game.boss.rig ? game.boss.rig.partNames.length : 0,
+        pose: game.boss.rig ? game.boss.rig.debug() : null,
+      } : null),
+      rigTurn: (which) => {
+        const t = which === 'boss' ? game.boss : which === 'enemy' ? game.enemies.find((e) => e.alive) : game.kael;
+        return t && t.rig ? t.rig.turnLog.slice(-6) : null;
+      },
+      spawnElite: () => { const e = game._spawnEnemy({ hp: 360, atk: 20 }, 980, 'elite'); return e ? e.variant : null; },
       // ---- 스테이지 · 구역 (Step 4-3) ----
       setStage: (i) => { game.setStage(i); if (game.lobby) game.lobby.syncStage(); return game.stage.key; },
       stages: () => G.STAGES.map((s) => ({ key: s.key, order: s.order, name: s.name, zones: s.zones.map((z) => z.name) })),

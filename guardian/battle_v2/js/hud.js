@@ -465,6 +465,22 @@
       return out;
     }
 
+    /* 출전 캐릭터·스킨을 HUD 이름판·초상에 반영한다 (Step 7) */
+    setHero(C, skin) {
+      if (!C) return;
+      if (this.nameText) this.nameText.text = 'Lv.1 ' + C.name;
+      if (this.classText) this.classText.text = C.role + ' · GUARDIAN';
+      const path = (G.CHARS && G.CHARS.portrait) ? G.CHARS.portrait(C.key, skin || 'basic') : null;
+      if (!path) return;
+      G.Assets._img(path).then((img) => {
+        const t = PIXI.Texture.from(img);
+        t.source.scaleMode = 'linear';
+        this.portrait.texture = t;
+        this.portrait.width = 68;
+        this.portrait.height = 68;
+      }).catch(() => {});
+    }
+
     /* ---------- 갱신 ---------- */
     update(dt, game) {
       const b = this.buttons;

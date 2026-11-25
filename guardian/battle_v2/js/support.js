@@ -83,9 +83,12 @@
     reset() {
       this.ally = {};
       // 첫 등장이 시작 직후 몰리지 않게 조금씩 어긋나게 둔다
+      // (플레이어로 출전한 캐릭터는 지원 편성에서 자동 제외 — Step 7)
+      const me = (this.game && this.game.deployChar) || 'kael';
       this.ally.ara = { cd: 5.0 };
       this.ally.born = { cd: 7.5 };
       this.ally.sena = { cd: 9.5 };
+      if (this.ally[me]) this.ally[me].cd = 1e9;
       this.slowT = 0;
       this.lastFire = -99;
       this._clearActor();

@@ -1,0 +1,420 @@
+{
+ "name": "arcanon",
+ "w": 701,
+ "h": 718,
+ "cx": 406.5,
+ "bodyH": 718,
+ "atlas": "assets/rig/arcanon/atlas.webp",
+ "arch": "stocky",
+ "parts": [
+  {
+   "name": "upArm_far",
+   "parent": "torso",
+   "z": 20,
+   "joint": "shoulder_far",
+   "file": "assets/rig/arcanon/upArm_far.webp",
+   "w": 125,
+   "h": 132,
+   "pivot": [
+    96.82,
+    50.92
+   ],
+   "tip": [
+    55.53,
+    112.52
+   ],
+   "origin": [
+    233,
+    265
+   ],
+   "jointColor": [
+    45,
+    24,
+    31
+   ],
+   "r": 41.04,
+   "rect": [
+    722,
+    3,
+    125,
+    132
+   ]
+  },
+  {
+   "name": "loArm_far",
+   "parent": "upArm_far",
+   "z": 20,
+   "joint": "elbow_far",
+   "file": "assets/rig/arcanon/loArm_far.webp",
+   "w": 111,
+   "h": 126,
+   "pivot": [
+    65.53,
+    13.52
+   ],
+   "tip": [
+    36.04,
+    70.39
+   ],
+   "origin": [
+    223,
+    364
+   ],
+   "jointColor": [
+    33,
+    16,
+    22
+   ],
+   "r": 33.44,
+   "rect": [
+    850,
+    3,
+    111,
+    126
+   ]
+  },
+  {
+   "name": "thigh_far",
+   "parent": "pelvis",
+   "z": 26,
+   "joint": "hip_far",
+   "file": "assets/rig/arcanon/thigh_far.webp",
+   "w": 233,
+   "h": 196,
+   "pivot": [
+    172.45,
+    50.52
+   ],
+   "tip": [
+    146.98,
+    158.22
+   ],
+   "origin": [
+    135,
+    409
+   ],
+   "jointColor": [
+    26,
+    13,
+    20
+   ],
+   "r": 47.12,
+   "rect": [
+    301,
+    450,
+    233,
+    196
+   ]
+  },
+  {
+   "name": "shin_far",
+   "parent": "thigh_far",
+   "z": 26,
+   "joint": "knee_far",
+   "file": "assets/rig/arcanon/shin_far.webp",
+   "w": 343,
+   "h": 149,
+   "pivot": [
+    281.98,
+    -1.78
+   ],
+   "tip": [
+    265.0,
+    143.26
+   ],
+   "origin": [
+    0,
+    569
+   ],
+   "jointColor": [
+    41,
+    22,
+    30
+   ],
+   "r": 36.48,
+   "rect": [
+    537,
+    450,
+    343,
+    149
+   ]
+  },
+  {
+   "name": "thigh_near",
+   "parent": "pelvis",
+   "z": 30,
+   "joint": "hip_near",
+   "file": "assets/rig/arcanon/thigh_near.webp",
+   "w": 250,
+   "h": 220,
+   "pivot": [
+    61.9,
+    21.52
+   ],
+   "tip": [
+    89.26,
+    129.22
+   ],
+   "origin": [
+    451,
+    438
+   ],
+   "jointColor": [
+    73,
+    17,
+    33
+   ],
+   "r": 47.12,
+   "rect": [
+    3,
+    649,
+    250,
+    220
+   ]
+  },
+  {
+   "name": "shin_near",
+   "parent": "thigh_near",
+   "z": 30,
+   "joint": "knee_near",
+   "file": "assets/rig/arcanon/shin_near.webp",
+   "w": 185,
+   "h": 140,
+   "pivot": [
+    102.26,
+    -1.78
+   ],
+   "tip": [
+    120.5,
+    143.26
+   ],
+   "origin": [
+    438,
+    569
+   ],
+   "jointColor": [
+    134,
+    17,
+    25
+   ],
+   "r": 36.48,
+   "rect": [
+    256,
+    649,
+    185,
+    140
+   ]
+  },
+  {
+   "name": "pelvis",
+   "parent": "torso",
+   "z": 38,
+   "joint": "hip",
+   "file": "assets/rig/arcanon/pelvis.webp",
+   "w": 129,
+   "h": 233,
+   "pivot": [
+    70.5,
+    -20.84
+   ],
+   "tip": [
+    70.5,
+    0.7
+   ],
+   "origin": [
+    336,
+    466
+   ],
+   "jointColor": [
+    21,
+    11,
+    20
+   ],
+   "r": 124.64,
+   "rect": [
+    590,
+    3,
+    129,
+    233
+   ]
+  },
+  {
+   "name": "torso",
+   "parent": null,
+   "z": 40,
+   "joint": "hip",
+   "file": "assets/rig/arcanon/torso.webp",
+   "w": 297,
+   "h": 444,
+   "pivot": [
+    188.5,
+    29.61
+   ],
+   "tip": [
+    188.5,
+    191.16
+   ],
+   "origin": [
+    218,
+    254
+   ],
+   "jointColor": [
+    22,
+    11,
+    20
+   ],
+   "r": 152.0,
+   "rect": [
+    290,
+    3,
+    297,
+    444
+   ]
+  },
+  {
+   "name": "upArm_near",
+   "parent": "torso",
+   "z": 50,
+   "joint": "shoulder_near",
+   "file": "assets/rig/arcanon/upArm_near.webp",
+   "w": 85,
+   "h": 112,
+   "pivot": [
+    15.86,
+    30.92
+   ],
+   "tip": [
+    45.67,
+    92.52
+   ],
+   "origin": [
+    446,
+    285
+   ],
+   "jointColor": [
+    18,
+    10,
+    19
+   ],
+   "r": 41.04,
+   "rect": [
+    3,
+    450,
+    85,
+    112
+   ]
+  },
+  {
+   "name": "loArm_near",
+   "parent": "upArm_near",
+   "z": 50,
+   "joint": "elbow_near",
+   "file": "assets/rig/arcanon/loArm_near.webp",
+   "w": 207,
+   "h": 106,
+   "pivot": [
+    28.67,
+    4.52
+   ],
+   "tip": [
+    49.96,
+    61.39
+   ],
+   "origin": [
+    463,
+    373
+   ],
+   "jointColor": [
+    30,
+    12,
+    29
+   ],
+   "r": 33.44,
+   "rect": [
+    91,
+    450,
+    207,
+    106
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "torso",
+   "z": 60,
+   "joint": "neck",
+   "file": "assets/rig/arcanon/head.webp",
+   "w": 284,
+   "h": 333,
+   "pivot": [
+    207.5,
+    283.61
+   ],
+   "tip": [
+    216.62,
+    32.31
+   ],
+   "origin": [
+    199,
+    0
+   ],
+   "jointColor": [
+    37,
+    17,
+    25
+   ],
+   "r": 139.84,
+   "rect": [
+    3,
+    3,
+    284,
+    333
+   ]
+  }
+ ],
+ "joints": {
+  "head": [
+   207.5,
+   283.61
+  ],
+  "torso": [
+   188.5,
+   29.61
+  ],
+  "pelvis": [
+   70.5,
+   -20.84
+  ],
+  "upArm_far": [
+   96.82,
+   50.92
+  ],
+  "loArm_far": [
+   65.53,
+   13.52
+  ],
+  "upArm_near": [
+   15.86,
+   30.92
+  ],
+  "loArm_near": [
+   28.67,
+   4.52
+  ],
+  "thigh_far": [
+   172.45,
+   50.52
+  ],
+  "shin_far": [
+   281.98,
+   -1.78
+  ],
+  "thigh_near": [
+   61.9,
+   21.52
+  ],
+  "shin_near": [
+   102.26,
+   -1.78
+  ]
+ }
+}

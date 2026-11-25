@@ -1,16 +1,11 @@
-/* lobby.js : 성문 대기실 로비 — 캐릭터 전시 · 터치 대사 · 지원 편성 · 조작 안내 · 출격
+/* lobby.js : 성문 대기실 로비 — 캐릭터·스킨 선택 · 지원 편성 · 조작 안내 · 출격
  *
- *  v5.5.0-build450 (Step 4-2)
- *   - 화면 흐름: 타이틀 → **로비** → 전투 → (승리/패배) → 로비 … 의 허브가 된다.
- *     전투 조작 체계(←/→·A/D, W/S, ↑/Space, J/K/L/Shift/Q/P)는 그대로 둔다.
- *   - 배경은 bg_gate.webp 한 장. 전투보다 어둡고 따뜻한 대기 조명(잔불·옅은 안개·성문 빛줄기)만 더해
- *     '성문 앞 대기실'의 차분한 분위기를 만든다. 성문 아치가 화면 가운데 오도록 배치해
- *     수호자가 문 앞에 서 있는 그림이 되게 했다.
- *   - 카엘·리아·아라·보른·세나 5인을 초상화(크게) + 전신 1:1 SD(보조 연출)로 전시한다.
- *     캐릭터를 누르면 한국어 구어체 대사가 말풍선으로 한 줄씩 순환하고, SD가 가볍게 튀며
- *     해당 성우 보이스(audio/ 보유 파일)가 재생된다. 보이스가 없는 캐릭터는 UI 효과음으로 대신한다.
- *   - 왼쪽: 지원 편성(아라·보른·세나) / 접이식 조작 안내, 오른쪽: 5인 선택 레일,
- *     아래: [전투 출격], 위: 사운드 켜기·끄기.
+ *  v5.7.0-build470 (Step 7)
+ *   - 로비에서 고른 캐릭터가 그대로 전투 메인으로 출전한다 (카엘 고정 해제).
+ *   - 스킨 3벌(성문 전투복 / 다크 레드 연회복 / 정예 정복)을 고르면 초상·리그 미리보기·
+ *     전투 파츠가 통째로 갈아입는다.
+ *   - 캐릭터를 직접 출전시키면 그 캐릭터는 지원 편성에서 빠진다(아라·보른·세나).
+ *   - 화면 흐름(타이틀 → 로비 → 전투 → 결과 → 로비)과 전투 조작 체계는 그대로 둔다.
  */
 (function () {
   const COL = {
@@ -29,90 +24,17 @@
   };
 
   /* ---------------------------------------------------------------- 5인 전시 데이터
-   * lines 는 세계관에 맞춘 구어체 대사 — 번역투·기계적 말투 없이 사람이 말하듯 짧게.
-   * voice 는 audio/ 에 실제로 있는 한국어 보이스만 매핑한다. */
-  const CAST = [
-    {
-      key: 'kael', name: '카엘', role: '성문기사', en: 'THE GATEKEEPER',
-      portrait: 'portraitKael', sd: 'kael_sd_idle', voice: 'kael_skill',
-      color: 0x8ec7ff, accent: 0xd8ecff,
-      lines: [
-        '문은 아직 서 있어. 오늘 밤도 내가 지킨다.',
-        '이름은… 카엘. 방금 물었나? 미안해, 요즘 자꾸 잊어서.',
-        '리아가 적어 두니까 괜찮아. 나는 검만 쥐면 돼.',
-        '출격하기 전엔 숨 한 번 크게 쉬어. 그게 제일 중요해.',
-        '네가 여기 서 있다는 것만으로도, 이 문은 조금 단단해진다.',
-      ],
-      resultLines: {
-        victory: '문이 아직 서 있어. 이건 네가 있어서야. 고맙다고 말해 두고 싶었어.',
-        defeat: '미안해, 이번엔 내가 물러났어. 다음엔 문 앞에서 한 발도 안 물러나.',
-      },
-    },
-    {
-      key: 'lia', name: '리아', role: '마도사', en: "LIGHT'S VERDICT",
-      portrait: 'portraitLia', sd: 'lia_sd_idle', voice: 'lia_ult',
-      color: 0xb98bff, accent: 0xe6dcff,
-      lines: [
-        '기록은 제가 해요. 당신은 잊어도 괜찮아요.',
-        '오늘 아침까지 열아홉 장째예요. 스무 장이 되기 전에 한 번 봐 주실래요?',
-        '문 앞에서 서성대는 건 좋아요. 다만 너무 오래는 하지 마요.',
-        '빛은 아껴 쓰는 거예요. 넘치게 쓰면 그 틈으로 어둠이 들어와요.',
-        '당신이 잊은 걸 제가 기억하고 있으니, 두 사람 몫을 하면 되잖아요.',
-      ],
-      resultLines: {
-        victory: '오늘 일은 다 적어 뒀어요. 마지막 줄에 당신 이름을 제일 크게 썼고요.',
-        defeat: '이번 건 연필로 적었어요. 지우고 다시 쓰면 되니까, 너무 상심 마요.',
-      },
-    },
-    {
-      key: 'ara', name: '아라', role: '등불지기', en: "LAMPBEARER'S WARMTH",
-      portrait: 'portraitAra', sd: 'ara_sd_idle', voice: 'ara_support',
-      color: 0xffc247, accent: 0xffe9a8,
-      lines: [
-        '이 등불, 꺼지지 않게 제가 들고 있을게요.',
-        '어두운 건 무섭지 않아요. 아무도 돌아오지 않는 게 무서운 거예요.',
-        '왕관이 아니라 등불이래요. 그래도 이게 제일 자랑이에요.',
-        '싸울 때는 제 뒤에 있으면 따뜻할 거예요.',
-        '조금만 쉬었다 가요. 등불은 그동안 제가 지키고 있을게요.',
-      ],
-      resultLines: {
-        victory: '등불이 아직 환해요. 오늘은 아무도 길을 잃지 않았네요.',
-        defeat: '불을 조금 낮춰 뒀어요. 다시 나가실 때 제가 밝혀 드릴게요.',
-      },
-    },
-    {
-      key: 'born', name: '보른', role: '대장장이', en: 'IRON VERDICT',
-      portrait: 'portraitBorn', sd: 'born_sd_idle', voice: 'born_support',
-      color: 0xff8a3c, accent: 0xffc98c,
-      lines: [
-        '검은 직접 벼린 놈이 써야 쓸 만한 법이지.',
-        '맞을 놈은 내가 다 맞아 줄 테니, 뒤에서 함부로 나오지 마라.',
-        '화로는 아직 뜨겁다. 쇠는 식으면 다시 벼리면 되지만 사람은 다르지.',
-        '돌아오면 어깨 좀 주무르게. 나보다 맞은 놈이 더 많아 보이니까.',
-        '이 쇠소리 들리나? 저게 아직 살아 있다는 소리다.',
-      ],
-      resultLines: {
-        victory: '검 상태 좋다. 손 볼 데 없어. 오늘은 앉아서 한 잔 하지.',
-        defeat: '쇠는 다시 벼리면 된다고 했지. 앉아 봐, 어깨부터 풀자.',
-      },
-    },
-    {
-      key: 'sena', name: '세나', role: '기록관', en: 'SEAL OF RECORDS',
-      portrait: 'portraitSena', sd: 'sena_sd_idle', voice: 'sena_support',
-      color: 0xb98bff, accent: 0xe6dcff,
-      lines: [
-        '성문 앞에서 일어난 일은 전부 기록에 남아. 손대지 마.',
-        '느리게 움직이면 적기 편해. 그런데 네 속도가 나을 때가 많더라.',
-        '이름은 한 번만 말해. 두 번 들으면 나도 헷갈려.',
-        '잊는 건 기록이 없어서야. 그래서 나는 절대 안 지워.',
-        '지금 이 순간도 적고 있어. 나중에 웃을 일이 하나쯤은 생기겠지.',
-      ],
-      resultLines: {
-        victory: '승리는 짧게 적어. 대신 날짜는 정확하게.',
-        defeat: '패배도 기록이야. 지우진 않아. 다음 줄이 기다리고 있을 뿐이지.',
-      },
-    },
-  ];
+   * 실제 플레이어블 정의(js/chars.js)에서 그대로 가져온다 — 로비와 전투가 같은 표를 본다. */
+  const CAST = (G.CHARS ? G.CHARS.order : []).map((k) => {
+    const c = G.CHARS[k];
+    return {
+      key: c.key, name: c.name, role: c.role, en: c.en || '',
+      voice: (c.voice && (c.voice.skill || c.voice.ult)) || 'kael_skill',
+      color: c.colors.glow, accent: c.colors.slash2,
+      lines: c.lines, resultLines: c.resultLines,
+      hpMax: c.hpMax, atk: c.atk, skill: c.skill, ult: c.ult,
+    };
+  });
 
   /* 지원 편성 — 실제 전투 효과(support.js CARDS)와 같은 내용으로 적는다 */
   const SUPPORT = [
@@ -147,12 +69,13 @@
     support: { x: 20, y: 60, w: 390, h: 252 },
     keys: { x: 20, y: 324, w: 390, h: 304 },
     keyToggle: { x: 232, y: 332, w: 124, h: 30 },
-    stage: { x: 566, y: 62, w: 340, h: 340 },
-    name: { x: 566, y: 342, w: 340, h: 60 },
-    sdX: 498, sdFoot: 408, sdBody: 230,
-    bubble: { x: 466, y: 440, w: 540, h: 92 },
-    stageHit: { x: 424, y: 96, w: 622, h: 452 },
-    hintY: 550,
+    stage: { x: 566, y: 58, w: 340, h: 300 },
+    name: { x: 566, y: 362, w: 340, h: 54 },
+    skins: { x: 566, y: 422, w: 340, h: 34, gap: 5 },
+    sdX: 512, sdFoot: 402, sdBody: 238,
+    bubble: { x: 466, y: 462, w: 540, h: 78 },
+    stageHit: { x: 424, y: 92, w: 622, h: 362 },
+    hintY: 548,
     sortie: { x: 570, y: 566, w: 320, h: 86 },
     rail: { x: 1138, y: 62, w: 126, h: 540, cy0: 118, step: 100, r: 38 },
   };
@@ -180,6 +103,7 @@
       this.root.visible = false;
 
       this.sel = 0;
+      this.skin = 'basic';
       this.lineIdx = 0;
       this.t = 0;
       this.pressT = 0;         // 캐릭터를 눌렀을 때의 튀는 모션 타이머
@@ -471,6 +395,7 @@
       sub.anchor.set(1, 0);
       sub.x = R.x + R.w - 18; sub.y = R.y + 22;
       c.addChild(sub);
+      this.supportRows = [];
 
       SUPPORT.forEach((s, i) => {
         const y = R.y + 46 + i * 66;
@@ -511,6 +436,7 @@
         });
         cap.x = R.x + 82; cap.y = y + 29;
         row.addChild(cap);
+        this.supportRows.push({ key: s.key, cap, base: s.caption, role });
       });
     }
 
@@ -644,30 +570,48 @@
       this.roleText.x = N.x + N.w / 2; this.roleText.y = N.y + 44;
       c.addChild(this.roleText);
 
-      // 전신 SD (보조 연출) — 발밑 그림자 + 접지
+      // 전신 파츠 리그 미리보기 (보조 연출) — 고른 스킨이 그대로 입혀진다
       const sdC = new PIXI.Container();
       this.sdC = sdC;
       c.addChild(sdC);
 
-      this.sdShadow = new PIXI.Sprite(G.Assets.tex.shadow);
-      this.sdShadow.anchor.set(0.5);
-      this.sdShadow.width = 210; this.sdShadow.height = 62;
-      this.sdShadow.x = P.sdX; this.sdShadow.y = P.sdFoot - 4;
-      this.sdShadow.alpha = 0.5;
-      sdC.addChild(this.sdShadow);
+      this.rigGlow = new PIXI.Sprite(G.Assets.tex.glow);
+      this.rigGlow.anchor.set(0.5);
+      this.rigGlow.width = 300; this.rigGlow.height = 300;
+      this.rigGlow.x = P.sdX; this.rigGlow.y = P.sdFoot - 110;
+      this.rigGlow.alpha = 0.14;
+      this.rigGlow.blendMode = 'add';
+      sdC.addChild(this.rigGlow);
 
-      this.sdGlow = new PIXI.Sprite(G.Assets.tex.glow);
-      this.sdGlow.anchor.set(0.5);
-      this.sdGlow.width = 300; this.sdGlow.height = 300;
-      this.sdGlow.x = P.sdX; this.sdGlow.y = P.sdFoot - 110;
-      this.sdGlow.alpha = 0.14;
-      this.sdGlow.blendMode = 'add';
-      sdC.addChild(this.sdGlow);
+      this.rigShadow = new PIXI.Sprite(G.Assets.tex.shadow);
+      this.rigShadow.anchor.set(0.5);
+      this.rigShadow.width = 190; this.rigShadow.height = 58;
+      this.rigShadow.x = P.sdX; this.rigShadow.y = P.sdFoot - 2;
+      this.rigShadow.alpha = 0.5;
+      sdC.addChild(this.rigShadow);
 
-      this.sdSpr = new PIXI.Sprite(PIXI.Texture.WHITE);
-      this.sdSpr.anchor.set(0.5, 0.8);
-      this.sdSpr.x = P.sdX; this.sdSpr.y = P.sdFoot;
-      sdC.addChild(this.sdSpr);
+      this.rigLayer = new PIXI.Container();
+      sdC.addChild(this.rigLayer);
+      this.rig = null;
+      this.rigKey = null;
+
+      // 스킨 선택 칩 3개 (이름판 아래)
+      const SK = P.skins;
+      this.skinBtns = [];
+      const skins = G.CHARS ? G.CHARS.skins : ['basic'];
+      const bw2 = (SK.w - SK.gap * (skins.length - 1)) / skins.length;
+      skins.forEach((sk, i) => {
+        const bx = SK.x + i * (bw2 + SK.gap);
+        const g = new PIXI.Graphics();
+        const t = new PIXI.Text({
+          text: (G.CHARS.skinLabel[sk] || {}).tag || sk,
+          style: G.style({ fontSize: 12.5, fontWeight: '900', fill: 0xdfeaf7, letterSpacing: 0.6, align: 'center' }),
+        });
+        t.anchor.set(0.5);
+        t.x = bx + bw2 / 2; t.y = SK.y + SK.h / 2;
+        c.addChild(g, t);
+        this.skinBtns.push({ g, t, x: bx, y: SK.y, w: bw2, h: SK.h, skin: sk });
+      });
 
       // 말풍선
       const B = P.bubble;
@@ -733,19 +677,16 @@
         ring.circle(cx, cy, R.r).stroke({ width: 1.6, color: cast.color, alpha: 0.55 });
         holder.addChild(ring);
 
-        const tex = G.Assets.tex[cast.portrait];
-        if (tex) {
-          const spr = new PIXI.Sprite(tex);
-          spr.anchor.set(0.5);
-          const sc = (R.r * 2) / Math.min(tex.width, tex.height);
-          spr.scale.set(sc);
-          spr.x = cx; spr.y = cy;
-          const m = new PIXI.Graphics();
-          m.circle(cx, cy, R.r - 2).fill({ color: 0xffffff });
-          holder.addChild(m);
-          spr.mask = m;
-          holder.addChild(spr);
-        }
+        // 초상은 캐릭터별·스킨별 파일에서 그때그때 받는다 (Step 7)
+        const spr = new PIXI.Sprite(PIXI.Texture.WHITE);
+        spr.anchor.set(0.5);
+        spr.x = cx; spr.y = cy;
+        const m = new PIXI.Graphics();
+        m.circle(cx, cy, R.r - 2).fill({ color: 0xffffff });
+        holder.addChild(m);
+        spr.mask = m;
+        holder.addChild(spr);
+        this._setPortrait(spr, cast.key, 'basic', R.r * 2);
 
         const selG = new PIXI.Graphics();
         selG.circle(cx, cy, R.r + 5).stroke({ width: 2.6, color: COL.goldSoft, alpha: 0.95 });
@@ -758,7 +699,7 @@
         nm.x = cx; nm.y = cy + R.r + 3;
         holder.addChild(nm);
 
-        this.thumbs.push({ holder, sel: selG, nm, cast, cx, cy });
+        this.thumbs.push({ holder, sel: selG, nm, cast, cx, cy, spr });
       });
     }
 
@@ -819,8 +760,23 @@
       this._hintRevert = 0;
       this.hintText.text = '캐릭터를 누르면 대사가 바뀝니다';
       this.hintText.style.fill = COL.dim;
+      // 직전 출전 캐릭터·스킨을 그대로 이어 받는다 (재도전에도 유지)
+      if (this.game && this.game.deployChar) {
+        const i = CAST.findIndex((c) => c.key === this.game.deployChar);
+        if (i >= 0) this.sel = i;
+      }
+      if (this.game && this.game.deploySkin && G.CHARS.skins.indexOf(this.game.deploySkin) >= 0) {
+        this.skin = this.game.deploySkin;
+      }
       // 직전 전투 결과를 로비 첫 대사·배지로 이어 받는다 (Step 4-3)
       this.resultEcho = this.game.lastResult || null;
+      // 필요한 리그만 미리 받는다 — 5인 기본복 + 지금 캐릭터의 스킨 3종 + 적·보스
+      if (G.Rigs && G.CHARS) {
+        G.CHARS.order.forEach((k) => { G.Rigs.load(G.CHARS.rigKey(k, 'basic')).catch(() => {}); });
+        const selKey = CAST[this.sel] ? CAST[this.sel].key : 'kael';
+        G.CHARS.skins.forEach((sk) => { G.Rigs.load(G.CHARS.rigKey(selKey, sk)).catch(() => {}); });
+        ['scout', 'elite', 'arcanon'].forEach((k) => { G.Rigs.load(k).catch(() => {}); });
+      }
       this._applyChar(true);
       this._drawSound();
       this._applyControls();
@@ -842,40 +798,114 @@
       if (G.Sfx.bgm && !G.Sfx.muted) G.Sfx.bgm.volume = 0.38;
     }
 
-    /* ================================================================ 캐릭터 · 대사 */
+    /* ================================================================ 캐릭터 · 스킨 · 대사 */
+    /* 초상 텍스처 — 캐릭터·스킨별 파일. size 를 주면 그 크기에 맞춰 스케일한다 */
+    _setPortrait(spr, key, skin, size) {
+      if (!spr || !G.CHARS) return;
+      const path = G.CHARS.portrait(key, skin || 'basic');
+      if (spr._path === path) return;
+      spr._path = path;
+      G.Assets._img(path).then((img) => {
+        if (!spr || spr.destroyed) return;
+        const t = PIXI.Texture.from(img);
+        t.source.scaleMode = 'linear';
+        spr.texture = t;
+        if (size) {
+          const sc = size / Math.min(t.width, t.height);
+          spr.scale.set(sc);
+        }
+      }).catch(() => {});
+    }
+
     _applyChar(resetLine) {
       const cast = CAST[this.sel];
       if (resetLine) this.lineIdx = 0;
 
-      // 초상화 — 프레임을 꽉 채우도록 크롭
-      const tex = G.Assets.tex[cast.portrait] || PIXI.Texture.WHITE;
-      this.portraitSpr.texture = tex;
-      const S = P.stage;
-      const sc = Math.max(S.w / tex.width, S.h / tex.height);
-      this.portraitSpr.scale.set(sc);
+      // 초상화 — 프레임을 꽉 채우도록 크롭 (스킨을 따라 바뀐다)
+      this._setPortrait(this.portraitSpr, cast.key, this.skin, null);
       this.portraitSpr.alpha = 1;
-
-      // 전신 SD
-      const sd = G.Assets.sd[cast.sd];
-      if (sd && sd.texture) {
-        this.sdSpr.texture = sd.texture;
-        this.sdSpr.anchor.set(sd.ax, sd.ay);
-        this.sdSpr._bodyH = sd.bodyH || sd.h;
-      }
-      this.sdGlow.tint = cast.color;
-      this.sdShadow.tint = 0x000000;
 
       // 이름판
       this.nameText.text = cast.name;
       this.nameText.style.fill = cast.accent;
-      this.roleText.text = cast.role + '  ·  ' + cast.en;
+      this.roleText.text = cast.role + '  ·  ' + (G.CHARS ? G.CHARS.skinName(cast.key, this.skin) : '');
 
       // 레일 선택 표시
       this.thumbs.forEach((th, i) => { th.sel.visible = i === this.sel; });
+      if (this.rigGlow) this.rigGlow.tint = cast.color;
 
+      this._applySkins();
+      this._applySupportRows();
+      this._showRig();
       this._showLine(false);
       this.bubbleT = 0.001;
       this.portraitFade = 0;
+    }
+
+    /* 스킨 칩 3칸 — 고른 스킨이 금테로 표시된다 */
+    _applySkins() {
+      const cast = CAST[this.sel];
+      (this.skinBtns || []).forEach((b) => {
+        const on = b.skin === this.skin;
+        b.g.clear();
+        plate(b.g, b.x, b.y, b.w, b.h, 8, on ? 0x241b06 : COL.plate, on ? 0.96 : 0.62);
+        edge(b.g, b.x, b.y, b.w, b.h, 8, on ? COL.gold : 0x5f86ad, on ? 0.95 : 0.34, on ? 2 : 1.1);
+        b.t.text = G.CHARS ? G.CHARS.skinName(cast.key, b.skin) : b.skin;
+        b.t.style.fill = on ? 0xffe9b0 : 0x9fb8d0;
+      });
+    }
+
+    /* 지원 편성 — 직접 출전한 캐릭터는 빠진다는 것을 그 자리에서 알린다 */
+    _applySupportRows() {
+      const me = CAST[this.sel] ? CAST[this.sel].key : 'kael';
+      (this.supportRows || []).forEach((r) => {
+        const out = r.key === me;
+        r.cap.text = out ? '이번 전투에는 직접 출전합니다 · 지원 제외' : r.base;
+        r.cap.style.fill = out ? 0x8a6f3e : 0xa8c2d8;
+        if (r.role) r.role.alpha = out ? 0.4 : 1;
+      });
+    }
+
+    /* 리그 미리보기 — 고른 캐릭터·스킨의 파츠로 그 자리에서 갈아입는다 */
+    async _showRig() {
+      const cast = CAST[this.sel];
+      if (!cast || !G.Rigs) return;
+      const rigKey = G.CHARS.rigKey(cast.key, this.skin);
+      if (this.rigKey === rigKey && this.rig) return;
+      // 빠르게 여러 스킨을 오갈 때 늦게 도착한 이전 요청이 지금 선택을 덮지 않게 토큰으로 막는다
+      const token = (this._rigToken = (this._rigToken || 0) + 1);
+      let def = G.Rigs.get(rigKey);
+      if (!def) { try { def = await G.Rigs.load(rigKey); } catch (e) { def = null; } }
+      if (token !== this._rigToken) return;
+      if (!def) return;
+      if (this.rig) { this.rigLayer.removeChild(this.rig.root); this.rig = null; }
+      const charDef = G.CHARS.get(cast.key);
+      const rig = new G.Rig(def, { artFacing: charDef.artFacing, mainArm: charDef.mainArm });
+      rig.setBodyPx(P.sdBody + 6);
+      rig.root.x = P.sdX;
+      rig.root.y = P.sdFoot;
+      rig.setState('idle', 0.4, {});
+      rig.update(0.016);
+      this.rigLayer.addChild(rig.root);
+      this.rig = rig;
+      this.rigKey = rigKey;
+      this.playLog.push({ t: +this.game.time.toFixed(2), rig: rigKey });
+      if (this.playLog.length > 40) this.playLog.shift();
+    }
+
+    /* 지금 고른 캐릭터·스킨 (키보드 Enter 출격·검증용) */
+    chosen() {
+      return { key: CAST[this.sel] ? CAST[this.sel].key : 'kael', skin: this.skin };
+    }
+
+    setSkin(skin) {
+      const skins = G.CHARS ? G.CHARS.skins : ['basic'];
+      if (skins.indexOf(skin) < 0) return false;
+      if (this.skin === skin) return false;
+      this.skin = skin;
+      this._applyChar(false);
+      G.Sfx.ui(true);
+      return true;
     }
 
     _showLine(withVoice) {
@@ -907,6 +937,7 @@
     }
 
     select(i) {
+      if (i < 0 || i >= CAST.length) return;
       if (i === this.sel) { this.tapCharacter(); return; }
       this.sel = i;
       this._applyChar(true);
@@ -933,7 +964,14 @@
       }
       if (inRect(P.sound)) { this.toggleSound(); return true; }
       if (inRect(P.keyToggle)) { this.toggleControls(); return true; }
-      if (inRect(P.sortie)) { this.game.sortieWithFade(); return true; }
+      for (const b of (this.skinBtns || [])) {
+        if (inRect(b)) { this.setSkin(b.skin); return true; }
+      }
+      if (inRect(P.sortie)) {
+        // 고른 캐릭터·스킨이 그대로 전투 메인으로 출전한다 (Step 7)
+        this.game.deployFromLobby(CAST[this.sel].key, this.skin);
+        return true;
+      }
       const R = P.rail;
       for (let i = 0; i < this.thumbs.length; i++) {
         const th = this.thumbs[i];
@@ -970,36 +1008,34 @@
         }
       }
 
-      // 캐릭터 전환 페이드
-      if (this.portraitFade < 1) {
-        this.portraitFade = Math.min(1, this.portraitFade + dt * 4.2);
-        const f = G.easeOutCubic(this.portraitFade);
-        this.portraitSpr.alpha = 0.25 + 0.75 * f;
-        this.portraitSpr.scale.set(
-          Math.max(P.stage.w / this.portraitSpr.texture.width, P.stage.h / this.portraitSpr.texture.height) * (0.98 + 0.02 * f),
-          Math.max(P.stage.w / this.portraitSpr.texture.width, P.stage.h / this.portraitSpr.texture.height) * (1.0 + 0.01 * f)
-        );
-      } else {
-        // 아주 미세한 호흡 (살아 있는 느낌)
-        const tex = this.portraitSpr.texture;
-        const base = Math.max(P.stage.w / tex.width, P.stage.h / tex.height);
-        this.portraitSpr.scale.set(base * (1 + Math.sin(t * 0.9) * 0.004), base * (1 + Math.sin(t * 0.9 + 0.6) * 0.004));
+      // 캐릭터 전환 페이드 (초상 텍스처가 준비된 뒤에만 크기를 맞춘다)
+      const ptex = this.portraitSpr.texture;
+      if (ptex && ptex.width > 1) {
+        if (this.portraitFade < 1) {
+          this.portraitFade = Math.min(1, this.portraitFade + dt * 4.2);
+          const f = G.easeOutCubic(this.portraitFade);
+          this.portraitSpr.alpha = 0.25 + 0.75 * f;
+          const base = Math.max(P.stage.w / ptex.width, P.stage.h / ptex.height);
+          this.portraitSpr.scale.set(base * (0.98 + 0.02 * f), base * (1.0 + 0.01 * f));
+        } else {
+          // 아주 미세한 호흡 (살아 있는 느낌)
+          const base = Math.max(P.stage.w / ptex.width, P.stage.h / ptex.height);
+          this.portraitSpr.scale.set(base * (1 + Math.sin(t * 0.9) * 0.004), base * (1 + Math.sin(t * 0.9 + 0.6) * 0.004));
+        }
       }
 
-      // SD 대기 모션 + 눌렀을 때 튀기
+      // 리그 미리보기 — 대기 호흡 + 눌렀을 때 팔을 든다
       if (this.pressT > 0) this.pressT = Math.max(0, this.pressT - dt);
       const press = this.pressT > 0 ? this.pressT / 0.44 : 0;
-      const hop = press > 0 ? Math.sin((1 - press) * Math.PI) * 30 : 0;
-      const breath = Math.sin(t * 2.1) * 2.2;
-      const bodyH = this.sdSpr._bodyH || 470;
-      const baseSc = (P.sdBody / bodyH);
-      const squash = press > 0 ? 1 + Math.sin((1 - press) * Math.PI * 2) * 0.05 : 1;
-      this.sdSpr.scale.set(baseSc * (2 - squash), baseSc * squash);
-      this.sdSpr.y = P.sdFoot - breath - hop;
-      this.sdSpr.rotation = Math.sin(t * 1.6) * 0.012;
-      this.sdShadow.width = 210 - hop * 1.4;
-      this.sdShadow.alpha = 0.5 - hop * 0.004;
-      this.sdGlow.alpha = 0.12 + Math.sin(t * 2.4) * 0.03 + press * 0.16;
+      const hop = press > 0 ? Math.sin((1 - press) * Math.PI) * 26 : 0;
+      if (this.rig && this.rig.body && !this.rig.body.destroyed) {
+        this.rig.setState(press > 0 ? 'victory' : 'idle', 0.5, {});
+        this.rig.root.y = P.sdFoot - hop;
+        this.rig.update(dt);
+      }
+      this.rigShadow.width = 190 - hop * 1.2;
+      this.rigShadow.alpha = 0.5 - hop * 0.004;
+      this.rigGlow.alpha = 0.12 + Math.sin(t * 2.4) * 0.03 + press * 0.16;
 
       // 말풍선 등장
       if (this.bubbleT > 0) {
@@ -1044,6 +1080,12 @@
         charName: cast.name,
         role: cast.role,
         voice: cast.voice,
+        skin: this.skin,
+        skinName: G.CHARS ? G.CHARS.skinName(cast.key, this.skin) : this.skin,
+        rigKey: this.rigKey,
+        rigParts: this.rig ? this.rig.partNames.length : 0,
+        portrait: G.CHARS ? G.CHARS.portrait(cast.key, this.skin) : null,
+        skins: G.CHARS ? G.CHARS.skins.slice() : [],
         lineIndex: this.lineIdx,
         lineCount: cast.lines.length,
         line: cast.lines[this.lineIdx % cast.lines.length],
@@ -1053,8 +1095,6 @@
         keyRowsVisible: this.keyRows.visible,
         bubbleAlpha: +this.bubbleC.alpha.toFixed(3),
         pressT: +this.pressT.toFixed(2),
-        sdFootY: +this.sdSpr.y.toFixed(1),
-        portraits: CAST.map((c) => c.portrait),
         stage: this.game.stage ? this.game.stage.key : null,
         stageIndex: this.game.stageIndex | 0,
         stageName: G.STAGES[this.game.stageIndex | 0].name,
@@ -1073,6 +1113,7 @@
         sortie: { ...P.sortie },
         stage: { ...P.stageHit },
         stages: (this.stagePills || []).map((p) => ({ ...p.r, key: p.stage.key })),
+        skins: (this.skinBtns || []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h, skin: b.skin })),
         chars: this.thumbs.map((th) => ({
           key: th.cast.key, x: th.cx - R.r, y: th.cy - R.r, w: R.r * 2, h: R.r * 2,
         })),

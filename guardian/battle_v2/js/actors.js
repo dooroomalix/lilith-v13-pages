@@ -149,6 +149,23 @@
       this.addHalo(opts.haloColor || 0x6fb8ff, 360, 0.18);
       this.addShadow(opts.shadowW || 196, 0.58);
 
+      /* Step 7: 파츠 리그 — 로비에서 고른 캐릭터·스킨이 그대로 전투 메인으로 출전한다.
+         리그가 있으면 통이미지(SD/시트)는 숨기고 관절로만 움직인다. */
+      this.char = opts.char || (G.CHARS && G.CHARS.kael) || null;
+      this.skin = opts.skin || 'basic';
+      this.mainArm = this.char ? this.char.mainArm : 'far';
+      this.rig = null;
+      this.stepPhase = 0;
+      if (this.char && G.Rigs && G.CHARS) {
+        const def = G.Rigs.get(G.CHARS.rigKey(this.char.key, this.skin));
+        if (def) {
+          this.rig = new G.Rig(def, { artFacing: this.char.artFacing, mainArm: this.char.mainArm });
+          // 기존 1:1 SD(232px)와 같은 체감 크기로 — 적(186)·정예(250)와 비율을 맞춘다
+          this.rig.setBodyPx(Math.round((opts.bodyPx || this.char.bodyPx || 330) * 0.8));
+          this.obj.addChild(this.rig.root);
+        }
+      }
+
       const meta = G.Assets.animMeta || { bodyH: 410 };
       this.bodyH = meta.bodyH;
       const idle = G.Assets.anim.idle;
@@ -314,19 +331,26 @@
       this.state = 'attack';
       this.stateT = 0;
       this.hitDone = false;
-      this.atkCfg = COMBO[idx];
+      // 캐릭터별 3연타 수치·검기 색 (Step 7)
+      const base = COMBO[idx];
+      const own = this.char && this.char.combo ? this.char.combo[idx] : null;
+      this.atkCfg = own ? Object.assign({}, base, own) : base;
+      const col = this.char ? this.char.colors : null;
+      if (col) { this.atkCfg.c1 = col.slash; this.atkCfg.c2 = col.slash2; this.atkCfg.edge = col.edge; }
       this.weaponGlow.alpha = 0.9;
-      this.weaponGlow.tint = idx === 2 ? 0x8fd0ff : 0x66aaff;
+      this.weaponGlow.tint = col ? col.slash2 : (idx === 2 ? 0x8fd0ff : 0x66aaff);
       this.facing = this.facing || 1;
       if (this.z > 0) this.jumpAttack = true;
-      if (G.Sfx.playVoice) G.Sfx.playVoice('kael_atk', { min: 3400, chance: 0.5 });
+      const av = this.char && this.char.voice ? this.char.voice.atk : 'kael_atk';
+      if (av && G.Sfx.playVoice) G.Sfx.playVoice(av, { min: 3400, chance: 0.5 });
       G.Sfx.slash(1 + idx * 0.09);
       return true;
     }
 
     cast() {
       if (this.state === 'dead' || this.state === 'dodge') return false;
-      if (G.Sfx.playVoice) G.Sfx.playVoice('kael_skill', { min: 2500, chance: 0.75 });
+      const sv = this.char && this.char.voice ? this.char.voice.skill : 'kael_skill';
+      if (sv && G.Sfx.playVoice) G.Sfx.playVoice(sv, { min: 2500, chance: 0.75 });
       this.state = 'cast';
       this.stateT = 0;
       this.castDone = false;
@@ -444,6 +468,10 @@
           this.state = 'idle';
           this.weaponGlow.alpha = 0;
         }
+      } else if (this.state === 'ult') {
+        // 궁극기 자세 — 0.9초 뒤 복귀 (리그는 그동안 ult 포즈)
+        if (this.stateT > 0.9) this.state = 'idle';
+        bob += Math.sin(G.clamp(this.stateT / 0.9, 0, 1) * Math.PI) * 5;
       } else if (this.state === 'dodge') {
         const p = G.clamp(this.stateT / 0.30, 0, 1);
         const e = G.easeOutCubic(p);
@@ -496,7 +524,7 @@
         this.weaponGlow.y = -this.bodyPx * 0.45 + bob * 0.4 + this.bobPx;
         this.weaponGlow.x = 40 * this.facing;
       } else {
-        this.obj.rotation = rot;
+        if (!this.rig) this.obj.rotation = rot;
         this.obj.y = this.y + dy;
       }
       // Counter-rotating squash/stretch and velocity lean preserve foot placement.
@@ -556,6 +584,45 @@
       this.game.scene.setFocus(this.x);
 
       this.mp = Math.min(this.mpMax, this.mp + dt * 7.5);
+      if (this.rig) this._driveRig(dt);
+    }
+
+    /* 파츠 리그 구동 — 상태·진행도·방향을 관절 포즈로 옮긴다 (Step 7) */
+    _driveRig(dt) {
+      const r = this.rig;
+      if (!r || !r.body || r.body.destroyed) return;
+      this.sprite.visible = false;
+      this.rim.visible = false;
+      this.sdSprite.visible = false;
+      let st = 'idle', p = 0;
+      const cfg = { mainArm: this.mainArm };
+      if (this.hurtT > 0 && this.state !== 'attack' && this.state !== 'dodge' && this.state !== 'dead') {
+        st = 'hurt'; p = 1 - this.hurtT / 0.30;
+      } else if (this.state === 'attack') {
+        st = 'atk' + ((this.atkIdx || 0) + 1); p = G.clamp(this.stateT / this.atkCfg.dur, 0, 1);
+      } else if (this.state === 'cast') {
+        st = 'cast'; p = G.clamp(this.stateT / 0.62, 0, 1);
+      } else if (this.state === 'dodge') {
+        st = 'dodge'; p = G.clamp(this.stateT / 0.30, 0, 1);
+      } else if (this.state === 'ult') {
+        st = 'ult'; p = G.clamp(this.stateT / 0.9, 0, 1);
+      } else if (this.state === 'dead') {
+        st = 'dead'; p = G.clamp(this.stateT / 0.9, 0, 1);
+      } else if (this.z > 0 || this.vz > 0) {
+        st = 'jump'; p = G.clamp(this.z / 190, 0, 1);
+      } else if (this.landT > 0) {
+        st = 'land'; p = 1 - this.landT / 0.16;
+      } else if (this.state === 'move') {
+        st = 'move';
+        const sp = Math.hypot(this.vx, this.vy * 0.6);
+        this.stepPhase = (this.stepPhase + (sp * dt) / 26) % (Math.PI * 2);
+        cfg.stepPhase = this.stepPhase; cfg.speed = sp;
+      }
+      r.setFacing(this.facing);
+      r.setState(st, p, cfg);
+      r.root.y = -this.z;
+      r.update(dt);
+      if (this.hurtT > 0.1) r.hitFlash(0xffc0c8);
     }
   }
 
@@ -626,11 +693,15 @@
   class Enemy extends Unit {
     constructor(game, opts = {}) {
       super(game);
-      this.hpMax = opts.hp || 190;
+      /* Step 7: 적도 3/4 관절 리그 — 척후병(scout) / 정예 기사(elite) */
+      const VC = (G.CHARS && G.CHARS.enemies) || {};
+      this.variant = opts.variant && VC[opts.variant] ? opts.variant : 'scout';
+      this.cfg = VC[this.variant] || { key: 'scout', rig: 'scout', bodyPx: 186, hpMul: 1, atkMul: 1, speedMul: 1, stopMul: 1, halo: 0xa06bff, tele: 0xb45bff, windup: 0.52, rest: 0.7 };
+      this.hpMax = Math.max(1, Math.round((opts.hp || 190) * this.cfg.hpMul));
       this.hp = this.hpMax;
-      this.lv = opts.lv || 2;
-      this.atk = opts.atk || 16;
-      this.speed = opts.speed || G.rand(190, 148);
+      this.lv = opts.lv || this.cfg.lv || 2;
+      this.atk = Math.max(1, Math.round((opts.atk || 16) * this.cfg.atkMul));
+      this.speed = (opts.speed || G.rand(190, 148)) * this.cfg.speedMul;
       this.x = opts.x || G.rand(1360, 1180);
       this.y = opts.y || GROUND_Y + G.rand(30, -26);
       this.scale = opts.scale || G.rand(0.6, 0.46);
@@ -640,7 +711,7 @@
       this.alive = true;
       this.dying = false;
       this.attackCD = G.rand(1.4, 0.4);
-      this.stopDist = G.rand(225, 150);
+      this.stopDist = G.rand(225, 150) * this.cfg.stopMul;
       this.dead = false;
       this.kb = 0;
       this.kbV = 0;
@@ -651,9 +722,11 @@
       this.defDown = 0;    // 보른 — 방어력 감소
       this.defSpr = null;
       this.stunSpr = null;
+      this.windupDur = this.cfg.windup || 0.52;
+      this.stepPhase = 0;
 
-      this.addHalo(0xa06bff, 240, 0.16);
-      this.addShadow(132, 0.5);
+      this.addHalo(this.cfg.halo, 240 + (this.cfg.bodyPx - 186) * 1.2, 0.16);
+      this.addShadow(132 + (this.cfg.bodyPx - 186) * 0.7, 0.5);
       this.sprite = new PIXI.Sprite(G.Assets.sd?.scout_sd?.texture || G.Assets.tex.scout);
       this.sprite.anchor.set(G.Assets.sd?.scout_sd?.ax ?? 0.5, G.Assets.sd?.scout_sd?.ay ?? 1);
       if (G.Assets.sd?.scout_sd) this.scale = 186 / (G.Assets.sd.scout_sd.bodyH || G.Assets.sd.scout_sd.h);
@@ -675,6 +748,22 @@
       this.flashSpr.alpha = 0;
       this.obj.addChild(this.flashSpr);
       this.baseH = this.sprite.height;
+
+      // Step 7: 적 관절 리그 (3/4 측면, 왼쪽을 바라본다)
+      this.rig = null;
+      if (G.Rigs) {
+        const rdef = G.Rigs.get(this.cfg.rig || 'scout');
+        if (rdef) {
+          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near' });
+          this.rig.setBodyPx(this.cfg.bodyPx || 186);
+          this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
+          this.baseH = this.cfg.bodyPx || 186;
+          this.sprite.visible = false;
+          this.rim.visible = false;
+          this.flashSpr.visible = false;
+        }
+      }
+
       this.obj.x = this.x;
       this.obj.y = this.y;
       this.obj.zIndex = this.y;
@@ -714,6 +803,8 @@
     get centerY() { return this.y - this.baseH * 0.55; }
 
     _setAttackTex(on) {
+      // 리그가 있으면 텍스처 교체 없이 관절 몸짓으로 예고한다
+      if (this.rig) { if (this._texScale == null) this._texScale = this.scale; return; }
       const atk = G.Assets.anim.scout_atk;
       const tex = on && atk ? atk.frames[0] : G.Assets.tex.scout;
       if (this.sprite.texture === tex) return;
@@ -786,6 +877,34 @@
     }
 
     update(dt, time, target) {
+      if (this.dead) return;
+      this._updateCore(dt, time, target);
+      if (this.rig && !this.dead && this.rig.body && !this.rig.body.destroyed) this._driveRig(dt, target);
+    }
+
+    /* 적 리그 구동 — 상태·방향을 관절 포즈로 (Step 7) */
+    _driveRig(dt, target) {
+      const r = this.rig;
+      this.sprite.visible = false;
+      if (this.rim) this.rim.visible = false;
+      if (this.flashSpr) this.flashSpr.visible = false;
+      let st = 'idle', p = 0;
+      const S = this.state;
+      if (this.stunT > 0 && S !== 'dying') { st = 'stumble'; p = 0.5; }
+      else if (S === 'spawn') { st = 'spawn'; p = G.clamp(this.stateT / 0.5, 0, 1); }
+      else if (S === 'walk') { st = 'walk'; this.stepPhase = (this.stepPhase || 0) + dt * 7.4; }
+      else if (S === 'windup') { st = 'windup'; p = G.clamp(this.stateT / Math.max(0.1, this.windupDur), 0, 1); }
+      else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.34, 0, 1); }
+      else if (S === 'recover') { st = 'idle'; p = 0; }
+      else if (S === 'dying') { st = 'dead'; p = G.clamp(this.stateT / 0.62, 0, 1); }
+      const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
+      r.setFacing(dir);
+      r.setState(st, p, { stepPhase: this.stepPhase || 0 });
+      r.update(dt);
+      if (this.flashT > 0.1) r.hitFlash(0xffd9d9);
+    }
+
+    _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
       this.tickDefDown(dt);
@@ -850,7 +969,7 @@
         }
         this.obj.x = this.x;
       } else if (this.state === 'windup') {
-        const p = G.clamp(this.stateT / 0.52, 0, 1);
+        const p = G.clamp(this.stateT / this.windupDur, 0, 1);
         this._setAttackTex(true);
         this.sprite.y = bob + Math.sin(p * Math.PI) * -7;
         this.sprite.tint = G.lerp(0, 1, p) > 0.5 ? 0xffaaaa : 0xdddddd;
@@ -891,7 +1010,7 @@
           this.stateT = 0;
         }
       } else if (this.state === 'recover') {
-        if (this.stateT > 0.7) {
+        if (this.stateT > (this.cfg.rest || 0.7)) {
           this.state = 'walk';
           this.stateT = 0;
           this._setAttackTex(false);
@@ -969,6 +1088,23 @@
       this.flashSpr.blendMode = 'add';
       this.flashSpr.alpha = 0;
       this.obj.addChild(this.flashSpr);
+
+      /* Step 7: 보스(아르카논)도 3/4 관절 리그 — 정면 통이미지 미끄러짐을 없앤다 */
+      this.bossCfg = (G.CHARS && G.CHARS.boss) || null;
+      this.rig = null;
+      if (this.bossCfg && G.Rigs) {
+        const rdef = G.Rigs.get(this.bossCfg.rig || 'arcanon');
+        if (rdef) {
+          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near' });
+          this.rig.setBodyPx(this.bossCfg.bodyPx || 430);
+          this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
+          this.baseH = this.bossCfg.bodyPx || 430;
+          this.sprite.visible = false;
+          this.rim.visible = false;
+          this.flashSpr.visible = false;
+        }
+      }
+
       this.obj.x = this.x;
       this.obj.y = this.y;
       this.obj.zIndex = this.y;
@@ -1119,6 +1255,33 @@
     }
 
     update(dt, time, target) {
+      if (this.dead) return;
+      this._updateCore(dt, time, target);
+      if (this.rig && !this.dead && this.rig.body && !this.rig.body.destroyed) this._driveRig(dt, target);
+    }
+
+    /* 보스 리그 구동 — 등장/예고/타격/경직/쓰러짐 (Step 7) */
+    _driveRig(dt, target) {
+      const r = this.rig;
+      this.sprite.visible = false;
+      if (this.rim) this.rim.visible = false;
+      if (this.flashSpr) this.flashSpr.visible = false;
+      let st = 'idle', p = 0;
+      const S = this.state;
+      if (S === 'enter') { st = 'spawn'; p = G.clamp(this.stateT / 1.4, 0, 1); }
+      else if (S === 'windup') { st = 'windup'; p = G.clamp(this.stateT / Math.max(0.15, this.cfg ? this.cfg.tele : 1), 0, 1); }
+      else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.45, 0, 1); }
+      else if (this.stagger > 0) { st = 'stumble'; p = 0.5; }
+      else if (this.dying) { st = 'dead'; p = G.clamp(this.stateT / 1.6, 0, 1); }
+      const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
+      r.setFacing(dir);
+      r.setState(st, p, {});
+      r.root.y = 0;
+      r.update(dt);
+      if (this.flashT > 0.06) r.hitFlash(0xffe0e6);
+    }
+
+    _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
       this.tickDefDown(dt);
@@ -1261,10 +1424,13 @@
       }
       this.obj.x = this.x;
       this.obj.zIndex = this.y;
-      if (G.Assets.sd?.boss_sd) {
-        const sd=G.Assets.sd.boss_sd;
-        this.sprite.texture=sd.texture; this.sprite.anchor.set(sd.ax,sd.ay);
-        this.sprite.scale.set(382/(sd.bodyH||sd.h)); this.rim.visible=false; this.flashSpr.visible=false;
+      const bsd = (!this.rig && G.Assets.sd && G.Assets.sd.boss_sd) ? G.Assets.sd.boss_sd : null;
+      if (bsd) {
+        this.sprite.texture = bsd.texture;
+        this.sprite.anchor.set(bsd.ax, bsd.ay);
+        this.sprite.scale.set(382 / (bsd.bodyH || bsd.h));
+        this.rim.visible = false;
+        this.flashSpr.visible = false;
       }
       this.updateGroundFx(dt, 0, 1, 0);
     }

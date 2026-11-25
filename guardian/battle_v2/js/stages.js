@@ -42,8 +42,8 @@
           name: '2구역 · 정예 웨이브',
           short: '2구역',
           waves: [
-            { count: 6, hp: 320, atk: 18 },
-            { count: 6, hp: 360, atk: 20 },
+            { count: 6, hp: 320, atk: 18, elite: 1 },
+            { count: 6, hp: 360, atk: 20, elite: 2 },
           ],
         },
       ],
@@ -69,16 +69,16 @@
           name: '1구역 · 정예 선봉',
           short: '1구역',
           waves: [
-            { count: 5, hp: 330, atk: 20 },
-            { count: 6, hp: 380, atk: 22 },
+            { count: 5, hp: 330, atk: 20, elite: 1 },
+            { count: 6, hp: 380, atk: 22, elite: 2 },
           ],
         },
         {
           name: '2구역 · 결전의 문턱',
           short: '2구역',
           waves: [
-            { count: 7, hp: 430, atk: 24 },
-            { count: 6, hp: 470, atk: 26 },
+            { count: 7, hp: 430, atk: 24, elite: 3 },
+            { count: 6, hp: 470, atk: 26, elite: 3 },
           ],
         },
       ],
@@ -93,7 +93,7 @@
     const zones = [];
     (st.zones || []).forEach((z, zi) => {
       const from = waves.length;
-      (z.waves || []).forEach((w) => waves.push({ count: w.count, hp: w.hp, atk: w.atk, zone: zi }));
+      (z.waves || []).forEach((w) => waves.push({ count: w.count, hp: w.hp, atk: w.atk, elite: w.elite || 0, zone: zi }));
       zones.push({ name: z.name, short: z.short, from, to: waves.length });
     });
     return { waves, zones };
