@@ -3,7 +3,7 @@
 v4.1.0-build320을 SD 벨트스크롤 액션으로 개조한 빌드입니다. v4는 `../battle_v2_gfx_v4/`에 그대로 보존했습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
-- 스크립트 버전: `5.7.0-build470`
+- 스크립트 버전: `5.7.1-build471`
 - 코드: `js/` 14개 파일(`chars.js`·`rig.js`·`lobby.js`·`stages.js` 포함), 엔진 PixiJS v8
 
 ## 이번에 바뀐 것
@@ -438,7 +438,7 @@ Step 4-3은 두 축을 한 번에 올렸습니다. **전투 조작 체계는 한
 - 회귀: `verify_workflow_step2.py`(오류 0) · `verify_workflow_step4_1.py`(19항목) · `verify_workflow_step4_2.py`(22항목) 전부 PASS.
 - 버전 문자열·캐시 쿼리 일괄 갱신: `G.VERSION = v5.6.1-build461`, `index.html` 13개 `?v=5.6.1-build461&r=12`.
 
-## 19. 본편 전면 개편 — 관절모션·3/4시선·스킨교체·로비출전 (v5.7.0-build470, 2026-11-25)
+## 19. 본편 전면 개편 — 관절모션·3/4시선·스킨교체·로비출전 (v5.7.1-build471, 2026-11-25)
 
 외전(`guardian_xmas/`)에서 먼저 검증한 리그·로비·스킨 구조를 본편에 그대로 확대했습니다.
 
@@ -469,6 +469,10 @@ Step 4-3은 두 축을 한 번에 올렸습니다. **전투 조작 체계는 한
 스테이지 1·2구역부터 정예가 웨이브에 섞입니다.
 
 ### 검증 · 배포
-- `node --check` 14/14 OK. `tools_sd/verify_workflow_step7.py` **39/39 ALL PASS**(파트 4개로 나눠 헤드리스 GL 컨텍스트 손실 회피).
+- `node --check` 14/14 OK. `tools_sd/verify_workflow_step7.py` **39/39 ALL PASS**(4파트로 나눠 헤드리스 GL 컨텍스트 손실 회피).
   15조합 스킨 교체 · 5인 출전 · 관절 회전 · 다프레임 턴 · 적/보스 리그 · 정예 웨이브 · 협동 양방향 · restart 유지 · 조작 10종 · 오류 0.
-- 증빙 `../evidence/workflow_step7/`(26컷) · `workflow_step7_qa.png` · `workflow_step7_qa.json`.
+- 라이브 `https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2/` — `v5.7.1-build471`,
+  `tools_sd/verify_workflow_step7_live.py` **18/18 PASS**(카드/스킨 실제 탭 → 리아 정예 정복 출전, 공격 관절 2.02rad,
+  다프레임 턴 13프레임, 척후병·정예·아르카논 리그, 2스테이지·정예 웨이브, 리아 협공, 보스 클리어, 오류 0).
+- 증빙: `../evidence/workflow_step7/`(27컷) · `workflow_step7_qa.png` · `workflow_step7_qa.json` ·
+  `workflow_step7_live/`(12컷) · `workflow_step7_live.png` · `workflow_step7_live.json`.
