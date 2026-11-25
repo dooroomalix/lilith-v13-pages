@@ -1,4 +1,4 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.1.0-build040
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.1.1-build041
 
 《마지막 성문의 수호자》 크리스마스 외전의 **3차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.6.1-build461)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
@@ -6,7 +6,7 @@
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.1.0-build040`
+- 스크립트 버전: `XMAS-2.1.1-build041`
 - 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + **`chars.js`** + **`rig.js`** + **`lobby.js`**), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
 
@@ -130,3 +130,9 @@ WebGL 컨텍스트가 1회 끊깁니다. 실제 시간으로 플레이한 세션
   정면 데미지 / 등 뒤 0 / 깊이 70px 0 / 같은 레인 데미지, 적 공격 레인, 좌우 양방향 스폰,
   H 디버그, 등불 4개, 노엘 P1→P2→P3, 보스 클리어, restart, 오류 0.
 - 증빙: `../guardian/evidence/workflow_step8_xmas/` · `workflow_step8_xmas_qa.png` · `workflow_step8_xmas_qa.json`.
+
+## XMAS-2.1.1-build041 — 보스 스킬 정면 판정 (2026-11-25)
+- `js/battle.js` 성문의 참격 다단히트를 본편과 같은 정면 판정으로 정리했습니다: 사용 시 `_faceForAttack()` 로 바라보는 쪽을 먼저 향하고,
+  연출(`fx.slash`·`fx.speedLines`)과 적 타격이 `h.facing` 기준이 되며, 보스 타격은 `G.inFront(hero.x, boss.x, facing, 470)` 입니다.
+  뒤돌아 써도 보스에게 데미지가 들어가던 `Math.abs` 판정을 없앴습니다.
+- 검증: `node --check` 15/15, `tools_xmas/verify_workflow_step8_xmas.py` **26/26 ALL PASS** — 스킬 정면 +300 → 782, 등 뒤 −300 → 0.

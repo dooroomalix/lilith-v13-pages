@@ -1948,7 +1948,7 @@
               tickHit = true;
             }
           });
-          if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - h.x) < 470
+          if (this.boss && this.boss.alive && !this.boss.dying && G.inFront(h.x, this.boss.x, hf, 470)
             && G.inLane(this.boss.y, h.y, G.LANE.boss + 22)) {
             const dmg = Math.round(h.atk * 1.2);
             this.stats.damage += dmg;

@@ -758,6 +758,7 @@
       const sk = C.skill;
       if (this.phase !== 'wave' && this.phase !== 'boss' && this.phase !== 'bossIntro') return false;
       if (this.cooldowns.skill1 > 0 || h.mp < (sk.mp || 25) || h.state === 'dead') return false;
+      this._faceForAttack();
       h.mp -= (sk.mp || 25);
       this.skillMax.skill1 = sk.cd || 7;
       this.cooldowns.skill1 = this.skillMax.skill1;
@@ -1454,25 +1455,25 @@
         if (this.kaelSkillTick <= 0) {
           this.kaelSkillTick = 0.11;
           const h = this.kael;
-          this.fx.slash(h.x + 150, h.centerY - 20, {
+          const hf = h.facing || 1;
+          this.fx.slash(h.x + 150 * hf, h.centerY - 20, {
             radius: 160, spread: 1.1, angle: G.rand(-0.15, -0.75), width: 17,
             color: 0x2f7bff, color2: 0x7fc8ff, edge: 0xffd166, dur: 0.24,
           });
-          this.fx.slash(h.x + 175, h.centerY, {
+          this.fx.slash(h.x + 175 * hf, h.centerY, {
             radius: 176, spread: 1.0, angle: G.rand(0.45, 0.05), width: 7,
             color: 0xffffff, color2: 0xffffff, dur: 0.17,
           });
-          this.fx.speedLines(h.x + 120, h.centerY, 1, 4, 1.1);
+          this.fx.speedLines(h.x + 120 * hf, h.centerY, hf, 4, 1.1);
           this.scene.shake(7, 0.2);
-          [this.enemies, this.boss && this.boss.alive ? [this.boss] : []].forEach(() => {});
           this.enemies.forEach((e) => {
-            if (e.alive && !e.dying && e.x > h.x && Math.abs(e.x - h.x) < 340) {
+            if (e.alive && !e.dying && G.inFront(h.x, e.x, hf, 340)) {
               const dmg = Math.round(h.atk * 1.35 * G.rand(1.05, 0.95));
               this.stats.damage += dmg;
               e.takeDamage(dmg, { crit: G.chance(0.3) });
             }
           });
-          if (this.boss && this.boss.alive && !this.boss.dying && Math.abs(this.boss.x - h.x) < 470) {
+          if (this.boss && this.boss.alive && !this.boss.dying && G.inFront(h.x, this.boss.x, hf, 470)) {
             const dmg = Math.round(h.atk * 1.2);
             this.stats.damage += dmg;
             this.boss.takeDamage(dmg, {});

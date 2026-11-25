@@ -3,7 +3,7 @@
 v4.1.0-build320을 SD 벨트스크롤 액션으로 개조한 빌드입니다. v4는 `../battle_v2_gfx_v4/`에 그대로 보존했습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
-- 스크립트 버전: `5.8.0-build480`
+- 스크립트 버전: `5.8.1-build481`
 - 코드: `js/` 14개 파일(`chars.js`·`rig.js`·`lobby.js`·`stages.js` 포함), 엔진 PixiJS v8
 
 ## 이번에 바뀐 것
@@ -521,3 +521,10 @@ Step 4-3은 두 축을 한 번에 올렸습니다. **전투 조작 체계는 한
   적 공격 같은 레인 피격·70px 이탈 회피, 적 Y 정렬(dy 12), 좌우 양쪽 접근, 이동 방향 우선 회전,
   좌우 양방향 스폰(3웨이브), 보스도 등 뒤·다른 레인 0, 2스테이지·협동·보스 클리어·restart·오토 3모드·타 게임명 0.
 - 증빙: `../evidence/workflow_step8/` · `workflow_step8_qa.png` · `workflow_step8_qa.json`.
+
+## 21. 보스 스킬(K) 정면 판정 비대칭 수정 (v5.8.1-build481, 2026-11-25)
+- `js/battle.js` 카엘 「성문의 참격」 다단히트의 보스 타격 조건이 `Math.abs(boss.x - hero.x) < 470`(거리만)이라
+  뒤돌아 써도 보스에게 데미지가 들어가던 비대칭을 `G.inFront(hero.x, boss.x, facing, 470)` 로 수정했습니다.
+  일반 공격·일반 적 스킬과 같은 정면 판정 기준이 됐고, 깊이 레인(`G.LANE.boss + 22`)은 그대로 유지합니다.
+- 검증: `node --check` 14/14, `tools_sd/verify_workflow_step8.py` **42/42 ALL PASS** — 스킬 정면 +300 → 546,
+  등 뒤 −300 → 0, 왼쪽 보기 정면 −300 → 546, 깊이 90px → 0.
