@@ -152,6 +152,7 @@
       });
       this.kael.atk = C ? C.atk : 152;
       if (this.hud && this.hud.nameText) this.hud.nameText.text = 'Lv.1 ' + (C ? C.name : '카엘');
+      if (this.hud && this.hud.classText) this.hud.classText.text = (C ? C.role : '성문기사') + ' · GUARDIAN';
       if (this.hud && this.hud.portrait && C) {
         const pth = G.CHARS.portrait(C.key, this.deploySkin);
         G.Assets._img(pth).then((img) => {
