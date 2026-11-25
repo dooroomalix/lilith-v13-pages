@@ -1568,7 +1568,11 @@
                 radius: 220, spread: 2.2, angle: Math.PI + 0.4 * i, width: 16,
                 color: 0xffb03a, color2: 0xffd166, edge: 0xfff3c4, dur: 0.24,
               });
-              if (Math.hypot(target.x - this.x, target.y - this.y) < this.cfg.radius) {
+              // 이어 치는 두 번째·세 번째 타격도 정면·깊이 레인 안에서만 꽂힌다 (2.5D 사각 링 규칙)
+              if (G.inFront(this.x, target.x, this.facing || -1, this.cfg.radius, 36)
+                && G.inLane(target.y, this.y, G.LANE.enemy + 6)
+                && Math.hypot(target.x - this.x, target.y - this.y) < this.cfg.radius
+                && target.z <= 40) {
                 this.game.damageHero(this.cfg.dmg * 0.6, this.x);
               }
               this.game.scene.shake(8, 0.2);
