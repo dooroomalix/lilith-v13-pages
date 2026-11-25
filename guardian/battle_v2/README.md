@@ -683,4 +683,4 @@ HP 50% 이하로 내려가면 **2페이즈(P2)** 로 넘어가면서 공격이 �
   2페이즈 배지·컷인 글자·하단 자막 띠 안, 결과판 보상 줄 비겹침·화면 안·보상 아래 버튼, restart 후 카메라 복귀, 타 게임명 0.
 - 세로 360×780 25항목: 같은 항목 축소판(히어로 125.4px = 띠 배율의 1.62배, 점프 머리 최저 258.1 ≥ 띠 상단 254 등).
 - 회귀: `verify_workflow_step8.py` **42/42** · `verify_workflow_step9_1.py` **76/76** · `verify_workflow_step9_2.py` **68/68** · `verify_workflow_step9_3.py` **84/84**.
-- 증빙: `../evidence/workflow_step10_1_qa.png` · `workflow_step10_1_qa.json` · `workflow_step10_1/`(15컷).
+- 증빙: `../evidence/workflow_step10_1_qa.png` · `workflow_step10_1_qa.json` · `workflow_step10_1/`(14컷).
