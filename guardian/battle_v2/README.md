@@ -652,4 +652,4 @@ HP 50% 이하로 내려가면 **2페이즈(P2)** 로 넘어가면서 공격이 �
   (3스테이지 R24/G20/B43 자줏빛 · 2스테이지 R48/B41 노을 · 1스테이지 R50~55/B51~63 푸른 밤, 세 화면 색거리 11~47).
 - 회귀: `verify_workflow_step8.py` **42/42**, `verify_workflow_step9_1.py` **76/76**(로비 카드 3장 기준으로 기대값 갱신),
   `verify_workflow_step9_2.py` **68/68**.
-- 증빙: `../evidence/workflow_step9_3_qa.png` · `workflow_step9_3_qa.json` · `workflow_step9_3/`(16컷).
+- 증빙: `../evidence/workflow_step9_3_qa.png` · `workflow_step9_3_qa.json` · `workflow_step9_3/`(15컷).
