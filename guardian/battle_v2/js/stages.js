@@ -1,4 +1,4 @@
-/* stages.js : 스테이지 · 구역 정의 (Step 4-3, v5.6.0-build460)
+/* stages.js : 스테이지 · 구역 · 보스 페이즈 정의 (Step 4-3 → Step 9-2, v5.10.0-build500)
  *
  * 성문 앞 전장을 **구역(zone)** 으로 나눠 횡스크롤 웨이브를 이어 붙인다.
  *   1구역 척후대 돌파  →  2구역 정예 웨이브  →  보스 아르카논 결전
@@ -102,6 +102,45 @@
     });
     return { waves, zones };
   };
+
+  /* ---- 보스 아르카논 2페이즈 (Step 9-2) ----------------------------------
+   * HP 비율이 `min` 이상이면 그 페이즈. 1스테이지(24000)·2스테이지(32000) 보스가
+   * 같은 표를 쓴다 — 스테이지별 체력·피해·시간은 STAGES 쪽에서 이미 다르다.
+   *   atk   : 다음 공격까지 대기(최소, 최대) — 낮을수록 자주 친다
+   *   tele  : 바닥 예고 시간 배율 (낮을수록 회피가 빡빡하다)
+   *   dmg   : 피해 배율       radius: 장판·충격파 범위 배율
+   *   pool  : 쓰는 패턴        adds: 'summon' 소환수 수    chain: 이어 치기 확률
+   * 1페이즈는 v5.9.0 까지의 보스 리듬(예고 배율 1.0 · 간격 1.55~2.3초 · 4패턴)을
+   * 그대로 두고, 2페이즈에서 간격·예고·피해를 조이고 연속(chain)과 combo 를 더한다.
+   * 즉사 방지는 피해 배율 1.12 로 묶어 두고, 예고는 0.86배까지만 줄인다.
+   * ---------------------------------------------------------------------- */
+  const BOSS_PHASES = [
+    {
+      key: 'P1', label: '1페이즈', min: 0.51,
+      atk: [2.30, 1.55], tele: 1.0, dmg: 1.0, radius: 1.0,
+      pool: ['slam', 'line', 'multi', 'perfect'], adds: 2, chain: 0,
+      cut: null,
+    },
+    {
+      key: 'P2', label: '2페이즈', min: 0.0,
+      atk: [1.80, 1.15], tele: 0.86, dmg: 1.12, radius: 1.06,
+      pool: ['slam', 'line', 'multi', 'combo', 'perfect', 'summon'], adds: 3, chain: 0.28,
+      cut: {
+        move: '2페이즈 · 어둠의 침식',
+        en: 'PHASE 2',
+        line: '제법 버티는군. 그럼 이제 성문의 빛부터 꺼 볼까.',
+      },
+    },
+  ];
+
+  /* HP 비율 → 페이즈 번호 */
+  G.bossPhaseAt = function (ratio) {
+    let idx = 0;
+    for (let i = 1; i < BOSS_PHASES.length; i++) if (ratio < BOSS_PHASES[i - 1].min) idx = i;
+    return idx;
+  };
+
+  G.BOSS_PHASES = BOSS_PHASES;
 
   G.stageByKey = function (key) {
     for (let i = 0; i < STAGES.length; i++) if (STAGES[i].key === key) return STAGES[i];

@@ -106,7 +106,7 @@
         this.nameText, this.classText, this.hpNum, this.mpNum]);
       put(this.gArea, [this.rightG, this.areaText, this.timerText]);
       put(this.gMap, [this.minimapG, this.minimapDots, this.mapLabel]);
-      put(this.gBoss, [this.bossG, this.bossName, this.bossHpText]);
+      put(this.gBoss, [this.bossG, this.bossName, this.bossHpText, this.bossPhaseText]);
       put(this.gJoy, [this.joyG]);
       put(this.gPrompt, [this.promptText, this.phaseText]);
       put(this.gCombo, [this.comboText, this.comboSub]);
@@ -195,6 +195,11 @@
       this.bossHpText = this._text('bosshp', '', G.style({ fontSize: 12, fill: 0xffd7dc, fontWeight: '800', stroke: { color: 0x2a0408, width: 3 } }), root);
       this.bossHpText.anchor.set(1, 0.5);
       this.bossHpText.x = 908; this.bossHpText.y = 92;
+      // Step 9-2: 보스 페이즈 배지 (P1 / P2) — 보스 바 안쪽 왼쪽에 붙는다
+      this.bossPhaseText = this._text('bossphase', 'P1', G.style({ fontSize: 17, fill: 0xffe9a8, fontWeight: '900', letterSpacing: 1, stroke: { color: 0x2a0408, width: 4 } }), root);
+      this.bossPhaseText.anchor.set(0, 0.5);
+      this.bossPhaseText.x = 374; this.bossPhaseText.y = 81;
+      this.bossPhaseText.alpha = 0;
 
       // ---- 조이스틱 ----
       this.joyG = new PIXI.Graphics();
@@ -794,9 +799,15 @@
         this.bossHpText.text = `${G.num(game.boss.hp)} / ${G.num(game.boss.hpMax)}`;
         this.bossHpText.alpha = 1;
         this.bossHpText.y = 92;
+        // 페이즈 배지 — 2페이즈는 붉게, 살아 있는 동안만
+        const ph = game.boss.phaseKey || 'P1';
+        if (this.bossPhaseText.text !== ph) this.bossPhaseText.text = ph;
+        this.bossPhaseText.style.fill = ph === 'P2' ? 0xff8a99 : 0xffe9a8;
+        this.bossPhaseText.alpha = 1;
       } else {
         this.bossName.alpha = 0;
         this.bossHpText.alpha = 0;
+        this.bossPhaseText.alpha = 0;
         this._bossGhostP = 1;
       }
 

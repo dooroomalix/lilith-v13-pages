@@ -1083,6 +1083,12 @@
       this.flashT = 0;
       this.defDown = 0;
       this.defSpr = null;
+      /* Step 9-2: 아르카논 2페이즈 — HP 구간(P1 100~51% · P2 50~0%)에 따라 표를 갈아 끼운다 */
+      this.phaseIdx = 0;
+      this.phaseCfg = G.BOSS_PHASES ? G.BOSS_PHASES[0] : null;
+      this.phaseKey = this.phaseCfg ? this.phaseCfg.key : 'P1';
+      this.phaseLock = 0;       // 전환 직후 공격을 멈추는 시간(초)
+      this.atkLog = [];         // 검증용: 공격별 페이즈·예고·피해 기록
 
       this.addHalo(0xff5a3c, 620, 0.16);
       this.addShadow(370, 0.56);
@@ -1186,6 +1192,33 @@
         size: opts.crit ? 60 : 40,
       });
       if (this.hp <= 0) this.die();
+      // 살아 있으면 페이즈 경계를 넘었는지 본다 (Step 9-2)
+      else this._checkPhase();
+    }
+
+    /* HP 구간을 넘었으면 페이즈를 올리고 연출을 요청한다 (Step 9-2) */
+    _checkPhase() {
+      if (!G.BOSS_PHASES || !this.alive || this.dying) return;
+      const idx = G.bossPhaseAt(this.hp / this.hpMax);
+      if (idx <= this.phaseIdx) return;
+      this.phaseIdx = idx;
+      this.phaseCfg = G.BOSS_PHASES[idx];
+      this.phaseKey = this.phaseCfg.key;
+      // 전환 순간 1.7초 멈춘다 — 컷인·자막을 보는 동안 장판이 먼저 깔리지 않는다
+      this.phaseLock = 1.7;
+      this.state = 'idle';
+      this.stateT = 0;
+      this.atkTimer = 1.6;
+      this.stagger = 0;
+      this.sprite.rotation = 0;
+      this.tele.clear();
+      this.tele.alpha = 0;
+      this.teleTargets = null;
+      this.cfg = null;
+      // 2페이즈는 오라가 검붉게 타오른다 — 강화를 눈으로도 알린다
+      if (this.aura) { this.aura.tint = 0xff1030; this.aura.alpha = 0.26; }
+      if (this.rim) this.rim.tint = 0xff5a4a;
+      if (this.game.onBossPhaseTransition) this.game.onBossPhaseTransition(this, idx);
     }
 
     die() {
@@ -1255,21 +1288,35 @@
         perfect: { tele: 1.5, color: 0xffffff, dmg: 105, radius: 230 },
         summon: { tele: 1.15, color: 0xa855f7, dmg: 0, radius: 0 },
       }[kind];
+      // 페이즈 강화 — 예고 단축 · 피해·범위 증가 (Step 9-2)
+      const PH = this.phaseCfg;
+      if (PH) {
+        cfg.tele = +(cfg.tele * PH.tele).toFixed(3);
+        cfg.dmg = Math.round(cfg.dmg * PH.dmg);
+        cfg.radius = Math.round(cfg.radius * PH.radius);
+      }
       this.cfg = cfg;
+      if (this.atkLog) {
+        this.atkLog.push({
+          t: +this.game.time.toFixed(2), kind, phase: this.phaseKey,
+          tele: +cfg.tele.toFixed(2), dmg: cfg.dmg, radius: Math.round(cfg.radius),
+        });
+        if (this.atkLog.length > 60) this.atkLog.shift();
+      }
       // 강력 기술(장판·3연속·심판)은 스킬 컷인으로 알린다 (게임 쪽에서 쿨다운 관리)
       if (this.game && this.game.onBossSkill) this.game.onBossSkill(kind);
       const h = this.game.kael;
       const angle = Math.atan2(h.y-this.y,h.x-this.x);
       this.teleTarget = {x:h.x,y:h.y,r:cfg.radius,angle};
       this.teleTargets = kind === 'multi'
-        ? [0, 1, 2].map((i) => ({ x: G.clamp(h.x + (i - 1) * 215, 150, 1090), y: G.clamp(h.y + (i - 1) * 52, 520, 660), r: 140, at: i * 0.45, dur: 0.6 }))
+        ? [0, 1, 2].map((i) => ({ x: G.clamp(h.x + (i - 1) * 215, 150, 1090), y: G.clamp(h.y + (i - 1) * 52, 520, 660), r: Math.round(140 * (PH ? PH.radius : 1)), at: i * 0.45, dur: 0.6 }))
         : [this.teleTarget];
       this.lineDir = this.teleTarget.angle;
       this.dashT = 0;
       if (kind === 'perfect') this.game.showPrompt('회피 타이밍!', 0xffffff);
       if (kind === 'summon') {
         this.game.fx.ring(this.x, this.y - 10, 0xa855f7, 150, 0.7, 4);
-        this.game.spawnAdds(2);
+        this.game.spawnAdds(PH ? PH.adds : 2);
       }
     }
 
@@ -1303,6 +1350,7 @@
     _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
+      if (this.phaseLock > 0) this.phaseLock = Math.max(0, this.phaseLock - dt);
       this.tickDefDown(dt);
       // 보스도 항상 플레이어를 바라본다 — 등 뒤 판정이 생기지 않는다
       if (!this.dying && target) this.facing = Math.sign(target.x - this.x) || this.facing || -1;
@@ -1389,13 +1437,16 @@
         const want = 715;
         if (this.x > want + 10) this.x -= 24 * dt;
         this.obj.x = this.x;
-        if (this.atkTimer <= 0) {
-          const pool = this.hp / this.hpMax < 0.55 ? ['slam', 'line', 'multi', 'perfect', 'summon'] : ['slam', 'line', 'multi', 'perfect'];
+        if (this.atkTimer <= 0 && this.phaseLock <= 0) {
+          // 페이즈 표가 고른 패턴만 쓴다 (P1 = v5.9.0 까지의 4패턴, P2 = combo·summon 추가)
+          const pool = this.phaseCfg ? this.phaseCfg.pool
+            : (this.hp / this.hpMax < 0.55 ? ['slam', 'line', 'multi', 'perfect', 'summon'] : ['slam', 'line', 'multi', 'perfect']);
           // 첫 공격은 항상 장판(slam) — 등장 직후 보스 컷인이 확실히 한 번 뜬다
           const kind = this.firstAttack ? 'slam' : G.choice(pool);
           this.firstAttack = false;
           this.startAttack(kind);
-          this.atkTimer = G.rand(2.3, 1.55);
+          const atk = this.phaseCfg ? this.phaseCfg.atk : [2.3, 1.55];
+          this.atkTimer = G.rand(atk[0], atk[1]);
         }
       } else if (this.state === 'windup') {
         this._setAttackTex(true);
@@ -1441,6 +1492,10 @@
           this.aura.alpha = 0.18;
           this.sprite.rotation = 0;
           this._setAttackTex(false);
+          // 2페이즈는 일정 확률로 곧바로 이어 친다 (연속 패턴)
+          if (this.phaseCfg && this.phaseCfg.chain && G.chance(this.phaseCfg.chain)) {
+            this.atkTimer = Math.min(this.atkTimer, 0.42);
+          }
         }
       }
       this.obj.x = this.x;

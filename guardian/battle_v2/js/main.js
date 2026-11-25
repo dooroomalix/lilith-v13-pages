@@ -222,6 +222,13 @@
         bossCutT: +game.bossCutT.toFixed(2),
         bossCutCD: +game.bossCutCD.toFixed(2),
         bossCutKind: game.boss && game.boss.kind || null,
+        bossPhase: game.boss ? (game.boss.phaseKey || null) : null,
+        bossPhaseIdx: game.boss ? game.boss.phaseIdx : null,
+        bossPhaseLock: game.boss ? +game.boss.phaseLock.toFixed(2) : null,
+        bossPhaseLog: game.bossPhaseLog.slice(-6),
+        bossAtkLog: game.boss && game.boss.atkLog ? game.boss.atkLog.slice(-12) : [],
+        dialogue: game.dialogueC ? game.lastLine : null,
+        bossAura: game.boss && game.boss.aura ? game.boss.aura.alpha : null,
         z: game.kael.z, vz: game.kael.vz, groundY: game.kael.y,
         jumping: game.kael.z > 0,
         bossTele: game.boss && game.boss.state === 'windup' ?
@@ -251,6 +258,35 @@
       press: (k) => { game.hud.input[k] = true; },
       killBoss: () => { if (game.boss) { game.stats.damage += Math.round(game.boss.hp); game.boss.takeDamage(99999, { crit: true }); } },
       forceBoss: () => game.enterBossPhase(),
+      // ---- Step 9-2 : 보스 2페이즈 ----
+      setBossHp: (ratio) => {
+        if (!game.boss) return null;
+        game.boss.hp = G.clamp(Math.round(game.boss.hpMax * ratio), 1, game.boss.hpMax);
+        return Math.round(game.boss.hp);
+      },
+      damageBoss: (n) => {
+        if (!game.boss) return null;
+        game.boss.takeDamage(n, {});
+        return Math.round(game.boss.hp);
+      },
+      bossPhaseInfo: () => (game.boss ? {
+        key: game.boss.phaseKey, idx: game.boss.phaseIdx, lock: +game.boss.phaseLock.toFixed(2),
+        hp: Math.round(game.boss.hp), hpMax: game.boss.hpMax,
+        atk: game.boss.phaseCfg ? game.boss.phaseCfg.atk : null,
+        tele: game.boss.phaseCfg ? game.boss.phaseCfg.tele : null,
+        dmg: game.boss.phaseCfg ? game.boss.phaseCfg.dmg : null,
+        pool: game.boss.phaseCfg ? game.boss.phaseCfg.pool : null,
+        chain: game.boss.phaseCfg ? game.boss.phaseCfg.chain : 0,
+        teleDrawn: game.boss.tele ? game.boss.tele.alpha : null,
+      } : null),
+      bossAtkLog: () => (game.boss && game.boss.atkLog ? game.boss.atkLog.slice() : []),
+      phaseLog: () => game.bossPhaseLog.slice(),
+      dialogueTexts: () => {
+        const out = [];
+        const walk = (n) => { if (!n) return; if (typeof n.text === 'string') out.push(n.text); if (n.children) n.children.forEach(walk); };
+        walk(game.dialogueC);
+        return out;
+      },
       setAuto: (m) => { game.autoMode = m; },
       forceSupport: (k, instant) => game.support.fire(k, { instant: !!instant }),
       feelLog: () => game.feelLog.slice(),

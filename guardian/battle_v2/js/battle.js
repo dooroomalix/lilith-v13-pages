@@ -143,8 +143,14 @@
       this.bossCutin = null;
       this.bossCutT = 0;
       this.bossCutCD = 0;    // 보스 컷인 재발동 최소 간격(초)
+      this.bossCutDur = 1.22; // 컷인 유지 시간 — 페이즈 전환만 더 길게 쓴다
       this.bossCutKind = null;
       this.bossCutLog = [];  // 검증용: 컷인 발동 시각·종류
+      this.bossPhaseLog = []; // 검증용: P1→P2 전환 시각·HP (Step 9-2)
+      this.dialogueC = null;  // 보스 대사 자막 (Step 9-2)
+      this.dialogueT = 0;
+      this.dialogueDur = 0;
+      this.lastLine = null;
       this.summonActive = false;
       this.bossSpawned = false;
       this.overlayButtons = [];
@@ -296,8 +302,13 @@
       this.timers.length = 0;
       if (this.cutin) { this.cutin.destroy({ children: true }); this.cutin = null; }
       if (this.bossCutin) { this.bossCutin.destroy({ children: true }); this.bossCutin = null; this.bossCutPor = null; }
+      if (this.dialogueC) { this.dialogueC.destroy({ children: true }); this.dialogueC = null; }
+      this.dialogueT = 0; this.dialogueDur = 0; this.lastLine = null;
       this.bossCutCD = 0;
       this.bossCutT = 0;
+      this.bossCutDur = 1.22;
+      this.bossCutKind = null;
+      this.bossPhaseLog.length = 0;
       if (this.support) this.support.reset();
       this.comboStep = 0; this.comboWindow = 0; this.attackBuffer = 0;
       this.combo = 0; this.comboT = 0;
@@ -1478,6 +1489,7 @@
       const info = BOSS_SKILL_CUTIN[kind];
       if (!info) return;
       this.bossCutCD = 13;
+      this.bossCutDur = 1.22;
       this.bossCutLog.push({ t: +this.time.toFixed(2), kind });
       this.bossCutKind = kind;
       this._bossCutIn(info);
@@ -1487,6 +1499,77 @@
       this.after(0.45, () => { if (this.phase === 'boss') this.scene.zoomTo(1, 0.42); });
       G.Sfx.bossRoar();
       if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 6000, chance: 0.85, priority: 3 });
+    }
+
+    /* 아르카논 2페이즈 전환 (Step 9-2) — 사선 컷인 + 하단 자막 구어체 대사 + 예고판 정리.
+     * 보스 쪽(_checkPhase)에서 phaseLock 1.7초 · tele.clear() 를 이미 세워 두고 부른다.
+     * 여기서는 보이는 것만 담당한다: 컷인 · 화면 진동 · 자막 · 보이스. */
+    onBossPhaseTransition(boss, idx) {
+      const PH = G.BOSS_PHASES && G.BOSS_PHASES[idx];
+      if (!PH || !PH.cut) return;
+      this.bossPhaseLog.push({ t: +this.time.toFixed(2), phase: PH.key, hp: Math.round(boss.hp) });
+      this.bossCutCD = 6;          // 전환 컷인 뒤 바로 스킬 컷인이 겹치지 않게
+      this.bossCutDur = 1.95;      // phaseLock(1.7초)과 같은 리듬으로 보여 준다
+      this.bossCutKind = 'phase';
+      this._bossCutIn(PH.cut);
+      this.flashImpact(0.6, 0xff7a8a);
+      this.scene.shake(16, 0.7);
+      this.scene.zoomTo(1.08, 0.32);
+      this.fx.shockRing(boss.x - 60, boss.y - 8, 0xff5a6e, 470, 0.8);
+      this.fx.sparkBurst(boss.x - 40, boss.centerY, 0xffd0d8, 42, 720);
+      this.showPrompt(PH.label + ' 돌입', 0xff8a99, 1.8);
+      this.after(0.62, () => { if (this.phase === 'boss') this.scene.zoomTo(1, 0.6); });
+      this.after(1.28, () => this.dialogueLine('아르카논', PH.cut.line, 3.2));
+      G.Sfx.bossRoar();
+      if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 0, chance: 1, priority: 3 });
+    }
+
+    /* 하단 자막 한 줄 — 컷인이 지나간 자리에 남겨 전환 대사를 읽게 한다 */
+    dialogueLine(name, text, dur = 2.6) {
+      if (!text) return;
+      if (this.dialogueC) { this.dialogueC.destroy({ children: true }); this.dialogueC = null; }
+      const c = new PIXI.Container();
+      c.zIndex = 14;
+      const w = 520, h = 78, x = 286, y = 618;
+      const g = new PIXI.Graphics();
+      platePath(g, x, y, w, h, 12, 0x0a0912, 0.88);
+      plateEdge(g, x, y, w, h, 12, 0xff8a5a, 0.55, 1.4);
+      gem(g, x, y + 13, 6, 0xff8a5a, 0.9);
+      gem(g, x + w, y + 13, 6, 0xff8a5a, 0.9);
+      c.addChild(g);
+      const nm = new PIXI.Text({
+        text: name,
+        style: G.style({ fontSize: 14, fontWeight: '900', fill: 0xffb08a, letterSpacing: 2 }),
+      });
+      nm.x = x + 18; nm.y = y + 8;
+      c.addChild(nm);
+      const tx = new PIXI.Text({
+        text,
+        style: G.style({
+          fontSize: 19, fontWeight: '700', fill: 0xf2f8ff,
+          wordWrap: true, wordWrapWidth: w - 40, lineHeight: 25,
+        }),
+      });
+      tx.x = x + 18; tx.y = y + 30;
+      c.addChild(tx);
+      c.alpha = 0;
+      this.screenC.addChild(c);
+      this.dialogueC = c;
+      this.dialogueT = 0;
+      this.dialogueDur = dur;
+      this.lastLine = name + ': ' + text;
+    }
+
+    _updateDialogue(realDt) {
+      if (!this.dialogueC) return;
+      this.dialogueT += realDt;
+      const tin = G.clamp(this.dialogueT / 0.18, 0, 1);
+      const out = G.clamp((this.dialogueT - Math.max(0.2, this.dialogueDur - 0.3)) / 0.3, 0, 1);
+      this.dialogueC.alpha = Math.min(tin, 1 - out);
+      if (this.dialogueT >= this.dialogueDur) {
+        this.dialogueC.destroy({ children: true });
+        this.dialogueC = null;
+      }
     }
 
     _bossCutIn(info) {
@@ -1938,20 +2021,22 @@
       if (this.bossCutCD > 0) this.bossCutCD = Math.max(0, this.bossCutCD - realDt);
       if (this.bossCutin) {
         this.bossCutT += realDt;
+        const dur = this.bossCutDur || 1.22;
         const tin = G.clamp(this.bossCutT / 0.2, 0, 1);
-        const tout = G.clamp((this.bossCutT - 0.92) / 0.3, 0, 1);
+        const tout = G.clamp((this.bossCutT - (dur - 0.3)) / 0.3, 0, 1);
         this.bossCutin.x = 760 * (1 - G.easeOutCubic(tin)) + 540 * G.easeInCubic(tout);
-        this.bossCutin.alpha = (this.bossCutT < 0.92 ? G.clamp(this.bossCutT / 0.1, 0, 1) : 1 - tout);
+        this.bossCutin.alpha = (this.bossCutT < dur - 0.3 ? G.clamp(this.bossCutT / 0.1, 0, 1) : 1 - tout);
         if (this.bossCutPor) {
           const p = G.clamp(this.bossCutT / 0.28, 0, 1);
           this.bossCutPor.scale.set(this.bossCutPorBase * (0.9 + 0.1 * G.easeOutBack(p)));
         }
-        if (this.bossCutT > 1.22) {
+        if (this.bossCutT > dur) {
           this.bossCutin.destroy({ children: true });
           this.bossCutin = null;
           this.bossCutPor = null;
         }
       }
+      this._updateDialogue(realDt);
 
       // 콤보 타이머
       if (this.comboT > 0) {
