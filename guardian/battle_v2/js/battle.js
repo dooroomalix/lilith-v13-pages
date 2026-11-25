@@ -2197,8 +2197,11 @@
       c.addChild(title);
 
       const hName = this.heroChar ? this.heroChar.name : '카엘';
+      // 받침에 따라 조사를 고른다 (카엘·보른 → 이 / 리아·아라·세나 → 가)
+      const last = hName.charCodeAt(hName.length - 1) - 0xac00;
+      const josa = last >= 0 && last <= 11171 && last % 28 > 0 ? '이' : '가';
       const sub = new PIXI.Text({
-        text: win ? '아르카논을 쓰러뜨렸습니다' : hName + '이(가) 쓰러졌습니다' + (reason ? ' · ' + reason : ''),
+        text: win ? '아르카논을 쓰러뜨렸습니다' : hName + josa + ' 쓰러졌습니다' + (reason ? ' · ' + reason : ''),
         style: G.style({ fontSize: 19, fill: 0xbcd8f0, fontWeight: '700' }),
       });
       sub.anchor.set(0.5); sub.x = G.W / 2; sub.y = 262;
