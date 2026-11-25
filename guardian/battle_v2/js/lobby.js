@@ -76,6 +76,7 @@
       keyToggle: { x: 232, y: 332, w: 124, h: 30 },
       stage: { x: 566, y: 58, w: 340, h: 300 },
       name: { x: 566, y: 362, w: 340, h: 54 },
+      nameYOffset: 22, roleYOffset: 44, roleFont: 11,
       skins: { x: 566, y: 422, w: 340, h: 34, gap: 5 },
       sdX: 512, sdFoot: 402, sdBody: 238,
       bubble: { x: 466, y: 462, w: 540, h: 78 },
@@ -119,8 +120,12 @@
     const bubbleY = hintY - 8 - bubbleH;
     const skinH = px(30);
     const skinY = bubbleY - px(4) - skinH;
-    const nameH = px(40);
+    // 세로는 이름·직함 두 줄이 이름판 안에 들어가게 판을 높인다 (Stage 9-3 보정)
+    const nameH = px(52);
     const nameY = skinY - px(4) - nameH;
+    const nameYOffset = px(20);      // 이름 줄
+    const roleYOffset = px(40);      // 직함 줄 — 판 높이 안쪽
+    const roleFont = 10;
     const stageH = Math.max(px(96), nameY - 6 - stageY);
     return {
       mode: 'portrait',
@@ -135,6 +140,7 @@
       keyToggle: { x: w - m - 92, y: padY + 6, w: 84, h: 26 },
       stage: { x: 26, y: stageY, w: w - 52, h: stageH },
       name: { x: 26, y: nameY, w: w - 52, h: nameH },
+      nameYOffset, roleYOffset, roleFont,
       skins: { x: 26, y: skinY, w: w - 52, h: skinH, gap: 4 },
       sdX: w / 2, sdFoot: stageY + stageH - 4, sdBody: Math.round(stageH * 0.84),
       bubble: { x: m, y: bubbleY, w: W1, h: bubbleH },
@@ -742,12 +748,12 @@
 
       this.nameText = new PIXI.Text({ text: '', style: G.style({ fontSize: 25, fontWeight: '900', fill: 0xf6ecdc, letterSpacing: 3 }) });
       this.nameText.anchor.set(0.5, 0.5);
-      this.nameText.x = N.x + N.w / 2; this.nameText.y = N.y + 22;
+      this.nameText.x = N.x + N.w / 2; this.nameText.y = N.y + (P.nameYOffset == null ? 22 : P.nameYOffset);
       c.addChild(this.nameText);
 
-      this.roleText = new PIXI.Text({ text: '', style: G.style({ fontSize: 11, fill: COL.sub, letterSpacing: 1.6 }) });
+      this.roleText = new PIXI.Text({ text: '', style: G.style({ fontSize: P.roleFont || 11, fill: COL.sub, letterSpacing: 1.6 }) });
       this.roleText.anchor.set(0.5, 0.5);
-      this.roleText.x = N.x + N.w / 2; this.roleText.y = N.y + 44;
+      this.roleText.x = N.x + N.w / 2; this.roleText.y = N.y + (P.roleYOffset == null ? 44 : P.roleYOffset);
       c.addChild(this.roleText);
 
       // 전신 파츠 리그 미리보기 (보조 연출) — 고른 스킨이 그대로 입혀진다
