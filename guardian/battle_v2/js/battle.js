@@ -2380,7 +2380,14 @@
       this.debugText.scale.set(k);                      // 세로에서는 좌표 텍스트도 같이 키운다
       this.debugText.text = txt;
       this.debugText.visible = true;
-      this.debugText.x = h.x - 110;
+      /* 세로는 글자를 키운 만큼 화면(카메라 창) 오른쪽으로 넘칠 수 있어, 창 안으로 당겨 놓는다 */
+      const cam = G.VIEW.cam;
+      let tx = h.x - 110;
+      if (G.isPortrait() && cam && cam.active) {
+        const tw = (this.debugText.width || 0) * k;
+        tx = G.clamp(tx, cam.x + 8, Math.max(cam.x + 8, cam.x + cam.visW - tw - 8));
+      }
+      this.debugText.x = tx;
       this.debugText.y = h.y + 10;
     }
 
