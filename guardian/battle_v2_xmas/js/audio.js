@@ -216,21 +216,140 @@
   };
 
   G.Sfx = Sfx;
-  // Optional voice files; missing files never interrupt gameplay.
-  G.Sfx._voiceT = {};
-  G.Sfx.playVoice = function(name, opts) {
-    if (!/^[a-z0-9_]+$/i.test(name)) return;
+
+  /* ------------------------------------------------------------------ */
+  /*  보이스 채널 (Step 11-1)                                            */
+  /*  · 파일 1개당 1채널, 최대 2채널 동시 재생 — 몬스터가 여럿 겹쳐도    */
+  /*    대사가 뒤엉키지 않는다. 자리가 없으면 우선순위가 낮은 쪽을 끊는다.*/
+  /*  · 이름별 쿨다운(기본 900ms) + 같은 이름 연타 방지.                 */
+  /*  · 재생 중에는 BGM 을 자동으로 낮춘다(더킹).                        */
+  /*  · 음소거(M)면 즉시 멈추고, 해제 전에는 새 보이스를 재생하지 않는다. */
+  /* ------------------------------------------------------------------ */
+  const VOICE = {
+    noel_intro: { pri: 5, cool: 9000, vol: 0.86 },
+    noel_skill1: { pri: 4, cool: 7000, vol: 0.82 },
+    noel_skill2: { pri: 4, cool: 7000, vol: 0.82 },
+    noel_skill3: { pri: 5, cool: 9000, vol: 0.84 },
+    noel_hit: { pri: 3, cool: 9000, vol: 0.72 },
+    snowball_atk: { pri: 2, cool: 3600, vol: 0.6 },
+    snowball_hit: { pri: 1, cool: 4200, vol: 0.52 },
+    mimic_atk: { pri: 2, cool: 3800, vol: 0.6 },
+    mimic_hit: { pri: 1, cool: 4200, vol: 0.52 },
+    rudolph_atk: { pri: 2, cool: 4200, vol: 0.62 },
+    rudolph_hit: { pri: 1, cool: 4600, vol: 0.52 },
+    boss_roar: { pri: 3, cool: 6000, vol: 0.7 },
+    kael_atk: { pri: 1, cool: 3400, vol: 0.6 },
+    kael_skill: { pri: 2, cool: 2500, vol: 0.68 },
+    lia_ult: { pri: 2, cool: 2500, vol: 0.7 },
+    ara_support: { pri: 2, cool: 2500, vol: 0.68 },
+    born_support: { pri: 2, cool: 2500, vol: 0.68 },
+    sena_support: { pri: 2, cool: 2500, vol: 0.68 },
+  };
+  Sfx.VOICE = VOICE;
+  Sfx._vAct = [];          // 재생 중인 채널 [{ name, audio, pri }]
+  Sfx._vLast = {};         // 이름별 마지막 재생 시각(ms)
+  Sfx._vCount = {};        // 이름별 재생 횟수(검증용)
+  Sfx._vLog = [];          // 최근 재생 기록(검증용, 최대 40개)
+  Sfx.voiceMax = 2;        // 동시 채널 상한
+  Sfx.voiceDuck = 0.16;    // 보이스 재생 중 BGM 볼륨
+
+  Sfx._voiceClean = function () {
+    this._vAct = this._vAct.filter((v) => v && !v.done);
+    return this._vAct.length;
+  };
+
+  Sfx._stopVoice = function (v) {
+    if (!v || v.done) return;
+    v.done = true;
+    try { v.audio.pause(); } catch (_) {}
+    try { v.audio.currentTime = 0; } catch (_) {}
+  };
+
+  Sfx._unduck = function () {
+    this._voiceClean();
+    if (this._vAct.length) return;
+    if (this.bgm && !this.muted) this.bgm.volume = this.bgmVolume;
+  };
+
+  Sfx.stopAllVoices = function () {
+    this._vAct.forEach((v) => this._stopVoice(v));
+    this._vAct.length = 0;
+    if (this.bgm && !this.muted) this.bgm.volume = this.bgmVolume;
+  };
+
+  Sfx.voiceInfo = function () {
+    return {
+      muted: this.muted, max: this.voiceMax, active: this._voiceClean(),
+      activeNames: this._vAct.map((v) => v.name),
+      count: Object.assign({}, this._vCount),
+      last: Object.assign({}, this._vLast),
+      log: this._vLog.slice(-16),
+    };
+  };
+
+  /* 음소거 토글 — 켜는 순간 재생 중인 보이스도 함께 멈춘다 */
+  const _toggleMute = Sfx.toggleMute.bind(Sfx);
+  Sfx.toggleMute = function () {
+    const m = _toggleMute();
+    if (m) this.stopAllVoices();
+    return m;
+  };
+
+  /* 이름별 오디오 1개를 재사용한다 — 매 재생마다 새 Audio 를 만들면 해제가 늦어져 무거워진다 */
+  Sfx._voiceAudio = function (name) {
+    if (!this._pool) this._pool = {};
+    let a = this._pool[name];
+    if (!a) {
+      try { a = new Audio('audio/' + name + '.mp3'); } catch (_) { return null; }
+      a.preload = 'auto';
+      this._pool[name] = a;
+    }
+    return a;
+  };
+
+  /* 보이스 재생 — 파일이 없거나 재생에 실패해도 게임은 멈추지 않는다 */
+  Sfx.playVoice = function (name, opts) {
+    if (!name || !/^[a-z0-9_]+$/i.test(name)) return false;
+    if (this.muted) return false;
     const o = opts || {};
+    const spec = VOICE[name] || {};
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    const last = this._voiceT[name] || -1e9;
-    if (now - last < (o.min || 900)) return;
-    if (o.chance !== undefined && Math.random() > o.chance) return;
-    this._voiceT[name] = now;
-    try {
-      const voice = new Audio('audio/' + name + '.mp3');
-      voice.volume = 0.72;
-      const result = voice.play();
-      if (result && result.catch) result.catch(() => {});
-    } catch (_) {}
+    const last = this._vLast[name] || -1e9;
+    if (now - last < (o.min != null ? o.min : (spec.cool || 900))) return false;
+    if (o.chance !== undefined && Math.random() > o.chance) return false;
+    const pri = o.pri != null ? o.pri : (spec.pri || 1);
+
+    this._voiceClean();
+    const max = o.maxCh || this.voiceMax;
+    if (this._vAct.length >= max) {
+      let low = null;
+      this._vAct.forEach((v) => { if (!low || v.pri < low.pri) low = v; });
+      if (!low || low.pri >= pri) { this._vLog.push({ name, skip: 'full' }); return false; }
+      this._stopVoice(low);
+      this._voiceClean();
+    }
+
+    const audio = this._voiceAudio(name);
+    if (!audio) return false;
+    try { audio.currentTime = 0; } catch (_) {}
+    audio.volume = o.vol != null ? o.vol : (spec.vol || 0.72);
+    if (o.rate) audio.playbackRate = o.rate;
+    const ch = { name, audio, pri, done: false };
+    audio._ch = ch;
+    this._vAct.push(ch);
+    this._vLast[name] = now;
+    this._vCount[name] = (this._vCount[name] || 0) + 1;
+    if (this._vLog.length > 60) this._vLog.shift();
+    this._vLog.push({ name, pri, t: +(now / 1000).toFixed(2) });
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => { ch.done = true; this._unduck(); });
+    // 캐시된 오디오는 ended/error 리스너를 한 번만 단다
+    if (!audio._bound) {
+      audio._bound = true;
+      audio.addEventListener('ended', () => { if (audio._ch) audio._ch.done = true; Sfx._unduck(); });
+      audio.addEventListener('error', () => { if (audio._ch) audio._ch.done = true; Sfx._unduck(); });
+    }
+    if (this.bgm && !this.bgm.paused) this.bgm.volume = this.voiceDuck;
+    return true;
   };
 })();

@@ -202,6 +202,12 @@
       this.bossPhaseText.x = 322; this.bossPhaseText.y = 81;
       this.bossPhaseText.alpha = 0;
 
+      // 노엘 표정 표시 (Step 11-1) — 여유/집중/피격/당황
+      this.bossMoodText = this._text('bossmood', '', G.style({ fontSize: 14, fill: 0xffd9a0, fontWeight: '900', letterSpacing: 1, stroke: { color: 0x2a0408, width: 4 } }), root);
+      this.bossMoodText.anchor.set(0.5, 0.5);
+      this.bossMoodText.x = 968; this.bossMoodText.y = 81;
+      this.bossMoodText.alpha = 0;
+
       // 등블 게이지 (외전) — 켜진 등불 4칸 + 빛의 온기/한기 라벨
       this.lanternG = new PIXI.Graphics();
       root.addChild(this.lanternG);
@@ -781,13 +787,21 @@
           outline(this.bossG, 294, 66, 54, 28, 7, 0xffd166, 0.7, 1.4);
           this.bossPhaseText.text = game.boss.phaseKey || 'P1';
           this.bossPhaseText.alpha = 1;
+          const mood = { normal: ['여유', 0xffd9a0], focus: ['집중', 0xff8fa8], hit: ['피격', 0xff6a7e], flustered: ['당황', 0x9fd8ff] }[game.boss.expr] || ['여유', 0xffd9a0];
+          plate(this.bossG, 926, 66, 84, 28, 7, 0x1e0710, 0.82);
+          outline(this.bossG, 926, 66, 84, 28, 7, mood[1], 0.7, 1.4);
+          this.bossMoodText.text = mood[0];
+          this.bossMoodText.style.fill = mood[1];
+          this.bossMoodText.alpha = 1;
         } else {
           this.bossPhaseText.alpha = 0;
+          this.bossMoodText.alpha = 0;
         }
       } else {
         this.bossName.alpha = 0;
         this.bossHpText.alpha = 0;
         this.bossPhaseText.alpha = 0;
+        this.bossMoodText.alpha = 0;
         this._bossGhostP = 1;
       }
 

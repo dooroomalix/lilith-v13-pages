@@ -282,12 +282,301 @@
         o.shNear = -0.4 * (1 - q);
         break;
       }
+      /* ---------- Step 11-1 : 노엘 전용 ---------- */
+      case 'glide': {
+        // 벨벳 코트 자락과 선물 자루가 흔들리며 바닥에서 살짝 떠서 미끄러지는 보행
+        const s = Math.sin(step), c = Math.cos(step);
+        const sp = clamp((K.speed || 220) / 240, 0.7, 1.3);
+        o.rootY = -7 - Math.abs(s) * 2.2 * sp;
+        o.hipNear = s * 0.20 * sp; o.hipFar = -s * 0.16 * sp;
+        o.kneeNear = 0.16 + Math.max(0, -s) * 0.14 * sp;
+        o.kneeFar = 0.16 + Math.max(0, s) * 0.12 * sp;
+        o.shNear = -0.36 - s * 0.07 * sp;
+        o.shFar = 0.24 + s * 0.06 * sp;
+        o.elNear = 0.44; o.elFar = 0.30;
+        o.torso.rot = -0.04 + c * 0.018;
+        o.torso.y = -1.6;
+        o.torso.sy = 1 + Math.sin(t * 1.7) * 0.012;
+        o.head.rot = 0.02 - c * 0.022;
+        o.rootRot = 0.018 * Math.sin(step * 0.5);
+        break;
+      }
+      case 'sackWind': {
+        // 1페이즈 — 자루를 뒤로 크게 끌어올린다
+        const q = clamp(p, 0, 1);
+        o.shNear = -0.28 - 0.62 * q;
+        o.elNear = 0.45 * q;
+        o.shFar = 0.16 * q; o.elFar = 0.12 * q;
+        o.torso.rot = -0.18 * q;
+        o.head.rot = -0.12 * q;
+        o.hipNear = -0.14 * q; o.kneeNear = 0.24 * q;
+        o.hipFar = 0.08 * q; o.kneeFar = 0.16 * q;
+        o.rootY = 3.5 * q;
+        o.rootX = -4 * q;
+      } break;
+      case 'sackSwing': {
+        const q = clamp(p, 0, 1);
+        const sw = q < 0.30 ? lerp(-0.95, 0.85, easeIn(q / 0.30)) : lerp(0.85, 0.45, (q - 0.30) / 0.70);
+        o.shNear = sw * 1.35;
+        o.elNear = 0.34;
+        o.shFar = -sw * 0.30; o.elFar = 0.2;
+        o.torso.rot = sw * 0.17;
+        o.head.rot = sw * 0.07;
+        o.rootX = sw * 6.5;
+        o.hipNear = sw * 0.14; o.kneeNear = Math.max(0, sw) * 0.2;
+        o.hipFar = -sw * 0.09;
+        o.rootY = -Math.abs(Math.sin(q * Math.PI)) * 4;
+      } break;
+      case 'giftWind': {
+        // 2페이즈 — 선물 상자를 머리 위로 들어 올린다
+        const q = clamp(p, 0, 1);
+        o.shNear = -0.72 * q; o.elNear = 0.42 * q;
+        o.shFar = -0.3 * q; o.elFar = 0.24 * q;
+        o.torso.rot = -0.15 * q;
+        o.head.rot = -0.09 * q;
+        o.rootY = 2.2 * q;
+        o.hipNear = -0.1 * q; o.kneeNear = 0.18 * q;
+        o.torso.sy = 1 + 0.03 * q;
+      } break;
+      case 'giftThrow': {
+        const q = clamp(p, 0, 1);
+        const push = q < 0.32 ? easeIn(q / 0.32) : 1 - (q - 0.32) / 0.68 * 0.35;
+        o.shNear = -0.72 + 1.35 * push;
+        o.elNear = 0.42 - 0.3 * push;
+        o.shFar = -0.3 + 0.5 * push; o.elFar = 0.2;
+        o.torso.rot = -0.15 + 0.36 * push;
+        o.head.rot = -0.09 + 0.16 * push;
+        o.rootX = 9 * push;
+        o.hipNear = 0.16 * push; o.kneeNear = 0.14 * push;
+        o.hipFar = -0.12 * push;
+      } break;
+      case 'bellAbsorb': {
+        // 3페이즈 — 양팔을 활짝 벌려 푸른빛을 모은다
+        const q = clamp(p, 0, 1);
+        const gather = Math.sin(clamp(q / 0.75, 0, 1) * Math.PI * 0.5);
+        o.shNear = -0.5 * gather; o.shFar = -0.46 * gather;
+        o.elNear = 0.3 * gather; o.elFar = 0.28 * gather;
+        o.torso.rot = -0.18 * gather;
+        o.head.rot = -0.2 * gather;
+        o.rootY = -5.5 * gather;
+        o.rootRot = -0.022 * gather;
+        o.torso.sy = 1 + 0.045 * gather;
+        o.kneeNear = 0.12 * gather; o.kneeFar = 0.12 * gather;
+      } break;
+      case 'bellRelease': {
+        const q = clamp(p, 0, 1);
+        const rel = easeOut(clamp(q / 0.28, 0, 1));
+        o.shNear = -0.5 + 1.05 * rel; o.shFar = -0.46 + 1.0 * rel;
+        o.elNear = 0.3 - 0.22 * rel; o.elFar = 0.28 - 0.2 * rel;
+        o.torso.rot = -0.26 + 0.42 * rel;
+        o.head.rot = -0.32 + 0.36 * rel;
+        o.rootY = -5.5 * (1 - rel);
+        o.rootX = 5 * rel;
+        o.torso.sy = 1.045 - 0.03 * rel;
+      } break;
+      case 'sackTrip': {
+        // 빗나간 뒤 자루에 걸려 휘청이는 모습 (당황)
+        const s = Math.sin(t * 13);
+        o.torso.rot = 0.46 + s * 0.06;
+        o.head.rot = -0.22 + s * 0.12;
+        o.shNear = 1.15 + s * 0.28;
+        o.shFar = -1.0 - s * 0.22;
+        o.elNear = 0.3; o.elFar = 0.35;
+        o.hipNear = 0.52; o.kneeNear = 0.92;
+        o.hipFar = -0.44; o.kneeFar = 0.48;
+        o.rootY = 6 + Math.abs(s) * 2;
+        o.rootX = 7;
+        o.rootRot = 0.05 + s * 0.02;
+      } break;
       default: {
         o.torso.sy = 1 + br * 0.01;
         break;
       }
     }
     return o;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  표정 오버레이 (Step 11-1) — 노엘 얼굴 위에 눈꺼풀·눈썹·입·볼을     */
+  /*  덧그려 여유(normal)·집중(focus)·피격(hit)·당황(flustered)을 만든다. */
+  /*  좌표는 머리뼈 축(눈썹·눈·입) 기준이고 body 높이 비율로 따라간다.    */
+  /* ------------------------------------------------------------------ */
+  const EXPR = {
+    normal: { lid: 0.10, lidLow: 0.08, mouthW: 0.58, mouthOpen: 0, mouthCurve: 0.6,
+      blush: 0.18, sweat: 0, glint: 0.22, tear: 0, wave: 0 },
+    focus: { lid: 0.34, lidLow: 0.05, mouthW: 0.34, mouthOpen: 0.02, mouthCurve: -0.15,
+      blush: 0.10, sweat: 0, glint: 0.95, tear: 0, wave: 0 },
+    hit: { lid: 0.52, lidLow: 0.30, mouthW: 0.32, mouthOpen: 0.44, mouthCurve: -0.5,
+      blush: 0.34, sweat: 0, glint: 0, tear: 1, wave: 0 },
+    flustered: { lid: 0.0, lidLow: 0.0, mouthW: 0.46, mouthOpen: 0.14, mouthCurve: -0.6,
+      blush: 0.95, sweat: 1, glint: 0.28, tear: 0, wave: 1 },
+  };
+  const EXPR_KEYS = ['lid', 'lidLow', 'mouthW', 'mouthOpen', 'mouthCurve', 'blush', 'sweat', 'glint', 'tear', 'wave'];
+  const FACE0 = { x: 0, y: -409.3 };          // 머리뼈 축(body 좌표) — noel mesh.json
+  const FACE_K = 1 / 718;                      // body 높이 718 기준 비율
+
+  class Face {
+    constructor(rig) {
+      this.rig = rig;
+      const k = (rig.def && rig.def.bodyH) || 718;
+      this.k = k * FACE_K;                     // 다른 크기 아트에도 좌표가 맞도록
+      this.g = new PIXI.Graphics();
+      this.g.zIndex = 9;
+      rig.body.addChild(this.g);
+      this.name = 'normal';
+      this.target = EXPR.normal;
+      this.p = Object.assign({}, EXPR.normal);
+      this.blend = 1;
+      this.t = 0;
+      this.drawT = 99;
+      this.stateLog = [];
+      this._apply();
+    }
+
+    set(name, force) {
+      const n = EXPR[name] ? name : 'normal';
+      if (n === this.name && !force) return;
+      this.name = n;
+      this.target = EXPR[n];
+      this.blend = 0;
+      this.stateLog.push({ t: +this.t.toFixed(2), name: n });
+      if (this.stateLog.length > 30) this.stateLog.shift();
+    }
+
+    update(dt) {
+      this.t += dt;
+      const k = Math.min(1, dt * 13);
+      for (const key of EXPR_KEYS) {
+        this.p[key] += (this.target[key] - this.p[key]) * k;
+      }
+      this.blend = Math.min(1, this.blend + dt / 0.16);
+      // 머리뼈를 그대로 따라간다 — 머리를 돌려도 표정이 얼굴 위에 남는다
+      const hb = this.rig.boneByName.head;
+      if (hb) {
+        this.g.x = hb.wx;
+        this.g.y = hb.wy;
+        this.g.rotation = hb.wrot;
+      }
+      this.g.scale.set(this.k, this.k);
+      this.drawT += dt;
+      if (this.drawT > 0.05 || this.blend < 1) {
+        this.drawT = 0;
+        this._apply();
+      }
+    }
+
+    _apply() {
+      const g = this.g, p = this.p;
+      g.clear();
+      const SKIN = 0xf6e2d8;
+      const EYES = [[-90, -46], [-4, -46]];
+      const RW = 27, RH = 29;
+
+      // ---- 눈꺼풀 + 속눈썹 (두꺼운 눈꺼풀은 눈을 「가늘게 뜨거나 찡그린」 모양으로)
+      for (const [ex, ey] of EYES) {
+        if (p.lid > 0.04) {
+          const chord = ey - RH + 2 * RH * p.lid;
+          if (p.lid > 0.14) {
+            const pts = [];
+            for (let i = 0; i <= 16; i++) {
+              const a = Math.PI + (i / 16) * Math.PI;
+              const x = ex + Math.cos(a) * RW, y = ey + Math.sin(a) * RH;
+              if (y <= chord) pts.push([x, y]);
+            }
+            if (pts.length > 1) {
+              g.poly(pts.concat([[ex + RW + 2, chord + 3], [ex - RW - 2, chord + 3]]))
+                .fill({ color: SKIN, alpha: 0.97 });
+            }
+          }
+          g.moveTo(ex - RW - 2, chord + 2)
+            .quadraticCurveTo(ex, chord - 3, ex + RW + 3, chord)
+            .stroke({ color: 0x2f1a20, width: 2.6, alpha: 0.9 });
+          // 바깥 눈꼬리
+          g.moveTo(ex + RW + 2, chord).lineTo(ex + RW + 9, chord - 5)
+            .stroke({ color: 0x2f1a20, width: 2.2, alpha: 0.75 });
+        }
+        if (p.lidLow > 0.05) {
+          const chord2 = ey + RH - 2 * RH * p.lidLow;
+          const pts = [];
+          for (let i = 0; i <= 16; i++) {
+            const a = (i / 16) * Math.PI;
+            const x = ex + Math.cos(a) * RW, y = ey + Math.sin(a) * RH;
+            if (y >= chord2) pts.push([x, y]);
+          }
+          if (pts.length > 1) {
+            g.poly(pts.concat([[ex + RW, chord2 - 3], [ex - RW, chord2 - 3]]))
+              .fill({ color: SKIN, alpha: 0.94 });
+          }
+        }
+      }
+
+      // ---- 볼
+      if (p.blush > 0.05) {
+        for (const bx of [-101, -1]) {
+          g.ellipse(bx, -12, 21, 11).fill({ color: 0xff9aa2, alpha: 0.34 * p.blush });
+          if (p.blush > 0.5) {
+            for (let i = -1; i <= 1; i++) {
+              g.moveTo(bx + i * 9 - 4, -18).lineTo(bx + i * 9 + 2, -6)
+                .stroke({ color: 0xe06a76, width: 1.6, alpha: 0.5 * p.blush });
+            }
+          }
+        }
+      }
+
+      // ---- 입 — 원화의 입을 피부색으로 덮고 표정 입을 그린다
+      const mx = -53, my = 3;
+      const mw = 26 * p.mouthW;
+      g.ellipse(mx, my, 17, 10).fill({ color: SKIN, alpha: 0.95 });
+      if (p.wave > 0.4) {
+        g.moveTo(mx - mw, my)
+          .quadraticCurveTo(mx - mw * 0.5, my + 7, mx, my)
+          .quadraticCurveTo(mx + mw * 0.5, my - 7, mx + mw, my)
+          .stroke({ color: 0xa83a4a, width: 3, alpha: 0.9 });
+      } else if (p.mouthOpen > 0.08) {
+        const oh = 4 + 13 * p.mouthOpen;
+        g.ellipse(mx, my + oh * 0.35, mw * 0.62, oh).fill({ color: 0x6d1b2a, alpha: 0.94 });
+        g.ellipse(mx, my + oh * 0.6, mw * 0.42, oh * 0.45).fill({ color: 0xc9526a, alpha: 0.9 });
+        g.ellipse(mx, my - oh * 0.25, mw * 0.5, oh * 0.3).fill({ color: 0xffffff, alpha: 0.3 });
+      } else {
+        const dip = 6 * p.mouthCurve;
+        g.moveTo(mx - mw, my).quadraticCurveTo(mx, my + dip * 1.4, mx + mw, my)
+          .stroke({ color: 0xa83a4a, width: 3.1, alpha: 0.92 });
+      }
+
+      // ---- 눈 반짝임 / 눈물 / 식은땀
+      if (p.glint > 0.05) {
+        // 오른쪽 눈동자 위의 날카로운 반짝임
+        g.ellipse(-4, -55, 11, 3.4).fill({ color: 0xffffff, alpha: 0.55 * p.glint });
+        const gx = 18, gy = -68;
+        g.moveTo(gx, gy - 9).lineTo(gx + 3, gy - 3).lineTo(gx + 9, gy).lineTo(gx + 3, gy + 3)
+          .lineTo(gx, gy + 9).lineTo(gx - 3, gy + 3).lineTo(gx - 9, gy).lineTo(gx - 3, gy - 3)
+          .closePath().fill({ color: 0xffffff, alpha: 0.85 * p.glint });
+      }
+      if (p.tear > 0.1) {
+        const ty = -8 + Math.sin(this.t * 8) * 2;
+        g.moveTo(-6, ty - 10).lineTo(-1, ty).lineTo(-6, ty + 10).lineTo(-11, ty).closePath()
+          .fill({ color: 0xbfe4ff, alpha: 0.85 * p.tear });
+        g.circle(-6, ty + 3, 2.6).fill({ color: 0xffffff, alpha: 0.75 * p.tear });
+      }
+      if (p.sweat > 0.05) {
+        const sy = -26 + Math.sin(this.t * 6) * 4;
+        g.moveTo(58, sy - 24)
+          .quadraticCurveTo(71, sy + 4, 58, sy + 17)
+          .quadraticCurveTo(45, sy + 4, 58, sy - 24)
+          .closePath().fill({ color: 0x2f7fc4, alpha: 0.95 * p.sweat });
+        g.moveTo(58, sy - 13)
+          .quadraticCurveTo(64, sy + 4, 58, sy + 11)
+          .quadraticCurveTo(52, sy + 4, 58, sy - 13)
+          .closePath().fill({ color: 0xe8f6ff, alpha: 0.98 * p.sweat });
+      }
+    }
+
+    info() {
+      const out = { name: this.name, blend: +this.blend.toFixed(2), states: this.stateLog.slice(-6) };
+      for (const k of EXPR_KEYS) out[k] = +this.p[k].toFixed(3);
+      out.pos = { x: +this.g.x.toFixed(1), y: +this.g.y.toFixed(1), rot: +this.g.rotation.toFixed(3) };
+      return out;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -378,7 +667,19 @@
       this.groundY = def.groundY != null ? def.groundY : 0;
 
       this.setBodyPx(opts.bodyPx || def.h * 0.5);
+
+      // ---- 표정 오버레이 (노엘처럼 opts.face 를 준 리그만)
+      this.face = null;
+      if (opts.face) this.face = new Face(this);
     }
+
+    /* 표정 4종 전환 — normal / focus / hit / flustered */
+    setExpression(name, force) {
+      if (this.face) this.face.set(name, force);
+      return this.face ? this.face.name : null;
+    }
+
+    expressionInfo() { return this.face ? this.face.info() : null; }
 
     setBodyPx(px) {
       this.scale = px / (this.def.bodyH || this.def.h || 1);
@@ -458,6 +759,7 @@
       this._solveWorld();
       this._footIK();
       this._skin();
+      if (this.face) this.face.update(dt);
 
       // 몸 전체 변환
       const dirNow = this.yawTarget;
@@ -613,6 +915,7 @@
       out.stretchP99 = pct(0.99);
       out.maxMove = +moved.toFixed(2);
       out.turnLog = this.turnLog.slice(-4);
+      if (this.face) out.face = this.face.info();
       if (this.weapon) {
         const hb = this.boneByName[this.weaponSocket];
         out.weapon = { x: +this.weapon.x.toFixed(2), y: +this.weapon.y.toFixed(2),
@@ -624,6 +927,8 @@
   }
 
   R.Rig = Rig;
+  R.Face = Face;
+  R.EXPR = EXPR;
   R.pose = pose;
   G.Rig = Rig;
   G.Rigs = R;

@@ -394,6 +394,22 @@
       })),
       bossRig: () => (game.boss && game.boss.rig ? { state: game.boss.rig.state, yaw: +game.boss.rig.yaw.toFixed(2),
         parts: Object.fromEntries(game.boss.rig.partNames.map((n) => [n, +game.boss.rig.nodes[n].rotation.toFixed(3)])) } : null),
+      /* ---- Step 11-1 : 노엘 표정·모션·이펙트·보이스 ---- */
+      bossFace: () => (game.boss && game.boss.rig ? game.boss.rig.expressionInfo() : null),
+      bossExpr: () => (game.boss ? game.boss.expr : null),
+      bossSkillLog: () => (game.boss ? game.boss.skillLog.slice(-12) : []),
+      bossMotion: () => (game.boss && game.boss.rig ? {
+        state: game.boss.rig.state, expr: game.boss.expr, moving: +game.boss.moving.toFixed(2),
+        tripT: +(game.boss.tripT || 0).toFixed(2), flusteredT: +(game.boss.flusteredT || 0).toFixed(2),
+        phase: game.boss.phaseKey, stepPhase: +game.boss.rig.stepPhase.toFixed(2),
+      } : null),
+      setBossExpr: (n) => { if (game.boss) { game.boss.exprLock = n || null; if (n && game.boss.rig) game.boss.rig.setExpression(n, true); game.boss.expr = n || 'normal'; } return game.boss ? game.boss.rig.face.name : null; },
+      fxInfo: () => ({ count: Object.assign({}, game.fx.count), log: game.fx.log.slice(-16) }),
+      fxReset: () => { game.fx.count = {}; game.fx.log.length = 0; return true; },
+      voiceInfo: () => G.Sfx.voiceInfo(),
+      voicePlay: (n, o) => G.Sfx.playVoice(n, o || {}),
+      voiceMute: () => G.Sfx.toggleMute(),
+      bossTrip: (sec) => { if (game.boss) { game.boss.tripT = sec || 1.05; game.boss.flusteredT = sec || 1.05; } return game.boss ? game.boss.tripT : null; },
       forceIdle: () => { if (game.kael) { game.kael.state = 'idle'; game.kael.stateT = 0; } },
       attack: () => game.hud.input.attack = true,
       // ---- Step 8 : 2.5D 사각 링 판정 ----

@@ -739,7 +739,10 @@
         this.actorLayer.addChild(this.boss.obj);
         this.bossSpawned = true;
         if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar');
-        if (G.Xmas.ON) this.dialogueLine('노엘', G.Xmas.noel.appear, 3.4);
+        if (G.Xmas.ON) {
+          this.dialogueLine('노엘', G.Xmas.noel.appear, 3.4);
+          if (G.Sfx.playVoice) G.Sfx.playVoice('noel_intro', { min: 0, chance: 1 });
+        }
         this.fx.shockRing(820, G.GROUND_Y - 10, bc, 300, 0.9);
         this.fx.sparkBurst(820, G.GROUND_Y - 180, G.Xmas.ON ? 0xcfe4ff : 0xff6b4a, 34, 620);
         this.fx.debris(820, G.GROUND_Y - 6, 12, G.Xmas.ON ? 0xe8f4ff : 0xff8a6a, 1.3);
@@ -788,6 +791,10 @@
       const dmg = 980;
       this.stats.damage += dmg;
       boss.takeDamage(dmg, { crit: true });
+      if (boss.noel) {
+        boss.flusteredT = 1.4;
+        if (G.Sfx.playVoice) G.Sfx.playVoice('noel_hit', { min: 0, chance: 1 });
+      }
       this.combo += 6;
       this.comboT = 2.6;
       this.kael.invuln = 1.2;
@@ -1095,10 +1102,28 @@
       this.after(0.6, () => this.scene.zoomTo(1, 0.6));
       this.fx.shockRing(boss.x - 60, boss.y - 8, idx >= 2 ? 0xff5a6e : 0x9fd8ff, 470, 0.8);
       this.fx.sparkBurst(boss.x - 40, boss.centerY, idx >= 2 ? 0xffd0d8 : 0xcfe4ff, 42, 720);
+      // 페이즈 전용 그래픽 — P2 는 선물 상자가 쏟아지고 P3 는 등불 빛을 빨아들인 뒤 종이 울린다
+      if (idx === 1) {
+        for (let i = 0; i < 6; i++) {
+          this.fx.giftBox(boss.x + G.rand(300, -300), boss.y - G.rand(560, 380),
+            boss.x + G.rand(320, -320), boss.y - 6, { dur: 0.7 + i * 0.08, size: G.rand(1.05, 0.7) });
+        }
+        this.fx.ribbonBurst(boss.x, boss.centerY - 60, 14);
+      } else if (idx >= 2) {
+        const L = this.lanterns;
+        if (L) {
+          L.items.forEach((it) => {
+            if (it.lit) this.fx.lanternDrain(it.x, it.y, boss.x, boss.y - 150, { color: 0x8fd0ff, dur: 0.9 });
+          });
+        }
+        this.fx.bellGlyph(boss.x, boss.centerY - 120, { color: 0x9fd8ff });
+        this.fx.bellShock(boss.x, boss.y, { color: 0x7fc4ff, r: 430, dur: 0.95 });
+      }
       this.showPrompt(PH.label + ' 돌입', idx >= 2 ? 0xff8a99 : 0xffd166, 1.8);
       this.after(1.25, () => this.dialogueLine('노엘', PH.cut.line, 3.2));
       G.Sfx.bossRoar();
       if (G.Sfx.playVoice) G.Sfx.playVoice('boss_roar', { min: 0, chance: 1 });
+      if (G.Sfx.playVoice) G.Sfx.playVoice(idx >= 2 ? 'noel_skill3' : 'noel_skill2', { min: 0, chance: 1, pri: 5 });
     }
 
     _bossCutIn(info) {

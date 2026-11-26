@@ -10,7 +10,7 @@
     TITLE: '메리 크리스마스! 성문을 지켜라',
     TITLE_EN: 'MERRY CHRISTMAS · GUARD THE GATE',
     SERIES: '마지막 성문의 수호자 외전',
-    VERSION: 'XMAS-2.0.0-build030',
+    VERSION: 'XMAS-2.3.0-build060',
     STAGE_NAME: '성문 광장',
     BOSS_STAGE_NAME: '눈보라 왕좌',
     STAGE_MSG: 'XMAS · 눈 내리는 성문 광장',
@@ -70,6 +70,20 @@
       },
       sub: 'DARK SANTA QUEEN',
 
+      /* Step 11-1 — 표정 4종과 스킬 모션 이름 (HUD·검증에서 같이 본다) */
+      faces: {
+        normal: { label: '여유', color: 0xffd9a0 },
+        focus: { label: '집중', color: 0xff8fa8 },
+        hit: { label: '피격', color: 0xff6a7e },
+        flustered: { label: '당황', color: 0x9fd8ff },
+      },
+      motions: {
+        glide: '벨벳 활공 보행',
+        sackWind: '자루 끌어올리기', sackSwing: '자루 휘두르기', sackTrip: '자루에 걸려 휘청',
+        giftWind: '선물 들어올리기', giftThrow: '선물 투척',
+        bellAbsorb: '등불 빛 흡수', bellRelease: '종소리 방출',
+      },
+
       /* ---- 3페이즈: HP 비율 min 이상이면 그 페이즈 ----
        * atk   : 다음 공격까지 대기(최소, 최대) — 페이즈가 오를수록 짧아진다
        * tele  : 바닥 예고 시간 배율(짧을수록 회피가 빡빡하다)
@@ -119,6 +133,18 @@
         '그 불빛, 언제까지 버틸 수 있을까?',
         '손이 시려우면 그만두는 게 어때?',
       ],
+      /* Step 11-1 — 보스·몬스터 보이스 파일 */
+      voice: {
+        intro: 'noel_intro', skill1: 'noel_skill1', skill2: 'noel_skill2',
+        skill3: 'noel_skill3', hit: 'noel_hit',
+      },
+    },
+
+    /* 몬스터 보이스 — {variant}_atk / {variant}_hit */
+    monsterVoice: {
+      snowball: { atk: 'snowball_atk', hit: 'snowball_hit' },
+      mimic: { atk: 'mimic_atk', hit: 'mimic_hit' },
+      rudolph: { atk: 'rudolph_atk', hit: 'rudolph_hit' },
     },
 
     /* ---- 성문 광장 등불: 소등 & 재점화 ---- */

@@ -1,4 +1,4 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.2.1-build051
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.3.0-build060
 
 《마지막 성문의 수호자》 크리스마스 외전의 **3차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.6.1-build461)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
@@ -6,7 +6,7 @@
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.2.1-build051`
+- 스크립트 버전: `XMAS-2.3.0-build060`
 - 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + **`chars.js`** + **`rig.js`** + **`lobby.js`**), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
 
@@ -166,3 +166,49 @@ WebGL 컨텍스트가 1회 끊깁니다. 실제 시간으로 플레이한 세션
   증빙 `../guardian/evidence/workflow_step10_4_xmas_qa.png` · `.json` · `workflow_step10_4_xmas/`.
 - 외전은 본편과 달리 **부팅·전투 중 WebGL 컨텍스트가 한 번 끊겼다가 자동 복구되는 경우**가 있습니다(검증 환경 SwiftShader).
   빌드 자체가 복구 처리(`webglcontextlost` → `webglcontextrestored`)를 갖고 있고, 검증은 손실 0 또는 완전 복구를 통과 조건으로 봅니다.
+
+
+## XMAS-2.3.0-build060 — Step 11-1 그래픽 보강 · 노엘 표정/모션 · 보스·몬스터 보이스 (2026-11-26)
+
+### 1. 3페이즈 전용 그래픽 (`js/fx.js`·`js/actors.js`·`js/battle.js`)
+- **1페이즈 「눈보라 배달」**: `blizzardBomb`(쏟아지는 눈보라 + 지면 충격 링) · `iceCrystal`(자라났다 부서지는 얼음 결정) ·
+  `sackTrail`(선물 자루를 끌며 지나간 궤적) · 발끝 `snowPuff`.
+- **2페이즈 「뒤죽박죽 선물」**: `giftBox`(리본 단 선물 상자가 포물선으로 날아간다) · `giftBlast`(포장지·파편 폭발) · `ribbonBurst`(리본 흩날림).
+- **3페이즈 「마지막 종소리」**: `lanternDrain`(켜진 광장 등불에서 노엘로 빨려 들어가는 푸른빛 파동) · `bellShock`(거대 푸른 종소리 충격파) · `bellGlyph`(떠오르는 종 실루엣).
+- 페이즈 전환 연출 보강: P2 는 선물 상자가 쏟아지고, P3 는 등불 빛을 빨아들인 뒤 종이 울린다.
+
+### 2. 노엘 표정 4종 + 전용 이동 모션 (`js/rig.js`·`js/actors.js`)
+- `js/rig.js` **Face 오버레이**: 머리뼈의 월드 변환을 그대로 따라가며 눈꺼풀·입·볼·눈물·식은땀을 덧그린다(파라미터 보간 0.16초).
+  `normal`(여유) · `focus`(집중: 가늘게 뜬 눈 + 반짝임) · `hit`(피격: 찡그린 눈 + 눈물 + 벌린 입) · `flustered`(당황: 큰 눈 + 식은땀 + 물결 입 + 볼).
+- 표정은 전투 상태로 자동 전환: 대기 `normal` / 예고·시전 `focus` / 피격·경직 `hit` / 자루에 걸림·HP 36% 이하 `flustered`.
+- `js/actors.js` **glide 전용 보행**: 바닥에서 살짝 떠서 미끄러지듯 걷고(코트·자루 흔들림), 발끝에서 눈가루가 떨어진다.
+- HUD 보스 바에 **표정 칩**(여유/집중/피격/당황) 추가 — 페이즈 배지(P1/P2/P3)와 함께 표시.
+
+### 3. 노엘 전용 스킬 모션 (`js/rig.js`·`js/actors.js`)
+- 1페이즈: `sackWind`(자루를 뒤로 끌어올림) → `sackSwing`(휘두르기). 썰매 돌진은 이동 중 궤적을 남긴다.
+- 2페이즈: `giftWind`(선물을 들어 올림) → `giftThrow`(던지기).
+- 3페이즈: `bellAbsorb`(양팔을 벌려 빛을 모음) → `bellRelease`(종소리 방출).
+- 빗나가면 `sackTrip`(자루에 걸려 휘청) + 당황 표정.
+
+### 4. 보스·몬스터 한국어 보이스 11종 (ElevenLabs)
+| 파일 | 배역/보이스 | 대사 | LUFS | F0 |
+| --- | --- | --- | --- | --- |
+| `noel_intro` | 노엘 · Eunha | 이 성문의 불빛은 전부 내 거야! | −15.6 | 254Hz |
+| `noel_skill1` | 노엘 | 눈보라 맛 좀 볼래? | −15.4 | 222Hz |
+| `noel_skill2` | 노엘 | 선물, 마음에 드니? | −15.5 | 221Hz |
+| `noel_skill3` | 노엘 | 종소리가 멈출 시간이야. | −15.4 | 225Hz |
+| `noel_hit` | 노엘 | 어머, 꽤 하네? | −15.4 | 260Hz |
+| `snowball_atk` / `_hit` | 스노우볼 · Yeonhee | 받아 봐, 눈덩이 선물! / 앗, 차가워! | −15.4 / −15.5 | 306 / 290Hz |
+| `mimic_atk` / `_hit` | 미믹 · Song Minji | 그 선물, 내가 먼저 챙길게. / 쳇, 들켰네. | −15.6 / −16.0 | 282 / 225Hz |
+| `rudolph_atk` / `_hit` | 루돌프 · Kanna | 비켜. 길을 막지 마. / …제법이네. | −15.4 / −15.5 | 260 / 225Hz |
+- 음색: 노엘은 11일차 쇼츠와 같은 −1.1반음 여왕 톤, 스노우볼은 원음(장난기), 미믹 −0.6반음(교활), 루돌프 −1.0반음(쿨).
+- `js/audio.js` **보이스 채널**: 파일별 1채널 · 최대 2채널 동시 재생 · 이름별 쿨다운 · 우선순위(보스 5 > 스킬 4 > 지원 2 > 잡몹 1) · BGM 더킹 · 음소거(M) 시 즉시 정지.
+- 연결: 보스 등장 `noel_intro`, 페이즈 전환·스킬 `noel_skill1~3`, 퍼펙트 카운터 `noel_hit`, 몬스터 공격·피격 `{몬스터}_atk/_hit`.
+
+### 5. 검증
+- `node --check` **15/15 OK**.
+- 신규 `tools_xmas/verify_workflow_step11_1_xmas.py` **40/40 ALL PASS** (가로 31 · 세로 7 · 증빙 2) —
+  버전·보이스 11파일 로드·표정 4종·상태별 자동 전환·glide·3종 스킬 모션과 이펙트·빗나감 휘청·보이스 쿨다운/채널/음소거·조작·오토 3모드·타 게임명 0, 콘솔·페이지·HTTP·JS 오류 0.
+- 회귀: `verify_workflow_step9_1_xmas.py` **60/60** · `verify_workflow_step8_xmas.py` **26/26** · `verify_workflow_step10_4_xmas.py` **50/51**
+  (유일한 실패는 검증 환경 SwiftShader 의 WebGL 컨텍스트 손실 1회 — 같은 조건에서 이전 빌드 `XMAS-2.2.1-build051` 도 동일하게 손실이 나 신규 결함이 아님).
+- 증빙: `../guardian/evidence/workflow_step11_1_xmas_qa.png` · `.json` · `workflow_step11_1_xmas/`.

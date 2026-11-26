@@ -6,6 +6,14 @@
     constructor(layer) {
       this.layer = layer;
       this.items = [];
+      this.log = [];          // Step 11-1 — 페이즈 전용 이펙트 발동 기록(검증용)
+      this.count = {};
+    }
+
+    _log(kind, x, y, extra) {
+      this.count[kind] = (this.count[kind] || 0) + 1;
+      this.log.push(Object.assign({ kind, x: Math.round(x), y: Math.round(y), n: this.count[kind] }, extra || {}));
+      if (this.log.length > 240) this.log.shift();
     }
 
     /* ---------- 파티클 ---------- */
@@ -674,6 +682,334 @@
       };
       spawn();
       this.items.push(item);
+    }
+
+    /* ================================================================== */
+    /*  Step 11-1 — 노엘 3페이즈 전용 이펙트                                */
+    /* ================================================================== */
+
+    /* 눈가루 — 노엘 전용 활공 보행의 발끝 */
+    snowPuff(x, y, dir = 1, power = 1) {
+      const n = Math.round(3 + 3 * power);
+      for (let i = 0; i < n; i++) {
+        this._particle(x + G.rand(16, -16), y - G.rand(8, 0), {
+          color: G.chance(0.45) ? 0xffffff : 0xd9ecff,
+          size: G.rand(12, 4) * (0.7 + power * 0.4),
+          vx: -dir * G.rand(70, 12) * power + G.rand(24, -24),
+          vy: -G.rand(46, 6) * power,
+          life: G.rand(0.62, 0.3), grav: 90, drag: 0.9,
+          additive: true, fade: 1.5,
+        });
+      }
+      this._log('snowPuff', x, y, { power: +power.toFixed(2) });
+    }
+
+    /* 1페이즈 「눈보라 배달」 — 눈보라 폭격 */
+    blizzardBomb(x, y, opts = {}) {
+      const o = Object.assign({ r: 230, color: 0x9fd8ff, core: 0xffffff }, opts);
+      this.shockRing(x, y - 4, o.color, o.r * 0.95, 0.55);
+      this.ring(x, y - 6, o.core, o.r * 0.52, 0.38, 2.6, 0.5);
+      const halo = new PIXI.Sprite(T().halo);
+      halo.anchor.set(0.5);
+      halo.x = x; halo.y = y - o.r * 0.18;
+      halo.tint = o.color;
+      halo.blendMode = 'add';
+      this.layer.addChild(halo);
+      const it = {
+        obj: halo, t: 0,
+        update: (dt) => {
+          it.t += dt;
+          const p = it.t / 0.55;
+          if (p >= 1) return false;
+          const s = o.r * (0.6 + 1.5 * G.easeOutCubic(p));
+          halo.width = s; halo.height = s * 0.46;
+          halo.alpha = 0.3 * (1 - p);
+          return true;
+        },
+      };
+      this.items.push(it);
+      // 위에서 쏟아지는 눈보라
+      for (let i = 0; i < 30; i++) {
+        const a = G.rand(G.TAU);
+        const rr = G.rand(o.r, o.r * 0.15);
+        this._particle(x + Math.cos(a) * rr, y - G.rand(170, 20), {
+          color: G.chance(0.4) ? 0xffffff : (G.chance(0.5) ? o.color : 0xcfe8ff),
+          size: G.rand(20, 7),
+          vx: Math.cos(a) * G.rand(150, 30),
+          vy: G.rand(620, 360),
+          life: G.rand(0.6, 0.32), grav: 240, drag: 0.94, fade: 1.1,
+        });
+      }
+      this.debris(x, y, 7, 0xd9ecff, 1.0);
+      this.iceCrystal(x + G.rand(80, -80), y - 12, { color: 0xbfe6ff, scale: G.rand(1.1, 0.75) });
+      this.iceCrystal(x + G.rand(110, -110), y - 6, { color: 0x9fd8ff, scale: G.rand(0.9, 0.6) });
+      this._log('blizzardBomb', x, y, { r: Math.round(o.r) });
+    }
+
+    /* 1페이즈 — 얼음 결정 (자라났다가 부서진다) */
+    iceCrystal(x, y, opts = {}) {
+      const o = Object.assign({ color: 0xbfe6ff, core: 0xffffff, scale: 1, dur: 0.62, spikes: 5 }, opts);
+      const g = new PIXI.Graphics();
+      g.x = x; g.y = y;
+      g.blendMode = 'add';
+      this.layer.addChild(g);
+      const draw = (k, alpha) => {
+        g.clear();
+        for (let i = 0; i < o.spikes; i++) {
+          const a = -Math.PI / 2 + (i - (o.spikes - 1) / 2) * 0.42;
+          const len = (58 + (i % 2) * 22) * o.scale * k;
+          const w = 15 * o.scale * (1 - 0.25 * Math.abs(i - 2));
+          const dx = Math.cos(a), dy = Math.sin(a);
+          g.poly([-dy * w, dx * w, dx * len, dy * len, dy * w, -dx * w])
+            .fill({ color: i % 2 ? o.color : o.core, alpha: 0.5 * alpha });
+          g.poly([-dy * w * 0.4, dx * w * 0.4, dx * len * 0.92, dy * len * 0.92, dy * w * 0.4, -dx * w * 0.4])
+            .fill({ color: o.core, alpha: 0.75 * alpha });
+        }
+      };
+      draw(0.2, 1);
+      const it = {
+        obj: g, t: 0,
+        update: (dt) => {
+          it.t += dt;
+          const p = it.t / o.dur;
+          if (p >= 1) {
+            for (let i = 0; i < 9; i++) {
+              const a = G.rand(G.TAU);
+              this._particle(x + Math.cos(a) * 16, y + Math.sin(a) * 16, {
+                color: o.core, size: G.rand(16, 6), vx: Math.cos(a) * G.rand(300, 90),
+                vy: Math.sin(a) * G.rand(260, 60) - 90, life: G.rand(0.5, 0.24), grav: 520,
+                tex: 'shard', rot: a, spin: G.rand(7, -7),
+              });
+            }
+            return false;
+          }
+          const grow = p < 0.55 ? G.easeOutCubic(p / 0.55) : 1 - (p - 0.55) / 0.45 * 0.15;
+          draw(0.2 + 0.8 * grow, p < 0.55 ? 1 : 1 - (p - 0.55) / 0.45);
+          return true;
+        },
+      };
+      this.items.push(it);
+      this._log('iceCrystal', x, y, { scale: +o.scale.toFixed(2) });
+    }
+
+    /* 1페이즈 「썰매 돌진」 — 자루를 끌며 지나간 궤적 */
+    sackTrail(x, y, dir = -1, power = 1) {
+      for (let i = 0; i < 4; i++) {
+        this._particle(x + G.rand(30, -30) - dir * 40, y - G.rand(150, 10), {
+          color: G.chance(0.5) ? 0xffe2ea : 0xd9ecff,
+          size: G.rand(22, 8) * power,
+          vx: -dir * G.rand(320, 120) * power,
+          vy: G.rand(70, -70),
+          life: G.rand(0.4, 0.18), grav: 60, drag: 0.9, fade: 1.4,
+        });
+      }
+      const g = new PIXI.Graphics();
+      g.blendMode = 'add';
+      g.x = x; g.y = y - 60;
+      this.layer.addChild(g);
+      for (let i = 0; i < 3; i++) {
+        g.moveTo(-dir * 20, -40 + i * 26)
+          .lineTo(-dir * (170 + i * 40), -66 + i * 32)
+          .stroke({ width: 7 - i * 2, color: i === 0 ? 0xffffff : 0xff9ab0, alpha: 0.32 - i * 0.08 });
+      }
+      const it = { obj: g, t: 0, update: (dt) => {
+        it.t += dt; g.alpha = Math.max(0, 1 - it.t / 0.3); return it.t < 0.3;
+      } };
+      this.items.push(it);
+      this._log('sackTrail', x, y, { dir, power: +power.toFixed(2) });
+    }
+
+    /* 2페이즈 「뒤죽박죽 선물」 — 선물 상자 투척 */
+    giftBox(x0, y0, x1, y1, opts = {}) {
+      const o = Object.assign({ dur: 0.62, size: 1, explode: true, spin: 2.4, delay: 0 }, opts);
+      const c = new PIXI.Container();
+      c.x = x0; c.y = y0;
+      const g = new PIXI.Graphics();
+      const s = o.size;
+      g.rect(-23 * s, -20 * s, 46 * s, 40 * s).fill({ color: 0xc21f36, alpha: 0.98 });
+      g.rect(-23 * s, -20 * s, 46 * s, 12 * s).fill({ color: 0xe63a4d, alpha: 0.95 });
+      g.rect(-6 * s, -20 * s, 12 * s, 40 * s).fill({ color: 0xf2d48a, alpha: 0.98 });
+      g.rect(-27 * s, -26 * s, 54 * s, 9 * s).fill({ color: 0xffe6a8, alpha: 0.95 });
+      g.rect(-6 * s, -26 * s, 12 * s, 9 * s).fill({ color: 0xfff3d0, alpha: 0.95 });
+      g.poly([0, -26 * s, -17 * s, -40 * s, -3 * s, -29 * s]).fill({ color: 0xf2d48a, alpha: 0.95 });
+      g.poly([0, -26 * s, 17 * s, -40 * s, 3 * s, -29 * s]).fill({ color: 0xf2d48a, alpha: 0.95 });
+      g.rect(-19 * s, -14 * s, 38 * s, 4 * s).fill({ color: 0xffb0bc, alpha: 0.5 });
+      c.addChild(g);
+      this.layer.addChild(c);
+      const arc = Math.max(160, Math.abs(x1 - x0) * 0.45);
+      const it = {
+        obj: c, t: -o.delay,
+        update: (dt) => {
+          it.t += dt;
+          if (it.t < 0) { c.alpha = 0; return true; }
+          c.alpha = 1;
+          const p = it.t / o.dur;
+          if (p >= 1) {
+            if (o.explode) this.giftBlast(x1, y1);
+            return false;
+          }
+          c.x = G.lerp(x0, x1, p);
+          c.y = G.lerp(y0, y1, p) - Math.sin(p * Math.PI) * arc;
+          c.rotation = o.spin * (1 - p) * 0.7;
+          const k = 1 - 0.15 * p;
+          c.scale.set(k, k);
+          return true;
+        },
+      };
+      this.items.push(it);
+      this._log('giftBox', x0, y0, { tx: Math.round(x1), ty: Math.round(y1), size: +s.toFixed(2) });
+    }
+
+    /* 선물 상자 폭발 — 리본·포장지·충격 */
+    giftBlast(x, y, opts = {}) {
+      const o = Object.assign({ color: 0xffd7a0, r: 190 }, opts);
+      this.ring(x, y - 30, 0xfff3c4, o.r * 0.8, 0.42, 5, 0.9);
+      this.shockRing(x, y - 4, o.color, o.r, 0.5);
+      this.burst(x, y - 26, { color: 0xffc36a, core: 0xfff6dc, rays: 12, length: 120, width: 7, dur: 0.26 });
+      this.ribbonBurst(x, y - 28, 9);
+      this.debris(x, y, 8, 0xffcf6a, 1.1);
+      for (let i = 0; i < 14; i++) {
+        const a = G.rand(G.TAU);
+        this._particle(x + Math.cos(a) * 18, y - 28 + Math.sin(a) * 12, {
+          color: G.chance(0.5) ? 0xfff0b0 : (G.chance(0.5) ? 0xff6a7e : 0x8fd0ff),
+          size: G.rand(16, 6), vx: Math.cos(a) * G.rand(420, 120), vy: Math.sin(a) * G.rand(360, 80) - 120,
+          life: G.rand(0.7, 0.3), grav: 720, tex: 'shard', rot: a, spin: G.rand(11, -11),
+        });
+      }
+      this._log('giftBlast', x, y, { r: Math.round(o.r) });
+    }
+
+    /* 리본이 흩날린다 — 곡선 리본 조각 + 반짝임 */
+    ribbonBurst(x, y, count = 8, color = 0xffd166) {
+      const cols = [0xff6a7e, 0xffd166, 0x9fd8ff, 0xffffff];
+      for (let i = 0; i < count; i++) {
+        const a = G.rand(G.TAU);
+        const s = new PIXI.Sprite(T().streak);
+        s.anchor.set(0.5);
+        s.x = x; s.y = y;
+        s.tint = cols[i % cols.length];
+        s.blendMode = 'add';
+        s.width = G.rand(46, 24);
+        s.height = G.rand(7, 3);
+        s.rotation = a;
+        this.layer.addChild(s);
+        const vx = Math.cos(a) * G.rand(360, 140);
+        const vy = Math.sin(a) * G.rand(300, 100) - 110;
+        const spin = G.rand(8, -8);
+        const it = {
+          obj: s, t: 0,
+          update: (dt) => {
+            it.t += dt;
+            const p = it.t / 0.9;
+            if (p >= 1) return false;
+            s.x += vx * dt;
+            s.y += vy * dt + 210 * it.t * dt;
+            s.rotation += spin * dt;
+            s.width = Math.max(6, 40 * (1 - p * 0.5));
+            s.alpha = 1 - p;
+            return true;
+          },
+        };
+        this.items.push(it);
+      }
+      for (let i = 0; i < Math.round(count * 0.8); i++) {
+        this._particle(x + G.rand(30, -30), y + G.rand(20, -20), {
+          color: G.chance(0.5) ? 0xffffff : color,
+          size: G.rand(12, 4), vx: G.rand(120, -120), vy: G.rand(-40, -180),
+          life: G.rand(0.6, 0.3), grav: 160, tex: 'spark',
+        });
+      }
+      this._log('ribbonBurst', x, y, { count });
+    }
+
+    /* 3페이즈 「마지막 종소리」 — 광장 등불의 푸른빛을 빨아들인다 */
+    lanternDrain(sx, sy, tx, ty, opts = {}) {
+      const o = Object.assign({ dur: 0.85, color: 0x8fd0ff, delay: 0 }, opts);
+      this.ring(sx, sy - 10, o.color, 70, 0.5, 3, 0.7);
+      for (let i = 0; i < 5; i++) {
+        const s = new PIXI.Sprite(T().soft);
+        s.anchor.set(0.5);
+        s.x = sx; s.y = sy - 20;
+        s.tint = i % 2 ? 0xffffff : o.color;
+        s.blendMode = 'add';
+        const sz = G.rand(26, 12);
+        s.width = sz; s.height = sz;
+        this.layer.addChild(s);
+        const bend = G.rand(90, -90);
+        const it = {
+          obj: s, t: -o.delay - i * 0.06,
+          update: (dt) => {
+            it.t += dt;
+            if (it.t < 0) { s.alpha = 0; return true; }
+            const p = it.t / o.dur;
+            if (p >= 1) return false;
+            const k = G.easeInQuad(p);
+            s.x = G.lerp(sx, tx, k) + Math.sin(p * Math.PI) * bend;
+            s.y = G.lerp(sy - 20, ty - 150, k) - Math.sin(p * Math.PI) * 90;
+            s.alpha = 0.85 * Math.sin(Math.min(1, p * 1.2) * Math.PI);
+            const sc = sz * (1 - 0.3 * p);
+            s.width = sc; s.height = sc;
+            return true;
+          },
+        };
+        this.items.push(it);
+      }
+      this._log('lanternDrain', sx, sy, { tx: Math.round(tx), ty: Math.round(ty) });
+    }
+
+    /* 거대 푸른 종소리 충격파 */
+    bellShock(x, y, opts = {}) {
+      const o = Object.assign({ color: 0x7fc4ff, core: 0xffffff, r: 420, dur: 1.0 }, opts);
+      this.ring(x, y - 40, o.color, o.r, o.dur, 10, 0.55);
+      this.ring(x, y - 40, o.core, o.r * 0.72, o.dur * 0.82, 4, 0.55);
+      this.ring(x, y - 40, 0x2f6bff, o.r * 1.14, o.dur * 1.12, 3, 0.55);
+      this.shockRing(x, y - 6, o.color, o.r * 0.72, 0.72);
+      // 위로 번지는 종소리 잔향
+      for (let i = 0; i < 26; i++) {
+        const a = G.rand(G.TAU);
+        const sp = G.rand(680, 240);
+        this._particle(x, y - 120, {
+          color: G.chance(0.4) ? o.core : (G.chance(0.5) ? o.color : 0xbfe4ff),
+          size: G.rand(26, 8),
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 40,
+          life: G.rand(0.95, 0.5), grav: 120, drag: 0.93, fade: 1.0,
+        });
+      }
+      this.bellGlyph(x, y - 150, { color: o.color });
+      this._log('bellShock', x, y, { r: Math.round(o.r) });
+    }
+
+    /* 종 실루엣이 떠오르며 사라진다 */
+    bellGlyph(x, y, opts = {}) {
+      const o = Object.assign({ color: 0x9fd8ff, dur: 1.1 }, opts);
+      const g = new PIXI.Graphics();
+      g.x = x; g.y = y;
+      g.blendMode = 'add';
+      this.layer.addChild(g);
+      const draw = (alpha) => {
+        g.clear();
+        g.poly([-46, 40, -34, -6, -20, -40, 0, -58, 20, -40, 34, -6, 46, 40])
+          .fill({ color: o.color, alpha: 0.22 * alpha });
+        g.poly([-46, 40, -34, -6, -20, -40, 0, -58, 20, -40, 34, -6, 46, 40])
+          .stroke({ color: 0xffffff, width: 2.4, alpha: 0.55 * alpha });
+        g.rect(-50, 40, 100, 8).fill({ color: 0xffffff, alpha: 0.4 * alpha });
+        g.circle(0, 56, 9).fill({ color: 0xffffff, alpha: 0.6 * alpha });
+      };
+      draw(1);
+      const it = {
+        obj: g, t: 0,
+        update: (dt) => {
+          it.t += dt;
+          const p = it.t / o.dur;
+          if (p >= 1) return false;
+          g.y = y - 46 * G.easeOutCubic(p);
+          g.alpha = Math.pow(1 - p, 1.4);
+          g.scale.set(1 + 0.16 * p);
+          return true;
+        },
+      };
+      this.items.push(it);
+      this._log('bellGlyph', x, y);
     }
 
     update(dt) {

@@ -923,6 +923,10 @@
       this.game.fx.hitSpark(this.x + G.rand(20, -20), this.centerY, opts.crit ? 0xfff0b0 : 0xdff0ff, opts.crit ? 1.1 : 0.75, 0.2);
       this.game.fx.damage(this.x, this.centerY - 30, amount, { crit: opts.crit });
       if (opts.knock) this.knockback(opts.knock * 1.2);
+      // 외전 몬스터 피격 보이스 (쿨다운은 audio.js VOICE 표)
+      if (this.cfg && G.Sfx.playVoice && (opts.crit || G.chance(0.32))) {
+        G.Sfx.playVoice(this.variant + '_hit');
+      }
       if (this.hp <= 0) this.die();
     }
 
@@ -1063,6 +1067,7 @@
 
     _startStrike(target) {
       const cfg = this.cfg;
+      if (cfg && G.Sfx.playVoice) G.Sfx.playVoice(this.variant + '_atk', { chance: 0.85 });
       this.strikeFromX = this.x;
       this.strikeDir = Math.sign(target.x - this.x) || -1;
       this.strikeHit = false;
@@ -1360,6 +1365,17 @@
       this.phaseKey = NOEL ? G.Xmas.boss.phases[0].key : 'P1';
       this.phaseLock = 0;
       this.atkLog = [];
+      // Step 11-1 — 표정·전용 이동·스킬 모션 상태
+      this.expr = 'normal';
+      this.exprLock = null;      // 검증용 강제 표정(없으면 상태가 정한다)
+      this.tripT = 0;            // 자루에 걸려 휘청이는 시간
+      this.flusteredT = 0;       // 당황 표정 유지 시간
+      this.moodClock = 0;
+      this.moving = 0;           // 이번 프레임 이동량(px)
+      this.stepPhase = 0;
+      this.snowT = 0;            // 발끝 눈가루 누적
+      this.trailT = 0;
+      this.skillLog = [];        // 스킬 모션 발동 기록(검증용)
 
       this.addHalo(NOEL ? 0x8fb4ff : 0xff5a3c, NOEL ? 560 : 620, 0.16);
       this.addShadow(NOEL ? 340 : 370, 0.56);
@@ -1393,7 +1409,7 @@
       if (NOEL && G.Rigs) {
         const rdef = G.Rigs.get('noel');
         if (rdef) {
-          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near' });
+          this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near', face: true });
           this.rig.setBodyPx(this.bodyPx);
           this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
         }
@@ -1542,6 +1558,11 @@
     startAttack(kind) {
       if (G.Sfx.playVoice && kind === 'perfect') G.Sfx.playVoice('boss_roar');
       this.kind = kind;
+      this._windupFxDone = false;
+      this.trailT = 0;
+      // 외전 노엘은 페이즈별 전용 대사로 예고한다
+      const sv = this._skillVoice(kind);
+      if (sv && G.Sfx.playVoice) G.Sfx.playVoice(sv, { chance: 0.92 });
       this.state = 'windup';
       this.stateT = 0;
       const cfg = {
@@ -1602,21 +1623,132 @@
       if (this.flashSpr) this.flashSpr.visible = false;
       let st = 'idle', p = 0;
       const S = this.state;
+      const kind = this.kind;
+      const throwKind = kind === 'multi' || kind === 'summon' || kind === 'combo';
       if (S === 'enter') { st = 'spawn'; p = G.clamp(this.stateT / 1.4, 0, 1); }
-      else if (S === 'windup') { st = 'windup'; p = G.clamp(this.stateT / Math.max(0.15, this.cfg ? this.cfg.tele : 1), 0, 1); }
-      else if (S === 'strike') { st = 'strike'; p = G.clamp(this.stateT / 0.45, 0, 1); }
-      else if (this.stagger > 0) { st = 'stumble'; p = 0.5; }
+      else if (this.tripT > 0) { st = 'sackTrip'; p = 0.5; }
+      else if (S === 'windup') {
+        p = G.clamp(this.stateT / Math.max(0.15, this.cfg ? this.cfg.tele : 1), 0, 1);
+        st = kind === 'perfect' ? 'bellAbsorb' : (throwKind ? 'giftWind' : 'sackWind');
+      } else if (S === 'strike') {
+        p = G.clamp(this.stateT / 0.45, 0, 1);
+        st = kind === 'perfect' ? 'bellRelease' : (throwKind ? 'giftThrow' : 'sackSwing');
+      } else if (this.stagger > 0) { st = 'stumble'; p = 0.5; }
       else if (this.dying) { st = 'dead'; p = G.clamp(this.stateT / 1.6, 0, 1); }
+      else if (this.moving > 0.05) {
+        // 전용 활공 보행 — 벨벳 코트·선물 자루가 흔들리고 발끝에서 눈가루
+        st = 'glide';
+        this.stepPhase += dt * 7.4 * G.clamp(this.moving / 26, 0.6, 1.5);
+        this.snowT -= dt;
+        if (this.snowT <= 0) {
+          this.snowT = 0.10;
+          this.game.fx.snowPuff(this.x - this.facing * 26, this.y - 2, this.facing, 0.7 + Math.min(0.8, this.moving / 40));
+        }
+      } else {
+        this.stepPhase += dt * 1.4;
+      }
       const dir = target ? Math.sign(target.x - this.x) || -1 : -1;
       r.setFacing(dir);
-      r.setState(st, p, {});
+      r.setState(st, p, { stepPhase: this.stepPhase, speed: Math.max(120, this.moving * 60 / Math.max(dt, 0.001)) });
       r.update(dt);
       if (this.flashT > 0.06) r.hitFlash(0xffe0e6);
+      // 표정 — 대기/스킬/피격/넘어짐에 따라 실시간 전환
+      const ex = this._exprName();
+      if (ex !== this.expr) {
+        this.expr = ex;
+        r.setExpression(ex);
+      }
+    }
+
+    /* 표정 결정 — 자루에 걸림(휘청)·HP 낮음은 당황, 피격은 찡그림, 스킬은 집중 */
+    _exprName() {
+      if (this.exprLock) return this.exprLock;
+      if (this.tripT > 0 || this.flusteredT > 0) return 'flustered';
+      if (this.stagger > 0) return 'hit';
+      if (this.hitFlash > 0) return 'hit';
+      if (this.state === 'windup' || this.state === 'strike') return 'focus';
+      return 'normal';
+    }
+
+    /* 스킬 종류·페이즈에 맞는 전용 보이스 */
+    _skillVoice(kind) {
+      if (!this.noel) return null;
+      if (kind === 'perfect') return 'noel_skill3';
+      if (kind === 'multi' || kind === 'summon' || kind === 'combo') return 'noel_skill2';
+      if (kind === 'slam' || kind === 'line') return 'noel_skill1';
+      return null;
+    }
+
+    /* 페이즈별 스킬 이펙트 — 1페이즈 눈보라·2페이즈 선물·3페이즈 종소리 */
+    _skillFxWindup(kind) {
+      const fx = this.game.fx;
+      if (!fx) return;
+      const rec = { t: +this.game.time.toFixed(2), kind, phase: this.phaseKey };
+      if (kind === 'perfect') {
+        // 등불의 푸른빛을 광장에서 빨아들인다
+        const L = this.game.lanterns;
+        if (L && L.items) {
+          L.items.forEach((it) => {
+            if (!it.lit) return;
+            fx.lanternDrain(it.x, it.y, this.x, this.y - 140, { color: 0x8fd0ff, dur: 0.8, delay: G.rand(0.12, 0) });
+          });
+        }
+        fx.ring(this.x, this.y - 150, 0x8fd0ff, 190, 0.7, 6, 0.7);
+        fx.iceCrystal(this.x + G.rand(90, -90), this.y - 30, { color: 0x9fd8ff, scale: 0.8 });
+        rec.drain = !!L;
+      } else if (kind === 'summon') {
+        fx.giftBox(this.x, this.y - 210, this.x + G.rand(150, -150), this.y - 10, { size: 1.1, dur: 0.5 });
+        fx.ribbonBurst(this.x, this.y - 200, 6);
+        rec.gift = true;
+      } else if (kind === 'multi') {
+        (this.teleTargets || []).forEach((q, i) => {
+          fx.giftBox(this.x - 40, this.y - 200, q.x, q.y - 6,
+            { size: 0.85, dur: 0.5 + i * 0.12, delay: 0.08 * i });
+        });
+        rec.gifts = (this.teleTargets || []).length;
+      } else if (kind === 'slam') {
+        fx.iceCrystal(this.x + 70, this.y - 20, { color: 0xbfe6ff, scale: 0.9 });
+        for (let i = 0; i < 10; i++) {
+          fx.snowPuff(this.x + G.rand(70, -70), this.y - G.rand(150, 20), 1, 0.5);
+        }
+        rec.snow = true;
+      } else if (kind === 'line') {
+        fx.ring(this.x, this.y - 120, 0xff9ab0, 170, 0.5, 5, 0.8);
+        rec.rush = true;
+      }
+      this.skillLog.push(rec);
+      if (this.skillLog.length > 40) this.skillLog.shift();
+    }
+
+    /* 스킬 착탄 이펙트 */
+    _skillFxStrike(kind) {
+      const fx = this.game.fx;
+      if (!fx) return;
+      const q = this.teleTarget || { x: this.x, y: this.y };
+      const r = this.cfg ? this.cfg.radius : 200;
+      if (kind === 'perfect') {
+        fx.bellShock(this.x, this.y, { color: 0x7fc4ff, r: Math.max(380, r * 1.9), dur: 1.05 });
+        fx.sparkBurst(this.x, this.y - 100, 0xbfe4ff, 30, 720);
+      } else if (kind === 'multi') {
+        (this.teleTargets || []).forEach((t) => fx.giftBlast(t.x, t.y - 8, { r: t.r * 0.9 }));
+      } else if (kind === 'summon') {
+        fx.giftBlast(this.x + G.rand(80, -80), this.y - 10, { r: 150 });
+      } else if (kind === 'slam') {
+        fx.blizzardBomb(q.x, q.y, { r });
+      } else if (kind === 'line') {
+        fx.blizzardBomb(q.x, q.y, { r: r * 0.8 });
+        fx.sackTrail(this.x, this.y, Math.sign(Math.cos(this.lineDir || 0)) || -1, 1.2);
+      } else {
+        fx.shockRing(q.x, q.y, 0xffb0c0, r, 0.5);
+      }
     }
 
     _updateCore(dt, time, target) {
       this.stateT += dt;
       this.bobT += dt;
+      this.moving = 0;
+      if (this.tripT > 0) this.tripT = Math.max(0, this.tripT - dt);
+      if (this.flusteredT > 0) this.flusteredT = Math.max(0, this.flusteredT - dt);
       if (this.phaseLock > 0) this.phaseLock = Math.max(0, this.phaseLock - dt);
       this.tickDefDown(dt);
       // 보스도 항상 플레이어를 바라본다 — 등 뒤 판정이 생기지 않는다
@@ -1702,7 +1834,17 @@
         this.obj.y = this.y;
         this.atkTimer -= dt;
         const want = 715;
-        if (this.x > want + 10) this.x -= 24 * dt;
+        if (this.x > want + 10) {
+          const dx = Math.min(24 * dt, this.x - want);
+          this.x -= dx;
+          this.moving = dx;
+        }
+        // HP 가 낮아지면 가끔 자루에 걸린 듯 당황한 표정이 스친다
+        const hpRatio = this.hp / this.hpMax;
+        if (this.noel && hpRatio < 0.36 && this.phaseLock <= 0) {
+          this.moodClock += dt;
+          if (this.moodClock > 3.6) { this.moodClock = 0; this.flusteredT = 1.3; }
+        }
         this.obj.x = this.x;
         if (this.atkTimer <= 0 && this.phaseLock <= 0) {
           const pool = (this.noel && this.phaseCfg)
@@ -1717,6 +1859,7 @@
         }
       } else if (this.state === 'windup') {
         this._setAttackTex(true);
+        if (!this._windupFxDone) { this._windupFxDone = true; this._skillFxWindup(this.kind); }
         const p = G.clamp(this.stateT / this.cfg.tele, 0, 1);
         // Last 0.6s: the boss crouches, raises the weapon and fills the danger ring.
         const warnP = G.clamp((this.stateT - Math.max(0, this.cfg.tele - 0.6)) / 0.6, 0, 1);
@@ -1740,8 +1883,15 @@
         this.tele.alpha = Math.max(0, this.tele.alpha - dt * 5);
         if (this.kind === 'line' && this.stateT < 0.34) {
           const sp = 1650 * (1 - this.stateT / 0.34);
+          const beforeX = this.x, beforeY = this.y;
           this.x = G.clamp(this.x + Math.cos(this.lineDir) * sp * dt, 150, 1090);
           this.y = G.clamp(this.y + Math.sin(this.lineDir) * sp * dt * 0.5, 516, 664);
+          this.moving = Math.abs(this.x - beforeX) + Math.abs(this.y - beforeY);
+          this.trailT -= dt;
+          if (this.trailT <= 0) {
+            this.trailT = 0.05;
+            this.game.fx.sackTrail(this.x, this.y, Math.cos(this.lineDir) >= 0 ? 1 : -1, 1.0);
+          }
           this.obj.x = this.x; this.obj.y = this.y; this.obj.zIndex = this.y;
           if (G.chance(0.8)) {
             this.game.fx._particle(this.x + G.rand(40, -40), this.y - G.rand(this.baseH * 0.7, 40), {
@@ -1781,6 +1931,7 @@
     /* multi 패턴: 원 하나가 예고를 마치면 그 자리에서 터진다 */
     _burstCircle(q, target) {
       const g = this.game;
+      if (this.noel) g.fx.ribbonBurst(q.x, q.y - 20, 7);
       g.fx.shockRing(q.x, q.y, 0xff5a6e, q.r * 1.5, 0.4);
       g.fx.sparkBurst(q.x, q.y - 20, 0xff8a7a, 18, 460);
       g.fx.debris(q.x, q.y + 4, 6, 0xffb0a0, 0.9);
@@ -1796,6 +1947,7 @@
 
     _strike(target) {
       const kind = this.kind;
+      if (this.noel) this._skillFxStrike(kind);
       const q0 = this.teleTarget || { x: this.teleX, y: this.y, r: this.cfg.radius };
       const dist = Boss.insideEllipse(target.x, target.y, q0.x, q0.y, this.cfg.radius) ? 0 : 1e9;
       const airborne = target.z > 40;
@@ -1807,6 +1959,14 @@
       const multiHit = this.kind === 'multi' && this.teleTargets.some((q) => Boss.insideEllipse(target.x, target.y, q.x, q.y, q.r));
       const groundHit = this.kind === 'multi' ? false : this.kind === 'line' ? lineHit : dist < this.cfg.radius;
       if (kind !== 'summon') {
+        if (this.noel && (kind === 'slam' || kind === 'line') && !groundHit) {
+          // 빗나가면 자루에 걸려 휘청인다 — 당황 표정 + 모션
+          this.tripT = 1.05;
+          this.flusteredT = 1.05;
+          this.skillLog.push({ t: +this.game.time.toFixed(2), kind: 'trip', miss: true });
+          this.game.fx.debris(this.x, this.y, 6, 0xffe2ea, 0.9);
+          this.game.fx.snowPuff(this.x, this.y - 6, 1, 1.2);
+        }
         if (kind !== 'multi' || !this._multiFxFired) {
           this.game.fx.shockRing(this.kind === 'line' ? this.x : this.x - 40, this.y - 6, this.cfg.color, this.cfg.radius, 0.55);
           this.game.scene.shake(kind === 'perfect' ? 16 : 12, 0.4);
