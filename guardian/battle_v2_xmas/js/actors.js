@@ -1578,7 +1578,7 @@
 
     /* 본전 격파 → 바로 죽지 않고 각성 준비 (연출 뒤 finishAwaken) */
     awaken() {
-      if (this.dying || this.form === 'awakening' || this.form === 'berserk') return;
+      if (this.dying || this.awakenPending || this.form === 'awakening' || this.form === 'berserk') return;
       this.hp = 1;
       this.awakenPending = true;
       this.state = 'idle';
