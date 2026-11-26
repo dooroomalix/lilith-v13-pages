@@ -183,7 +183,7 @@
         game[key] = false;
       }
       // 화면 복귀 후 이전 프레임의 일회성 공격/스킬 입력이 실행되지 않도록 제거.
-      for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop']) {
+      for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop', 'judge']) {
         game.hud.input[key] = false;
       }
     }
@@ -297,6 +297,33 @@
       attack: () => game.hud.input.attack = true,
       // ---- Step 8 : 2.5D 사각 링 판정 ----
       toggleBoxes: (on) => game.toggleDebugBoxes(on),
+      // ---- Step 10-2 : 판정 표시 · 몸통 겹침 방지 · 오토 이동 ----
+      setJudge: (on) => game.toggleDebugBoxes(on),
+      judgeInfo: () => ({
+        on: !!game.debugBoxes, t: +game.debugT.toFixed(2),
+        shapes: (game.judgeShapes || []).slice(0, 60),
+        trails: (game.hitTrails || []).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), f: t.f, reach: t.reach, t: +t.t.toFixed(2) })),
+        marks: (game.hitMarks || []).map((m) => ({ x: Math.round(m.x), y: Math.round(m.y), t: +m.t.toFixed(2) })),
+        lane: G.LANE, pushbox: G.PUSHBOX,
+        hudBtn: game.hud && game.hud.buttons.judge ? { ...game.hud.buttons.judge } : null,
+      }),
+      pushboxInfo: () => ({
+        lane: G.PUSHBOX,
+        hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing },
+        enemies: game.enemies.filter((e) => e.alive && !e.dying).map((e) => ({
+          x: Math.round(e.x), y: Math.round(e.y), dx: Math.round(e.x - game.kael.x), dy: Math.round(e.y - game.kael.y),
+        })),
+        boss: game.boss ? { x: Math.round(game.boss.x), y: Math.round(game.boss.y),
+          dx: Math.round(game.boss.x - game.kael.x), dy: Math.round(game.boss.y - game.kael.y) } : null,
+      }),
+      autoMoveInfo: () => {
+        const t = game._nearestEnemy();
+        return {
+          mode: game.autoMode,
+          target: t ? { x: Math.round(t.x), dx: Math.round(t.x - game.kael.x), boss: t === game.boss } : null,
+          hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing, state: game.kael.state },
+        };
+      },
       laneInfo: () => ({
         lane: G.LANE, ring: G.RING, spawn: G.SPAWN,
         hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing },

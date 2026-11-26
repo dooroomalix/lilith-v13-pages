@@ -35,13 +35,21 @@
       this.scene.world.addChildAt(this.bossTeleLayer, 4);
       this.fx = new G.Fx(this.scene.fxLayer);
 
-      // 2.5D 판정 디버그 (H 키) — 발밑 좌표·타점/피격 박스 표시용. 기본 OFF
+      // 2.5D 판정 디버그 (H 키 / HUD [판정] 버튼) — 발밑 좌표·타점/피격 박스 표시용. 기본 OFF
       this.debugBoxes = false;
       this.debugT = 0;
       this.debugG = new PIXI.Graphics();
       this.debugG.zIndex = 9;
       this.scene.fxLayer.addChild(this.debugG);
       this.debugText = null;
+      /* Step 10-2 — 공격 활성 프레임의 짧은 타격 범위 잔상과 피격 표식.
+         판정 표시가 꺼져 있어도 아주 옅게 남아 "어디까지 닿았는지"를 보여 준다. */
+      this.trailG = new PIXI.Graphics();
+      this.trailG.zIndex = 8;
+      this.scene.fxLayer.addChild(this.trailG);
+      this.hitTrails = [];
+      this.hitMarks = [];
+      this.judgeShapes = [];      // 지금 화면에 그려진 판정 도형 목록(검증용)
 
       this.root = new PIXI.Container();
       this.root.sortableChildren = true;
@@ -333,7 +341,7 @@
       this.queuedAttack = this.queuedSkill1 = this.queuedSkill2 = this.queuedDodge = this.queuedPotion = this.queuedJump = this.queuedCoop = false;
       // 이전 판의 일회성 입력(공격/스킬/점프)과 잡고 있던 조이스틱이 따라오지 않게 비운다.
       if (this.hud) {
-        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop']) {
+        for (const key of ['attack', 'skill1', 'skill2', 'dodge', 'potion', 'jump', 'auto', 'pause', 'mute', 'coop', 'judge']) {
           this.hud.input[key] = false;
         }
         const j = this.hud.joy;
@@ -840,6 +848,8 @@
       this.fx.trail(hero, cfg, idx);
       // 타격 지점 섬광 (별 + 방사 버스트 + 스파크)
       const hx = cx + (reachDist - 20) * f;
+      /* Step 10-2 — 공격 활성 프레임의 짧은 타점 범위 잔상 (검기 궤적과 같은 방향) */
+      this._markStrike(hero, cfg, f, cfg.reach + 40, cfg.c1 != null ? cfg.c1 : 0x9fd6ff);
       this.fx.burst(hx, cy, {
         color: 0x9fd6ff, core: 0xffffff, rays: heavy ? 22 : 16, length: heavy ? 210 : 155,
         width: heavy ? 9 : 7, dur: 0.19, angle: cfg.ang * 0.3,
@@ -918,6 +928,7 @@
       const knock = air ? G.FEEL.air.knock : ((G.FEEL.combo[idx] || G.FEEL.combo[0]).knock);
       const dir = Math.sign(e.x - hero.x) || (hero.facing || 1);   // 때린 쪽 반대로 밀린다
       e.takeDamage(dmg, { crit, knock, dir });
+      this._markHit(e.x, e.centerY, crit ? 0xffe9a8 : 0xbfe4ff);   // 누가 맞았는지 즉시 보이게 (Step 10-2)
       if (air) {
         // 공중 공격은 적을 아래로 눌러 찍는 느낌을 더한다
         this.fx.debris(e.x, e.centerY + e.baseH * 0.3, 5, 0xbfe4ff, 0.9);
@@ -945,6 +956,7 @@
       this._coopGain(G.COOP.hitGain);
       const kb = air ? 110 : (idx === 2 ? 90 : 45);
       this.boss.takeDamage(dmg, { crit, kb, dir: Math.sign(this.boss.x - hero.x) || 1 });
+      this._markHit(this.boss.x, this.boss.centerY, crit ? 0xffe9a8 : 0xffc27a);
       if (crit) {
         this.fx.impactFrame(this.boss.x, this.boss.centerY, this.boss);
         if (this.time - (this._critPop || -9) > 0.3) {
@@ -2060,8 +2072,10 @@
         mx = kx / len; my = ky / len;
       }
       const manualMove = Math.abs(mx) > 0.12 || Math.abs(my) > 0.12;
+      this.manualMove = manualMove;
 
       if (inp.pause) this.togglePause();
+      if (inp.judge) this.toggleDebugBoxes();      // HUD [판정] 버튼 — H 키와 같은 상태
       if (inp.mute) {
         this.muted = G.Sfx.toggleMute();
         if (!this.muted) G.Sfx.ui(true);   // 소리를 다시 켰을 때 확인음
@@ -2239,6 +2253,9 @@
         this._bossWindow(dt);
       }
 
+      // 몸통 겹침 방지 — 적·보스와 같은 레인에서 0px로 겹쳐 서지 않게 (Step 10-2)
+      this._pushbox(dt);
+
       // 마법 탄
       this._updateProjectiles(dt);
 
@@ -2292,15 +2309,23 @@
       this.hud.update(realDt, this);
       this.phaseT += realDt;
       this._updateDebugBoxes(realDt);
+      this._updateJudgeFx(realDt);
     }
 
-    /* ---------------- 2.5D 판정 디버그 (H 키) ---------------- */
-    /* 발밑 링 좌표·전방 타점 박스·피격 레인을 화면에 잠깐 보여 준다. 기본은 OFF. */
-    toggleDebugBoxes(on) {
+    /* ---------------- 2.5D 판정 표시 (H 키 · HUD [판정] 버튼) ---------------- */
+    /* 발밑 기준점·전방 타점 박스·피격 박스를 실시간으로 그린다. 기본은 OFF.
+       Step 10-2: 모바일에서도 누를 수 있게 HUD 에 [판정] 토글 버튼을 두었고,
+       버튼과 H 키는 같은 상태(this.debugBoxes)를 공유한다.
+       sec 를 주면 그 초 뒤 저절로 꺼진다(기본은 누를 때까지 유지). */
+    toggleDebugBoxes(on, sec) {
       this.debugBoxes = on == null ? !this.debugBoxes : !!on;
-      this.debugT = this.debugBoxes ? 8 : 0;     // 8초 뒤 저절로 꺼진다
-      if (!this.debugBoxes && this.debugG) this.debugG.clear();
+      this.debugT = this.debugBoxes ? (sec == null ? 1e9 : sec) : 0;
+      if (!this.debugBoxes && this.debugG) { this.debugG.clear(); this.judgeShapes = []; }
       if (this.debugText) this.debugText.visible = this.debugBoxes;
+      if (this.debugBoxes) {
+        this.showPrompt('판정 표시 ON', 0x9fe8ff, 0.9);
+        G.Sfx.ui(true);
+      }
       return this.debugBoxes;
     }
 
@@ -2315,36 +2340,121 @@
       const g = this.debugG, h = this.kael;
       if (!g || !h) return;
       g.clear();
+      const shapes = this.judgeShapes = [];
       const f = h.facing || 1;
       const reach = (h.atkCfg && h.atkCfg.reach ? h.atkCfg.reach : 252) + 40;
       // 내 전방 타점 박스(초록) — 정면 + 무기 리치, 이 안의 적만 맞는다
       const x0 = f > 0 ? h.x - 6 : h.x - reach;
-      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).fill({ color: 0x54ffa8, alpha: 0.10 });
-      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x54ffa8, width: 1.4, alpha: 0.6 });
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).fill({ color: 0x54ffa8, alpha: 0.16 });
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x8dffc0, width: 2.6, alpha: 0.9 });
+      shapes.push({ kind: 'attack', color: '#54ffa8', x: Math.round(x0), y: Math.round(h.y - G.LANE.hero), w: reach + 6, h: G.LANE.hero * 2 });
       // 내 피격 레인(노랑) — 적 공격이 나에게 닿는 깊이
-      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).fill({ color: 0xffe066, alpha: 0.12 });
+      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).fill({ color: 0xffe066, alpha: 0.16 });
+      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).stroke({ color: 0xffe97a, width: 2.2, alpha: 0.8 });
+      shapes.push({ kind: 'hurt', color: '#ffe066', x: Math.round(h.x - 22), y: Math.round(h.y - G.LANE.enemy), w: 44, h: G.LANE.enemy * 2 });
       g.moveTo(h.x, h.y).lineTo(h.x + 46 * f, h.y).stroke({ color: 0x54ffa8, width: 2, alpha: 0.9 });
-      // 적·보스 피격 레인(빨강)
-      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero); });
-      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss);
+      this._dbgFoot(h.x, h.y, 0x9fe8ff, shapes, 'hero');
+      // 적·보스 피격 박스(빨강) + 예고 중인 공격 범위(보라)
+      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero, shapes); });
+      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss, shapes);
+      // 공격 잔상·피격 표식
+      this._drawJudgeTrails(g, shapes);
       const txt = 'X ' + Math.round(h.x) + ' · Y ' + Math.round(h.y)
-        + ' · 레인 ±' + G.LANE.hero + ' · ' + (f > 0 ? '오른쪽' : '왼쪽') + ' 보기';
+        + ' · 레인 ±' + G.LANE.hero + ' · ' + (f > 0 ? '오른쪽' : '왼쪽') + ' 보기 · 판정 ON';
       if (!this.debugText) {
         this.debugText = new PIXI.Text({ text: txt, style: G.style({ fontSize: 15, fontWeight: '800', fill: 0xd8ffe8, stroke: { color: 0x06210f, width: 4 } }) });
         this.scene.fxLayer.addChild(this.debugText);
       }
       this.debugText.text = txt;
       this.debugText.visible = true;
-      this.debugText.x = h.x - 96;
+      this.debugText.x = h.x - 110;
       this.debugText.y = h.y + 10;
     }
 
-    _dbgActor(e, color, lane) {
+    /* 발밑 기준점 — 이 점이 같은 레인(|dy| ≤ 48)에 있으면 서로 맞을 수 있다 */
+    _dbgFoot(x, y, color, shapes, tag) {
+      const g = this.debugG;
+      g.ellipse(x, y, 26, 9).stroke({ color, width: 1.3, alpha: 0.75 });
+      g.moveTo(x - 6, y).lineTo(x + 6, y).stroke({ color, width: 1.6, alpha: 0.8 });
+      g.moveTo(x, y - 4).lineTo(x, y + 4).stroke({ color, width: 1.6, alpha: 0.8 });
+      if (shapes) shapes.push({ kind: 'foot', tag, x: Math.round(x), y: Math.round(y), w: 52, h: 18 });
+    }
+
+    _dbgActor(e, color, lane, shapes) {
       const g = this.debugG;
       const L = lane || G.LANE.hero;
-      g.rect(e.x - 20, e.y - L, 40, L * 2).fill({ color, alpha: 0.10 });
-      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 1.2, alpha: 0.55 });
+      g.rect(e.x - 20, e.y - L, 40, L * 2).fill({ color, alpha: 0.12 });
+      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 2.0, alpha: 0.7 });
       g.moveTo(e.x, e.y).lineTo(e.x + 30 * (e.facing || -1), e.y).stroke({ color, width: 1.6, alpha: 0.7 });
+      if (shapes) shapes.push({ kind: 'enemy', x: Math.round(e.x - 20), y: Math.round(e.y - L), w: 40, h: L * 2 });
+      if (e.state === 'windup') {
+        // 예고 중인 적 공격 범위 — 이 박스 안에 있으면 맞는다
+        const d = e.atkDir || e.facing || -1;
+        const ax0 = d > 0 ? e.x - 6 : e.x - 210;
+        const ay = e.atkY == null ? e.y : e.atkY;
+        g.rect(ax0, ay - G.LANE.enemy, 216, G.LANE.enemy * 2).fill({ color: 0xb45bff, alpha: 0.12 });
+        g.rect(ax0, ay - G.LANE.enemy, 216, G.LANE.enemy * 2).stroke({ color: 0xc9a8ff, width: 1.6, alpha: 0.8 });
+        if (shapes) shapes.push({ kind: 'enemyAtk', x: Math.round(ax0), y: Math.round(ay - G.LANE.enemy), w: 216, h: G.LANE.enemy * 2 });
+      }
+    }
+
+    /* 공격 활성 프레임의 짧은 타점 잔상 — 판정 표시 ON 이면 밝게, OFF 면 아주 옅게 */
+    _updateJudgeFx(dt) {
+      const g = this.trailG;
+      if (!g) return;
+      for (let i = this.hitTrails.length - 1; i >= 0; i--) {
+        const tr = this.hitTrails[i];
+        tr.t -= dt;
+        if (tr.t <= 0) this.hitTrails.splice(i, 1);
+      }
+      for (let i = this.hitMarks.length - 1; i >= 0; i--) {
+        const m = this.hitMarks[i];
+        m.t -= dt;
+        if (m.t <= 0) this.hitMarks.splice(i, 1);
+      }
+      g.clear();
+      const on = this.debugBoxes;
+      this.hitTrails.forEach((tr) => {
+        const p = G.clamp(tr.t / tr.dur, 0, 1);
+        const a = (on ? 0.30 : 0.10) * p;
+        const x0 = tr.f > 0 ? tr.x - 6 : tr.x - tr.reach;
+        g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).fill({ color: tr.color, alpha: a });
+        g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).stroke({ color: tr.color, width: 1.2, alpha: Math.min(1, a * 2.4) });
+      });
+      this.hitMarks.forEach((m) => {
+        const p = G.clamp(m.t / m.dur, 0, 1);
+        g.circle(m.x, m.y, 18 + 26 * (1 - p)).stroke({ color: 0xffffff, width: 2.2, alpha: 0.55 * p });
+        g.circle(m.x, m.y, 10 + 12 * (1 - p)).fill({ color: m.color || 0xffe9a8, alpha: 0.28 * p });
+      });
+    }
+
+    _drawJudgeTrails(g, shapes) {
+      const on = this.debugBoxes;
+      this.hitTrails.forEach((tr) => {
+        const p = G.clamp(tr.t / tr.dur, 0, 1);
+        const x0 = tr.f > 0 ? tr.x - 6 : tr.x - tr.reach;
+        g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).fill({ color: 0xffffff, alpha: (on ? 0.26 : 0.10) * p });
+        shapes.push({ kind: 'trail', x: Math.round(x0), y: Math.round(tr.y - tr.lane), w: tr.reach + 6, h: tr.lane * 2, a: +((on ? 0.26 : 0.10) * p).toFixed(2) });
+      });
+      this.hitMarks.forEach((m) => {
+        const p = G.clamp(m.t / m.dur, 0, 1);
+        g.circle(m.x, m.y, 22 + 30 * (1 - p)).stroke({ color: 0xffe9a8, width: 2.4, alpha: 0.7 * p });
+        shapes.push({ kind: 'hit', x: Math.round(m.x - 20), y: Math.round(m.y - 20), w: 40, h: 40, a: +(0.7 * p).toFixed(2) });
+      });
+    }
+
+    /* 공격 시작 순간 — 타격 범위 잔상과 피격 표식을 남긴다 (Step 10-2) */
+    _markStrike(hero, cfg, f, reach, color) {
+      this.hitTrails.push({
+        x: hero.x, y: hero.y, f, reach, lane: G.LANE.hero,
+        color: color == null ? 0x9fd6ff : color, t: 0.20, dur: 0.20,
+      });
+      if (this.hitTrails.length > 6) this.hitTrails.shift();
+    }
+
+    _markHit(x, y, color) {
+      this.hitMarks.push({ x, y, color, t: 0.22, dur: 0.22 });
+      if (this.hitMarks.length > 8) this.hitMarks.shift();
     }
 
     _lateBossSpawn() {}
@@ -2383,9 +2493,13 @@
       if (this.kael.state === 'dodge' || this.kael.state === 'cast') return;
       this._faceForAttack();
       if (this.kael.attack(this.comboStep)) {
-        // 2·3타는 앞으로 미세 전진 (콤보 손맛)
+        // 2·3타는 앞으로 미세 전진 (콤보 손맛) — 바라보는 방향으로만 (Step 10-2)
         const adv = this.kael.atkCfg.advance;
-        this.kael.x = G.clamp(this.kael.x + adv, 140, 820);
+        const fwd = this.kael.facing || 1;
+        // 조작(조이스틱·방향키)으로 걷는 중에는 전진을 넣지 않는다 — 스틱과 서로 당기지 않게.
+        // 서 있을 때만 바라보는 방향으로 미세 전진한다.
+        const steer = !!this.manualMove || Math.abs((this.hud && this.hud.joy && this.hud.joy.vx) || 0) > 0.12;
+        if (!steer) this.kael.x = G.clamp(this.kael.x + adv * fwd, 120, 1120);
         this.kael.obj.x = this.kael.x;
         this.comboStep = this.kael.comboStep;
         this.comboWindow = 0.62;
@@ -2478,23 +2592,77 @@
       }
     }
 
+    /* 오토 이동 — 양방향(Math.abs) 기준 (Step 10-2)
+       이전에는 `dist = 적.x - 나.x` 한 방향만 봐서, 적이 오른쪽(+0~249)에 바짝 붙으면
+       "너무 가까우니 물러나자"로 판단해 왼쪽으로 뒷걸음질쳤다. 그 결과 적이 등 뒤에 남고
+       왼쪽 허공을 때렸다. 지금은 적이 어느 쪽에 있든 그 쪽을 보고, 가까우면 그 쪽을 보며
+       살짝 물러난다(등을 보이지 않는다). */
     _autoMove(dt) {
       const target = this._nearestEnemy();
       if (!target) return;
-      const dist = target.x - this.kael.x;
-      const desired = target === this.boss ? 250 : 400;
+      const h = this.kael;
+      const dx = target.x - h.x;
+      const abs = Math.abs(dx);
+      const dir = Math.sign(dx) || (h.facing || 1);
+      const isBoss = target === this.boss;
+      const minR = isBoss ? 150 : 95;      // 이보다 가까우면 살짝 물러난다
+      const maxR = isBoss ? 260 : 210;     // 이보다 멀면 적 쪽으로 접근한다
       let mx = 0;
-      if (dist > desired + 40) mx = 1;
-      else if (dist < desired - 150) mx = -0.6;
+      if (abs > maxR) mx = dir;                 // 접근 — 적이 있는 쪽으로
+      else if (abs < minR) mx = -dir * 0.55;    // 물러남 — 보는 방향은 그대로 적 쪽
       if (Math.abs(mx) > 0.01) {
-        this.kael.moveSpeed = Math.abs(mx) * 210;
-        this.kael.move(mx * 210, 0, dt);
+        h.moveSpeed = Math.abs(mx) * 210;
+        h.move(mx * 210, 0, dt);
       }
-      this.kael.x = G.clamp(this.kael.x, 120, 1040);
-      this.kael.obj.x = this.kael.x;
-      // y 정렬
-      const dy = target.y - this.kael.y;
-      if (Math.abs(dy) > 14) this.kael.move(0, Math.sign(dy) * 95, dt);
+      /* move()는 속도 방향으로 몸을 돌리므로, 물러날 때도 적을 보도록 되돌린다.
+         가까운 적이 사거리(maxR + 60) 안에 있으면 대기·공격 중에도 항상 적 쪽을 본다. */
+      if (abs <= maxR + 60) h.facing = dir >= 0 ? 1 : -1;
+      h.x = G.clamp(h.x, 120, 1040);
+      h.obj.x = h.x;
+      // y 정렬 — 적의 깊이 레인까지 따라 내려간다
+      const dy = target.y - h.y;
+      if (Math.abs(dy) > 14) h.move(0, Math.sign(dy) * 95, dt);
+      if (abs <= maxR + 60) h.facing = dir >= 0 ? 1 : -1;
+    }
+
+    /* 몸통 겹침 방지 (Step 10-2) — 같은 레인(|dy| < 36)에서 히어로와 적·보스가
+       X·Y 0px로 완전히 겹쳐 서지 않게 최소 이격을 만든다.
+       판정·공격·회피·넉백 계산에는 관여하지 않고 좌표만 부드럽게 민다.
+       · 제자리에서 겹쳤을 때: 둘이 나눠서 비켜난다
+       · 히어로가 걸어 들어올 때: 히어로는 그대로, 적을 같은 속도로 밀고 나간다
+       · 보스는 밀리지 않는다: 히어로가 접촉면까지만 물러난다 (걸어 들어오는 만큼만) */
+    _pushbox(dt) {
+      const h = this.kael;
+      if (!h || h.state === 'dead' || h.state === 'dodge') return;   // 회피 중에는 통과를 막지 않는다
+      const lane = G.PUSHBOX.lane;
+      const pushOne = (a, minSep, heavy) => {
+        if (!a || !a.alive || a.dying) return;
+        if (Math.abs((a.y || 0) - h.y) >= lane) return;              // 다른 레인은 서로 통과
+        const dx = a.x - h.x;
+        const ad = Math.abs(dx);
+        if (ad >= minSep) return;
+        const dir = Math.sign(dx) || (h.facing || 1);                // 완전히 겹치면 보는 쪽으로 갈라놓는다
+        const walkIn = (h.vx || 0) * dir > 30;                       // 히어로가 그 쪽으로 걸어 들어오는 중
+        const walkSpd = Math.max(260, Math.abs(h.vx || 0));
+        h.pushT = 0.12;
+        if (heavy) {
+          const back = Math.min(minSep - ad, walkSpd * dt);
+          h.x = G.clamp(h.x - dir * back, 120, 1040);
+        } else if (walkIn) {
+          const shove = Math.min(minSep - ad, walkSpd * dt);
+          a.x = G.clamp(a.x + dir * shove, 60, 1240);
+        } else {
+          const need = Math.min(minSep - ad, G.PUSHBOX.speed * dt);
+          h.x = G.clamp(h.x - dir * need * 0.4, 120, 1040);
+          a.x = G.clamp(a.x + dir * need * 0.6, 60, 1240);
+        }
+        h.obj.x = h.x;
+        a.obj.x = a.x;
+        // 발밑 먼지를 조금 일으켜 "몸으로 밀어냈다"는 느낌만 준다 (판정·데미지 없음)
+        if (Math.random() < 0.06) this.fx.dust(a.x, a.y, dir, 0.35);
+      };
+      this.enemies.forEach((e) => pushOne(e, G.PUSHBOX.enemy, false));
+      if (this.boss && this.boss.alive && !this.boss.dying) pushOne(this.boss, G.PUSHBOX.boss, true);
     }
 
     _nearestEnemy() {

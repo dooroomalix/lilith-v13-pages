@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.12.0-build520';
+G.VERSION = 'v5.13.0-build530';
 G.ASSET_V = 'a5.8.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
@@ -122,6 +122,11 @@ G.RING = {
 
 /* 스폰은 좌·우 양쪽에서 — 한쪽 편중을 없앤다 */
 G.SPAWN = { left: [70, 132], right: [1116, 1222], lane: 34 };
+
+/* 몸통 겹침 방지(Pushbox) — Step 10-2
+   같은 레인(lane px 이내)에서 히어로와 적·보스가 한 몸처럼 겹쳐 서지 않게
+   최소 X 이격을 유지한다. 판정(정면·리치·레인)은 손대지 않고 좌표만 부드럽게 민다. */
+G.PUSHBOX = { lane: 36, enemy: 58, boss: 115, speed: 900 };
 
 G.spawnX = (side) => {
   const s = G.SPAWN[side === 'left' ? 'left' : 'right'];

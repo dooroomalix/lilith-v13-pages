@@ -51,6 +51,7 @@
         skill2: { x: 1112, y: 520, r: 41, press: 0 },
         dodge: { x: 990, y: 612, r: 37, press: 0 },
         auto: { x: 1148, y: 446, w: 138, h: 54, press: 0 },
+        judge: { x: 1000, y: 74, w: 96, h: 30, press: 0 },   // Step 10-2 : 판정 표시 토글
         pause: { x: 1204, y: 30, r: 20, press: 0 },
         mute: { x: 1248, y: 30, r: 20, press: 0 },
         potion: { x: 916, y: 630, r: 32, press: 0 },
@@ -58,7 +59,7 @@
         coop: { x: 826, y: 512, r: 40, press: 0 },
       };
       this.joy = { active: false, id: null, bx: 150, by: 600, r: 80, kx: 150, ky: 600, vx: 0, vy: 0 };
-      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false, coop: false };
+      this.input = { moveX: 0, moveY: 0, attack: false, skill1: false, skill2: false, dodge: false, auto: false, potion: false, jump: false, coop: false, judge: false };
 
       /* ---- 좌표계 그룹 (Step 9-1) ----
          가로(1280×720)에서는 모두 항등 변환이라 지금까지와 픽셀 단윈로 같고,
@@ -76,7 +77,7 @@
       this.btnFxGfx = {};
       [this.gStatus, this.gArea, this.gMap, this.gBoss, this.gJoy, this.gCombo, this.gPrompt, this.gBuff]
         .forEach((g) => this.root.addChild(g));
-      ['attack', 'skill1', 'skill2', 'dodge', 'jump', 'potion', 'coop', 'auto'].forEach((k) => {
+      ['attack', 'skill1', 'skill2', 'dodge', 'jump', 'potion', 'coop', 'auto', 'judge'].forEach((k) => {
         const c = new PIXI.Container();
         this.gBtn[k] = c;
         this.btnFxGfx[k] = new PIXI.Graphics();
@@ -400,6 +401,7 @@
       place('skill2', w - 204 * k, h - 234 * ky, 34 * k, 41);
       place('coop', w - 88 * k, h - 240 * ky, 32 * k, 40);
       place('auto', w - 314 * k, h - 286 * ky, 0.8 * k, 1);
+      place('judge', w - 135 * k, h - 300 * ky, Math.min(1, k * 1.02), 1);
       return { viewW: w, viewH: h, band, status, area, map, boss, joy, combo, prompt, buff, btn, box: { st, st2, sm, sb, k, ky } };
     }
 
@@ -604,6 +606,26 @@
       this.autoModeText.x = a.x + 16;
       this.autoModeText.y = a.y + 17;
 
+      // 판정 표시 토글 (Step 10-2) — 2.5D 히트박스·피격 박스를 화면에 그린다. H 키와 같은 상태
+      const jg = this.btnGfx.judge;
+      const jj = b.judge;
+      const jOn = !!(this.game && this.game.debugBoxes);
+      const jpress = jj.press > 0 ? 1 - jj.press / 0.16 : 0;
+      const jw = jj.w * (1 - jpress * 0.05);
+      const jh = jj.h * (1 - jpress * 0.05);
+      jg.roundRect(jj.x - jw / 2, jj.y - jh / 2, jw, jh, 11)
+        .fill({ color: jOn ? 0x0f3a2a : 0x0a1626, alpha: jOn ? 0.92 : 0.62 });
+      jg.roundRect(jj.x - jw / 2, jj.y - jh / 2, jw, jh, 11)
+        .stroke({ width: 1.6, color: jOn ? 0x54ffa8 : 0x8aa6c0, alpha: jOn ? 0.95 : 0.55 });
+      jg.circle(jj.x - jw / 2 + 15, jj.y, 4.2).fill({ color: jOn ? 0x54ffa8 : 0x5a708a, alpha: 0.95 });
+      const jt = this._text('judge', '판정', G.style({ fontSize: 13, fontWeight: '900', fill: 0xd8ffe8 }), this.gBtn.judge);
+      jt.anchor.set(0.5); jt.x = jj.x - 2; jt.y = jj.y;
+      jt.style.fill = jOn ? 0xd8ffe8 : 0xc2d4e6;
+      const jsb = this._text('judgeSub', 'ON', G.style({ fontSize: 9, fontWeight: '800', fill: 0x9fe8b8 }), this.gBtn.judge);
+      jsb.anchor.set(0.5); jsb.x = jj.x + jw / 2 - 14; jsb.y = jj.y + 1;
+      if (jsb.text !== (jOn ? 'ON' : 'OFF')) jsb.text = jOn ? 'ON' : 'OFF';
+      jsb.style.fill = jOn ? 0x9fe8b8 : 0x7d93ab;
+
       // 음소거 아이콘 (지역·타이머 그룹 위)
       const mg = this.muteG;
       if (mg) mg.clear();
@@ -636,6 +658,12 @@
       const pa = this._local(this.gArea, x, y);
       if (G.dist(pa.x, pa.y, b.pause.x, b.pause.y) <= b.pause.r + 6) { this.input.pause = true; b.pause.press = 0.16; return; }
       if (G.dist(pa.x, pa.y, b.mute.x, b.mute.y) <= b.mute.r + 6) { this.input.mute = true; b.mute.press = 0.16; return; }
+      // 판정 표시 토글 (Step 10-2) — 일시정지·사운드 옆 상단 HUD
+      const jd = this.buttons.judge;
+      const ju = this._local(this.gBtn.judge, x, y);
+      if (Math.abs(ju.x - jd.x) < jd.w / 2 + 6 && Math.abs(ju.y - jd.y) < jd.h / 2 + 8) {
+        this.input.judge = true; jd.press = 0.16; return;
+      }
       const ax = b.auto;
       const au = this._local(this.gBtn.auto, x, y);
       if (Math.abs(au.x - ax.x) < ax.w / 2 + 4 && Math.abs(au.y - ax.y) < ax.h / 2 + 4) {
@@ -693,10 +721,10 @@
       const i = this.input;
       const out = {
         attack: i.attack, skill1: i.skill1, skill2: i.skill2, dodge: i.dodge,
-        auto: i.auto, pause: i.pause, mute: i.mute, potion: i.potion, jump: i.jump, coop: i.coop,
+        auto: i.auto, pause: i.pause, mute: i.mute, potion: i.potion, jump: i.jump, coop: i.coop, judge: i.judge,
         moveX: this.joy.vx, moveY: this.joy.vy,
       };
-      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = i.potion = i.jump = i.coop = false;
+      i.attack = i.skill1 = i.skill2 = i.dodge = i.auto = i.pause = i.mute = i.potion = i.jump = i.coop = i.judge = false;
       return out;
     }
 
@@ -719,7 +747,7 @@
     /* ---------- 갱신 ---------- */
     update(dt, game) {
       const b = this.buttons;
-      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute', 'potion', 'jump', 'coop'].forEach((k) => {
+      ['attack', 'skill1', 'skill2', 'dodge', 'auto', 'pause', 'mute', 'potion', 'jump', 'coop', 'judge'].forEach((k) => {
         if (b[k].press > 0) b[k].press = Math.max(0, b[k].press - dt);
       });
 

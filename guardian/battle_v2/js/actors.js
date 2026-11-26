@@ -19,8 +19,10 @@
       this.contactPulse = 0;
     }
 
-    /* 바닥 접지 그림자: 캐릭터가 땅에 붙어 있는 느낌의 핵심 */
-    addShadow(width, alpha = 0.5) {
+    /* 바닥 접지 그림자: 캐릭터가 땅에 붙어 있는 느낌의 핵심
+       Step 10-2: 지면에 고정된 타원 테두리(footRing)를 함께 깔아
+       발밑 기준점과 같은 레인 여부를 눈으로 바로 구분할 수 있게 했다. */
+    addShadow(width, alpha = 0.5, ring = 0x9fe8ff) {
       const sh = new PIXI.Sprite(G.Assets.tex.shadow);
       sh.anchor.set(0.5);
       sh.width = width;
@@ -35,6 +37,13 @@
       this.obj.addChild(sh);
       this.shadow = sh;
       this.shadowBase = { w: width, a: alpha };
+      // 지면 고정 타원 — 점프해도 바닥 자리에 남아 레인을 보여 준다
+      const fr = new PIXI.Graphics();
+      fr.ellipse(0, 0, width * 0.5, width * 0.5 * 0.30).stroke({ width: 2.2, color: 0xffffff, alpha: 0.55 });
+      fr.ellipse(0, 0, width * 0.28, width * 0.28 * 0.30).fill({ color: 0xffffff, alpha: 0.10 });
+      fr.tint = ring;
+      this.obj.addChildAt(fr, this.obj.getChildIndex(sh) + 1);
+      this.footRing = fr;
       return sh;
     }
 
@@ -60,8 +69,13 @@
       if (this.shadow) {
         const k = G.clamp(1 - liftPx * 0.014, 0.42, 1.25) * squash * pulse;
         this.shadow.width = this.shadowBase.w * k;
-        this.shadow.height = this.shadowBase.w * 0.29 * k;
-        this.shadow.alpha = G.clamp(Math.min(0.72, this.shadowBase.a * 1.28) * (1 - liftPx * 0.024) * (1 + this.contactPulse * 0.3), 0, 0.75) * (1 - dim);
+        this.shadow.height = this.shadowBase.w * 0.30 * k;
+        this.shadow.alpha = G.clamp(Math.min(0.82, this.shadowBase.a * 1.42) * (1 - liftPx * 0.024) * (1 + this.contactPulse * 0.3), 0, 0.85) * (1 - dim);
+      }
+      if (this.footRing) {
+        const kk = G.clamp(1 - liftPx * 0.011, 0.55, 1.15) * squash;
+        this.footRing.scale.set(kk, kk);
+        this.footRing.alpha = G.clamp(0.58 - liftPx * 0.010, 0.20, 0.62) * (1 - dim);
       }
       if (this.halo) {
         this.halo.width = this.haloBase.w * (1 + 0.04 * Math.sin(this.game.time * 2.2));
@@ -147,7 +161,7 @@
         idleT: 0,
       });
       this.addHalo(opts.haloColor || 0x6fb8ff, 360, 0.18);
-      this.addShadow(opts.shadowW || 196, 0.58);
+      this.addShadow(opts.shadowW || 196, 0.58, 0xbff0ff);
 
       /* Step 7: 파츠 리그 — 로비에서 고른 캐릭터·스킨이 그대로 전투 메인으로 출전한다.
          리그가 있으면 통이미지(SD/시트)는 숨기고 관절로만 움직인다. */
@@ -729,7 +743,7 @@
       this.atkY = this.y;
 
       this.addHalo(this.cfg.halo, 240 + (this.cfg.bodyPx - 186) * 1.2, 0.16);
-      this.addShadow(132 + (this.cfg.bodyPx - 186) * 0.7, 0.5);
+      this.addShadow(132 + (this.cfg.bodyPx - 186) * 0.7, 0.5, 0xff9aa6);
       this.sprite = new PIXI.Sprite(G.Assets.sd?.scout_sd?.texture || G.Assets.tex.scout);
       this.sprite.anchor.set(G.Assets.sd?.scout_sd?.ax ?? 0.5, G.Assets.sd?.scout_sd?.ay ?? 1);
       if (G.Assets.sd?.scout_sd) this.scale = 186 / (G.Assets.sd.scout_sd.bodyH || G.Assets.sd.scout_sd.h);
@@ -943,7 +957,7 @@
       const bob = Math.sin(this.bobT * 3.4) * 3;
       if (this.flashT > 0) {
         this.flashT -= dt;
-        this.flashSpr.alpha = Math.max(0, this.flashT / 0.22) * 0.7;
+        this.flashSpr.alpha = Math.max(0, this.flashT / 0.22) * 0.85;   // 피격 실루엣 플래시 — 누가 맞았는지 선명하게 (Step 10-2)
         this.flashSpr.y = this.sprite.y;
         this.flashSpr.scale.set(this.sprite.scale.x, this.sprite.scale.y);
       } else if (this.flashSpr) this.flashSpr.alpha = 0;
@@ -1091,7 +1105,7 @@
       this.atkLog = [];         // 검증용: 공격별 페이즈·예고·피해 기록
 
       this.addHalo(0xff5a3c, 620, 0.16);
-      this.addShadow(370, 0.56);
+      this.addShadow(370, 0.56, 0xff7a8a);
       this.sprite = new PIXI.Sprite(G.Assets.sd?.boss_sd?.texture || G.Assets.tex.boss);
       this.sprite.anchor.set(G.Assets.sd?.boss_sd?.ax ?? 0.5, G.Assets.sd?.boss_sd?.ay ?? 1);
       if (G.Assets.sd?.boss_sd) this.scale = 382 / (G.Assets.sd.boss_sd.bodyH || G.Assets.sd.boss_sd.h);
@@ -1357,7 +1371,7 @@
       if (this.hitFlash > 0) this.hitFlash -= dt;
       if (this.flashT > 0) {
         this.flashT -= dt;
-        this.flashSpr.alpha = Math.max(0, this.flashT / 0.1) * 0.55;
+        this.flashSpr.alpha = Math.max(0, this.flashT / 0.1) * 0.7;
         this.flashSpr.y = this.sprite.y;
         this.flashSpr.rotation = this.sprite.rotation;
       } else if (this.flashSpr) this.flashSpr.alpha = 0;
