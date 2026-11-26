@@ -2644,7 +2644,6 @@
         const dir = Math.sign(dx) || (h.facing || 1);                // 완전히 겹치면 보는 쪽으로 갈라놓는다
         const walkIn = (h.vx || 0) * dir > 30;                       // 히어로가 그 쪽으로 걸어 들어오는 중
         const walkSpd = Math.max(260, Math.abs(h.vx || 0));
-        h.pushT = 0.12;
         if (heavy) {
           const back = Math.min(minSep - ad, walkSpd * dt);
           h.x = G.clamp(h.x - dir * back, 120, 1040);
