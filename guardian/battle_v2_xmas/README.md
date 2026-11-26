@@ -1,4 +1,4 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.1.1-build041
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.2.1-build051
 
 《마지막 성문의 수호자》 크리스마스 외전의 **3차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.6.1-build461)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
@@ -6,7 +6,7 @@
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.1.1-build041`
+- 스크립트 버전: `XMAS-2.2.1-build051`
 - 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + **`chars.js`** + **`rig.js`** + **`lobby.js`**), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
 
@@ -148,3 +148,21 @@ WebGL 컨텍스트가 1회 끊깁니다. 실제 시간으로 플레이한 세션
 - **검증**: `node --check` 15/15, `tools_xmas/verify_workflow_step9_1_xmas.py` **60/60 ALL PASS**
   (가로 35 — 5인 K 스킬 정면 데미지·등 뒤 −80/−300 0·보스 등 뒤 0 / 세로 26 — 로비·전투 터치 실사용·겹침 0·컷인 잘림 0, 오류 0),
   `tools_xmas/verify_workflow_step8_xmas.py` **26/26 유지**. 증빙 `../guardian/evidence/workflow_step9_1_xmas_*`.
+
+## XMAS-2.2.1-build051 — 보스 스킬 깊이(Y) 판정 통일 (Step 10-4, 2026-11-26)
+
+본편 `v5.13.2-build532` 와 같이, `_skillHit()` 보스 분기에만 빠져 있던 깊이(Y) 판정을 일반 적 분기와 맞췄습니다.
+
+- **`js/battle.js` `_skillHit()`**: 보스 조건에 `&& Math.abs(this.boss.y - cy) < radius * 0.75` 추가.
+  판정 기준 `cy` 는 스킬 AoE 중심의 발 y(히어로 중심 스킬은 `h.y`, 대상 중심 스킬은 대상의 `y`)로 일반 적 분기와 같은 값입니다.
+- **`js/battle.js` 성문의 참격 잔타(1.1초 틱)**: 외전은 K 스킬 시 `kaelSkillActive` 틱이 모든 캐릭터에 붙는데,
+  이 틱이 깊이를 보지 않아 `_skillHit` 을 고쳐도 다른 레인의 보스·적이 계속 맞고 있었습니다(실측 다른 레인 보스 1106~1344 · 적 1222).
+  본편 참격 틱과 같은 `G.inLane(e.y, h.y, G.LANE.hero + 22)` · `G.inLane(this.boss.y, h.y, G.LANE.boss + 22)` 를 넣어 **0** 이 되게 했습니다.
+- **실측**: 같은 레인(보스 y 588 = 히어로 y 588) 카엘 1692 · 리아 1484 · 아라 1291 · 보른 1728 · 세나 1527(잔타 포함 합산),
+  다른 레인(dy 300, 정면·X 범위 그대로) 다섯 캐릭터 모두 **0**. 경계(아라 K 게이트 157.5): dy 150 → 명중, 165 → 0.
+  L 궁극(보른 480 / 0, 세나 533 / 0), 등 뒤 반원(아라 K 0 · 보른 L 0 · 왼쪽 보기 등 뒤 0/정면 1291), 적 깊이 판정(같은 레인 1438 / 다른 레인 0) 모두 유지.
+- **검증**: `node --check` **15/15**, 신규 `tools_xmas/verify_workflow_step10_4_xmas.py` **51/51 ALL PASS**
+  (가로 40 · 세로 9 · 증빙 2). 회귀 `verify_workflow_step9_1_xmas.py` **60/60** · `verify_workflow_step8_xmas.py` **26/26**.
+  증빙 `../guardian/evidence/workflow_step10_4_xmas_qa.png` · `.json` · `workflow_step10_4_xmas/`.
+- 외전은 본편과 달리 **부팅·전투 중 WebGL 컨텍스트가 한 번 끊겼다가 자동 복구되는 경우**가 있습니다(검증 환경 SwiftShader).
+  빌드 자체가 복구 처리(`webglcontextlost` → `webglcontextrestored`)를 갖고 있고, 검증은 손실 0 또는 완전 복구를 통과 조건으로 봅니다.

@@ -1197,7 +1197,9 @@
 
     /* 스킬 공통 판정 — 적·보스에 한 번에 적용
        Step 9-1: 원형 AoE 라도 데미지는 히어로가 보는 쪽(h.x · h.facing)의 반원 안에만 들어간다.
-       뒤쪽 허용은 G.LANE.back(6px)까지 — 등 뒤·허공 데미지 0 원칙을 전 캐릭터에 통일. */
+       뒤쪽 허용은 G.LANE.back(6px)까지 — 등 뒤·허공 데미지 0 원칙을 전 캐릭터에 통일.
+       Step 10-4: 보스 분기에도 적과 같은 깊이(Y) 판정(반경 × 0.75)을 넣어 다른 레인의 보스가
+       AoE 중심점에 피격되지 않게 한다. */
     _skillHit(cx, cy, radius, dmg, opts = {}) {
       const h = this.kael;
       const hf = opts.facing != null ? opts.facing : ((h && h.facing) || 1);
@@ -1217,7 +1219,8 @@
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying && front(this.boss.x)
-        && Math.abs(this.boss.x - cx) < radius + 40) {
+        && Math.abs(this.boss.x - cx) < radius + 40
+        && Math.abs(this.boss.y - cy) < radius * 0.75) {
         this.stats.damage += dmg;
         const dir = Math.sign(this.boss.x - cx) || 1;
         this.boss.takeDamage(dmg, { crit: !!opts.crit, kb: opts.knock ? opts.knock * 0.12 : 40, dir });

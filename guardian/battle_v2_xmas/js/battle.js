@@ -876,7 +876,9 @@
 
     /* 스킬 공통 판정
        Step 9-1: 원형 AoE 라도 데미지는 히어로가 보는 쪽(h.x · h.facing)의 반원 안에만 들어간다.
-       뒤쪽 허용은 G.LANE.back(6px)까지 — 등 뒤·허공 데미지 0 원칙을 전 캐릭터에 통일. */
+       뒤쪽 허용은 G.LANE.back(6px)까지 — 등 뒤·허공 데미지 0 원칙을 전 캐릭터에 통일.
+       Step 10-4: 보스 분기에도 적과 같은 깊이(Y) 판정(반경 × 0.75)을 넣어 다른 레인의 보스가
+       AoE 중심점에 피격되지 않게 한다. */
     _skillHit(cx, cy, radius, dmg, opts = {}) {
       const h = this.kael;
       const hf = opts.facing != null ? opts.facing : ((h && h.facing) || 1);
@@ -894,7 +896,8 @@
         }
       });
       if (this.boss && this.boss.alive && !this.boss.dying && front(this.boss.x)
-        && Math.abs(this.boss.x - cx) < radius + 40) {
+        && Math.abs(this.boss.x - cx) < radius + 40
+        && Math.abs(this.boss.y - cy) < radius * 0.75) {
         this.stats.damage += dmg;
         this.boss.takeDamage(dmg, { crit: !!opts.crit, kb: opts.knock ? opts.knock * 0.12 : 40 });
         n++;
@@ -1536,13 +1539,15 @@
           this.fx.speedLines(h.x + 120 * hf, h.centerY, hf, 4, 1.1);
           this.scene.shake(7, 0.2);
           this.enemies.forEach((e) => {
-            if (e.alive && !e.dying && G.inFront(h.x, e.x, hf, 340)) {
+            if (e.alive && !e.dying && G.inFront(h.x, e.x, hf, 340)
+              && G.inLane(e.y, h.y, G.LANE.hero + 22)) {
               const dmg = Math.round(h.atk * 1.35 * G.rand(1.05, 0.95));
               this.stats.damage += dmg;
               e.takeDamage(dmg, { crit: G.chance(0.3) });
             }
           });
-          if (this.boss && this.boss.alive && !this.boss.dying && G.inFront(h.x, this.boss.x, hf, 470)) {
+          if (this.boss && this.boss.alive && !this.boss.dying && G.inFront(h.x, this.boss.x, hf, 470)
+            && G.inLane(this.boss.y, h.y, G.LANE.boss + 22)) {
             const dmg = Math.round(h.atk * 1.2);
             this.stats.damage += dmg;
             this.boss.takeDamage(dmg, {});
