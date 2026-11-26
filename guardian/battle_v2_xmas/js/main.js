@@ -302,7 +302,44 @@
         if (!game.boss) return null;
         game.boss.hp = Math.max(1, Math.round(game.boss.hpMax * ratio));
         if (game.boss._checkPhase) game.boss._checkPhase();
-        return { hp: Math.round(game.boss.hp), phase: game.boss.phaseKey, idx: game.boss.phaseIdx };
+        return { hp: Math.round(game.boss.hp), phase: game.boss.phaseKey, idx: game.boss.phaseIdx, form: game.boss.form };
+      },
+      /* ---- Step 11-2 : 1차 중파 · 각성 · 광폭화 ---- */
+      bossFormInfo: () => (game.boss ? {
+        form: game.boss.form, name: game.boss.name, displayName: game.boss.displayName,
+        hp: Math.round(game.boss.hp), hpMax: game.boss.hpMax, baseHpMax: game.boss.baseHpMax,
+        ratio: +(game.boss.hp / game.boss.hpMax).toFixed(3), phase: game.boss.phaseKey,
+        rigKey: game.boss.rigKey, rigState: game.boss.rig ? game.boss.rig.state : null,
+        expr: game.boss.expr, aura: game.boss.aura ? game.boss.aura.tint : null,
+        auraAlpha: game.boss.aura ? +game.boss.aura.alpha.toFixed(2) : null,
+        selfBleed: game.boss.selfBleed, selfBleedLog: game.boss.selfBleedLog.slice(-8),
+        formLog: game.boss.formLog.slice(-8), atkLog: game.boss.atkLog.slice(-8),
+        atkTimer: +(game.boss.atkTimer || 0).toFixed(2), phaseLock: +(game.boss.phaseLock || 0).toFixed(2),
+        awakenPending: !!game.boss.awakenPending, dying: !!game.boss.dying,
+      } : null),
+      bossFormLog: () => game.bossFormLog.slice(-10),
+      bossCutState: () => ({ kind: game.bossCutKind, dur: game.bossCutDur }),
+      bossMiniHud: () => ({
+        name: game.hud.bossName.text, form: game.hud.bossFormText.text,
+        formAlpha: +game.hud.bossFormText.alpha.toFixed(2),
+        phase: game.hud.bossPhaseText.text, mood: game.hud.bossMoodText.text,
+      }),
+      awakenBoss: () => { if (game.boss) { game.boss.hp = 0; game.boss.awaken(); } return game.boss ? game.boss.form : null; },
+      finishAwaken: () => { if (game.boss) game.boss.finishAwaken(); return game.boss ? { form: game.boss.form, hp: game.boss.hpMax } : null; },
+      forceBossForm: (f) => {
+        if (!game.boss) return null;
+        if (f === 'damaged') game.boss.hp = Math.round(game.boss.hpMax * 0.29);
+        if (f === 'base') { game.boss.form = 'base'; game.boss.hp = game.boss.hpMax; game.boss.name = game.boss.displayName = G.Xmas.boss.label; }
+        if (game.boss._checkDamaged) game.boss._checkDamaged();
+        return game.boss.form;
+      },
+      bossApplyBerserk: () => { if (game.boss) { game.boss.hp = Math.round(game.boss.hpMax * 0.29); game.boss.phaseLock = 0; game.boss._applyBerserk(); } return game.boss ? game.boss.form : null; },
+      bossSelfBleedNow: () => (game.boss ? game.boss._selfBleed() : null),
+      bossRigSwap: () => { if (game.boss && game.boss._applyDamagedRig) return game.boss._applyDamagedRig(); return null; },
+      hudBossFormRect: () => {
+        const t = game.hud.bossFormText;
+        const g = game.hud.gBoss;
+        return t && g ? { x: g.x + t.x * g.scale.x, y: g.y + t.y * g.scale.y, alpha: t.alpha, text: t.text, scale: g.scale.x } : null;
       },
       lanternState: () => (game.lanterns ? game.lanterns.state() : null),
       lanternLog: () => (game.lanterns ? game.lanterns.log.slice(-10) : []),

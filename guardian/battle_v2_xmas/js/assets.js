@@ -4,6 +4,7 @@
     bg: 'assets/bg_gate.webp',
     bgXmas: 'assets/bg_xmas.webp',
     portraitNoel: 'assets/portrait_noel.webp',
+    portraitNoelDamaged: 'assets/portrait_noel_damaged.webp',
     portraitKael: 'assets/portrait_kael.webp',
     portraitLia: 'assets/portrait_lia.webp',
     portraitBoss: 'assets/portrait_boss.webp',

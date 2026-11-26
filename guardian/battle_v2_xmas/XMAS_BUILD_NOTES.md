@@ -1,4 +1,48 @@
 ---
+title: "XMAS-2.4.0-build070 — Step 11-2 노엘 1차 중파·각성·광폭화"
+---
+
+# XMAS-2.4.0-build070 (2026-11-27) — Step 11-2
+
+기준: `XMAS-2.3.0-build060` → **`XMAS-2.4.0-build070`**
+
+## 1. 새로 만든 에셋
+| 파일 | 내용 |
+|---|---|
+| `assets/rig/src/noel_damaged.png` | 1차 중파 SD 원화 — 찢어진 산타 코트·그을린 털·끊긴 사슬·부러진 뿔·얼굴과 허벅지의 베인 자국·이빨을 드러낸 표정 (기본 노엘과 같은 구도·포즈) |
+| `assets/rig/noel_damaged/body.webp` · `mesh.json` | 위 원화의 가중치 메쉬(18본 · 2,565정점 · 4,928삼각형) — `tools_xmas/meshgen.py noel_damaged` |
+| `assets/portrait_noel_damaged.webp` | 중파 컷인 초상(470×560 · 원본 알파 페더 유지) |
+| `audio/noel_damaged.mp3` · `noel_damaged2.mp3` · `noel_damaged_hit.mp3` · `noel_awake.mp3` · `noel_berserk.mp3` | ElevenLabs Eleven v4 · 한국어 PVC Eunha(−1.1반음) · Stability 50% / Similarity 75% · −16.0~−16.5 LUFS · 128 kbps mono |
+
+- ElevenLabs 크레딧: 9,502 → **9,418**(84 사용).
+- `assets/rig/meta.json` 에 `noel_damaged`(char `noel`, skin `damaged`) 등록 → 로비 워밍 로드 + 보스 등장 시 선로딩.
+
+## 2. 고친 파일
+| 파일 | 변경 |
+|---|---|
+| `js/xmas.js` | `VERSION` · **`boss.forms`** 표(damaged/awakening/berserk: `hpThreshold`·`hpMul 4.0`·`dmgMul 3.0`·`aspdMul 3.0`·`selfDmg 0.045`·`teleMin`·`heroDmgCap`·`aura`·`cut`·`voices`) · `noel.voice` 5종 추가 |
+| `js/actors.js` | `form` 상태(base→damaged→awakening→berserk) · `_checkDamaged`/`_applyDamaged` · `_applyDamagedRig`(리그 교체) · `awaken`/`finishAwaken`(체력 4배) · `_checkBerserk`/`_applyBerserk` · `_selfBleed`(자해) · `_formDmgMul`(각성 3배 × 광폭화 1.15배) · `_aspdMul`/`_nextAtkDelay`(공속 3배) · 중파 보이스 세트 · 표정(중파 이후 항상 치열) |
+| `js/battle.js` | `onBossDamaged` · `onBossAwakening` · `onBossAwakened` · `onBossBerserk` 연출 · `_bossCutIn` 초상/색/이름 인자화 · `_teardownBattle()` 분리(중파 상태 초기화) · `_clearIntro()` · `damageHero` 1회 피해 상한 |
+| `js/hud.js` | 보스 이름 옆 **중파/각성/광폭화 배지** · 중파 이후 표정 칩 `치열` |
+| `js/assets.js` | `portraitNoelDamaged` 등록 |
+| `js/audio.js` | 보이스 표에 중파·각성·광폭화 5종(우선순위·쿨다운) |
+| `js/lobby.js` | 워밍 로드에 `noel_damaged` 추가 |
+| `js/main.js` | 검증용 `bossFormInfo`·`bossFormLog`·`bossMiniHud`·`awakenBoss`·`finishAwaken`·`bossApplyBerserk`·`bossSelfBleedNow`·`hudBossFormRect` |
+| `js/util.js` · `index.html` | `XMAS-2.4.0-build070` · 쿼리 `r=7` · `G.ASSET_V = axmas2.4.0` |
+| `tools_xmas/riggen.py` | SPEC 에 `noel_damaged` 추가 |
+| `tools_xmas/verify_workflow_step11_2_xmas.py` | 신규 검증 51+12항목 |
+
+## 3. 검증 (로컬)
+- `node --check` **15/15 OK** (`/workspace/tmp/node-v20.18.1-linux-x64/bin/node` — 이 환경에 node 가 없어 새로 받았다).
+- 신규 `verify_workflow_step11_2_xmas.py` — 가로 **51/51**, 세로 390×844 **12/12**, 합계 **65/65 PASS**(증빙 2건 포함).
+  - 1차 중파 30% 전환 · 리그/보이스 교체 · 컷인/자막/HUD 배지, 각성 4배·3배·중파 일러스트 유지,
+    광폭화 자해(4.5%)·공속 가속(실측 공격 주기 2.28s → 0.87s · x2.62, 대기·예고·후딜 각 1/3),
+    자해 처치 → 승리, restart/teardown 초기화, 조작·오토·타 게임명 회귀.
+- 회귀: 11-1 **40/40** · 9-1 **60/60** · 8 **26/26** · 10-4 **51/51**.
+  - 11-1/8/9-1/10-4 의 기대값 중 Step 11-2 로 정당하게 바뀐 3건만 갱신(보이스 11→16, 리그 19→20, 각성 포함 격파 2회).
+- 콘솔·페이지·HTTP·`window.__errors` 0, WebGL 컨텍스트 손실 0.
+
+---
 title: "XMAS-1.0.0-build010 — 1차 플레이 가능 빌드 기록"
 ---
 

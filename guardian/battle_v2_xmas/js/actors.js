@@ -1365,6 +1365,15 @@
       this.phaseKey = NOEL ? G.Xmas.boss.phases[0].key : 'P1';
       this.phaseLock = 0;
       this.atkLog = [];
+      // Step 11-2 — 1차 중파 / 각성 / 광폭화
+      this.form = 'base';        // base → damaged → awakening → berserk
+      this.formLog = [];         // 전환 기록(검증용)
+      this.selfBleed = 0;        // 광폭화 자해 누적
+      this.selfBleedLog = [];    // 자해 기록(검증용)
+      this.rigKey = NOEL ? 'noel' : null;
+      this.rigIndex = -1;
+      this.displayName = this.name;
+      this.baseHpMax = this.hpMax;
       // Step 11-1 — 표정·전용 이동·스킬 모션 상태
       this.expr = 'normal';
       this.exprLock = null;      // 검증용 강제 표정(없으면 상태가 정한다)
@@ -1411,7 +1420,8 @@
         if (rdef) {
           this.rig = new G.Rig(rdef, { artFacing: -1, mainArm: 'near', face: true });
           this.rig.setBodyPx(this.bodyPx);
-          this.obj.addChildAt(this.rig.root, this.obj.getChildIndex(this.sprite));
+          this.rigIndex = this.obj.getChildIndex(this.sprite);
+          this.obj.addChildAt(this.rig.root, this.rigIndex);
         }
       }
 
@@ -1428,6 +1438,7 @@
       this.aura.height = 460;
       this.aura.y = -this.baseH * 0.45;
       this.aura.alpha = 0.18;
+      this.auraBase = 0.18;      // 중파·각성·광폭화에서 오라 기준값이 올라간다
       this.obj.addChildAt(this.aura, 1);
 
       this.tele = new PIXI.Graphics();
@@ -1477,8 +1488,186 @@
         crit: opts.crit,
         size: opts.crit ? 60 : 40,
       });
+      if (this.hp <= 0) {
+        // 본전(중파 포함) 격파 → 승리가 아니라 각성 페이즈로 이어진다
+        if (this.noel && this.form !== 'awakening' && this.form !== 'berserk') this.awaken();
+        else this.die();
+      } else if (this.noel) {
+        this._checkPhase();
+        // 중파 이후에는 피격도 중파 목소리로 낸다
+        if (this.form !== 'base' && G.Sfx.playVoice && G.chance(0.3)) {
+          G.Sfx.playVoice(G.Xmas.boss.forms.damaged.voices.hit, { min: 5200 });
+        }
+      }
+      if (this.noel && this.hp > 0) this._checkBerserk();
+    }
+
+    /* ---- Step 11-2: 중파 · 각성 · 광폭화 ---- */
+    get formCfg() {
+      const F = (G.Xmas && G.Xmas.boss && G.Xmas.boss.forms) || null;
+      if (!F || !this.noel) return null;
+      return F[this.form] || null;
+    }
+
+    /* 피해 배율 — 각성 3배 × 광폭화 1.15배 (광폭화에서도 각성의 3배가 유지된다) */
+    _formDmgMul() {
+      if (!this.noel) return 1;
+      const F = G.Xmas.boss.forms;
+      let m = 1;
+      if (this.form === 'awakening' || this.form === 'berserk') m *= F.awakening.dmgMul;
+      if (this.form === 'berserk') m *= F.berserk.dmgMul;
+      return m;
+    }
+
+    /* 본전 HP 30% 이하 → 1차 중파 (중파 리그·오라·보이스 세트로 교체) */
+    _checkDamaged() {
+      if (!this.noel || this.form !== 'base') return false;
+      const D = G.Xmas.boss.forms.damaged;
+      if (this.hp / this.hpMax > D.hpThreshold) return false;
+      // 페이즈 전환 연출과 겹치지 않게 잠금이 풀린 뒤에 적용한다
+      if (this.phaseLock > 0) return false;
+      this._applyDamaged();
+      return true;
+    }
+
+    _applyDamaged() {
+      const D = G.Xmas.boss.forms.damaged;
+      this.form = 'damaged';
+      this.phaseLock = 1.9;
+      this.state = 'idle';
+      this.stateT = 0;
+      this.atkTimer = 1.7;
+      this.sprite.rotation = 0;
+      this.tele.clear();
+      this.tele.alpha = 0;
+      this.tripT = 0;
+      this._applyDamagedRig();
+      this.aura.tint = D.aura;
+      this.aura.alpha = D.auraAlpha;
+      this.auraBase = D.auraAlpha;
+      this.rim.tint = D.rim;
+      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'damaged', hp: Math.round(this.hp), ratio: +(this.hp / this.hpMax).toFixed(3) });
+      if (this.game.onBossDamaged) this.game.onBossDamaged(this);
+    }
+
+    /* 중파 일러스트 리그로 교체 — 아직 안 받았으면 받아 두고 다음 프레임에 다시 시도 */
+    _applyDamagedRig() {
+      if (!this.noel || !G.Rigs) return false;
+      const key = G.Xmas.boss.forms.damaged.rig;
+      if (this.rigKey === key && this.rig) return true;
+      const def = G.Rigs.get(key);
+      if (!def) {
+        G.Rigs.load(key).catch(() => {});
+        this._rigPending = key;
+        return false;
+      }
+      const idx = this.rigIndex >= 0 ? this.rigIndex : this.obj.getChildIndex(this.sprite);
+      if (this.rig && this.rig.root && !this.rig.root.destroyed) {
+        this.obj.removeChild(this.rig.root);
+        this.rig.root.destroy({ children: true });
+      }
+      // 중파 원화는 표정이 이미 그려져 있어 오버레이를 덧그리지 않는다
+      this.rig = new G.Rig(def, { artFacing: -1, mainArm: 'near', face: false });
+      this.rig.setBodyPx(this.bodyPx);
+      this.obj.addChildAt(this.rig.root, idx);
+      this.rigIndex = idx;
+      this.rigKey = key;
+      this._rigPending = null;
+      return true;
+    }
+
+    /* 본전 격파 → 바로 죽지 않고 각성 준비 (연출 뒤 finishAwaken) */
+    awaken() {
+      if (this.dying || this.form === 'awakening' || this.form === 'berserk') return;
+      this.hp = 1;
+      this.awakenPending = true;
+      this.state = 'idle';
+      this.stateT = 0;
+      this.atkTimer = 999;
+      this.phaseLock = 2.8;
+      this.stagger = 0;
+      this.tripT = 0;
+      this.tele.clear();
+      this.tele.alpha = 0;
+      this.sprite.rotation = 0;
+      this._applyDamagedRig();
+      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'awakening-begin', from: this.form });
+      if (this.game.onBossAwakening) this.game.onBossAwakening(this);
+    }
+
+    /* 각성 완료 — 체력 4배(중파 체력 +300%)로 다시 일어난다 */
+    finishAwaken() {
+      if (this.dying || !this.awakenPending) return;
+      const A = G.Xmas.boss.forms.awakening;
+      this.awakenPending = false;
+      this.form = 'awakening';
+      this.hpMax = Math.round(this.hpMax * A.hpMul);
+      this.hp = this.hpMax;
+      this.name = A.name;
+      this.displayName = A.name;
+      const PH = G.Xmas.boss.phases;
+      this.phaseIdx = PH.length - 1;
+      this.phaseCfg = PH[PH.length - 1];
+      this.phaseKey = PH[PH.length - 1].key;
+      this.phaseLock = 1.1;
+      this.atkTimer = 1.4;
+      this.aura.tint = A.aura;
+      this.aura.alpha = A.auraAlpha;
+      this.auraBase = A.auraAlpha;
+      this.rim.tint = A.rim;
+      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'awakening', hp: Math.round(this.hp), hpMax: this.hpMax });
+      if (this.game.onBossAwakened) this.game.onBossAwakened(this);
+    }
+
+    /* 각성 보스 HP 30% 이하 → 광폭화 (공격할 때마다 자해 + 공속 3배) */
+    _checkBerserk() {
+      if (!this.noel || this.form !== 'awakening') return false;
+      const B = G.Xmas.boss.forms.berserk;
+      if (this.hp / this.hpMax > B.hpThreshold) return false;
+      if (this.phaseLock > 0) return false;
+      this._applyBerserk();
+      return true;
+    }
+
+    _applyBerserk() {
+      const B = G.Xmas.boss.forms.berserk;
+      this.form = 'berserk';
+      this.phaseLock = 2.0;
+      this.state = 'idle';
+      this.stateT = 0;
+      this.atkTimer = 1.2;
+      this.tele.clear();
+      this.tele.alpha = 0;
+      this.aura.tint = B.aura;
+      this.aura.alpha = B.auraAlpha;
+      this.auraBase = B.auraAlpha;
+      this.rim.tint = B.rim;
+      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'berserk', hp: Math.round(this.hp), ratio: +(this.hp / this.hpMax).toFixed(3) });
+      if (this.game.onBossBerserk) this.game.onBossBerserk(this);
+    }
+
+    /* 광폭화 자해 — 공격할 때마다 자기 체력이 깎이고, 그 피해로도 정상 처치된다 */
+    _selfBleed() {
+      if (this.form !== 'berserk' || this.dying) return 0;
+      const B = G.Xmas.boss.forms.berserk;
+      const dmg = Math.max(1, Math.round(this.hpMax * B.selfDmg));
+      this.selfBleed += dmg;
+      this.hp = Math.max(0, this.hp - dmg);
+      this.hitFlash = 0.1;
+      this.flashT = 0.08;
+      const rec = { t: +this.game.time.toFixed(2), dmg, hp: Math.round(this.hp), kind: this.kind };
+      this.selfBleedLog.push(rec);
+      if (this.selfBleedLog.length > 40) this.selfBleedLog.shift();
+      this.atkLog.push({ t: rec.t, kind: 'selfBleed', phase: this.phaseKey, form: this.form, dmg, hp: rec.hp });
+      if (this.atkLog.length > 60) this.atkLog.shift();
+      const fx = this.game.fx;
+      if (fx) {
+        fx.damage(this.x + G.rand(50, -50), this.y - this.baseH * 0.66, dmg, { color: 0xc9a8ff, size: 34 });
+        fx.sparkBurst(this.x, this.y - this.baseH * 0.6, 0xb02a4a, 16, 420);
+        fx.ring(this.x, this.y - this.baseH * 0.5, 0xc21f36, 190, 0.4, 5, 0.6);
+      }
       if (this.hp <= 0) this.die();
-      else if (this.noel) this._checkPhase();
+      return dmg;
     }
 
     /* HP 구간을 넘었으면 페이즈를 올리고 연출을 요청한다 */
@@ -1582,9 +1771,17 @@
         cfg.dmg = Math.round(cfg.dmg * PH.dmg);
         cfg.radius *= PH.radius;
       }
+      // Step 11-2 — 각성(데미지 3배) · 광폭화(추가 피해 + 공속 3배)
+      // 멀티플라이는 중첩된다 — 광폭화는 각성의 3배 위에 1.15배를 더한다
+      const dmgMul = this._formDmgMul();
+      if (dmgMul > 1) cfg.dmg = Math.round(cfg.dmg * dmgMul);
+      const F = this.formCfg;
+      // 광폭화 — 예고(시전) 시간도 같은 배율로 줄이고, 하한만 지킨다
+      const aspd = this._aspdMul();
+      if (F && F.teleMin) cfg.tele = Math.max(F.teleMin, cfg.tele / aspd);
       this.cfg = cfg;
       if (this.atkLog) {
-        this.atkLog.push({ t: +this.game.time.toFixed(2), kind, phase: this.phaseKey, tele: +cfg.tele.toFixed(2), dmg: cfg.dmg, radius: Math.round(cfg.radius) });
+        this.atkLog.push({ t: +this.game.time.toFixed(2), kind, phase: this.phaseKey, form: this.form, tele: +cfg.tele.toFixed(2), dmg: cfg.dmg, radius: Math.round(cfg.radius) });
         if (this.atkLog.length > 60) this.atkLog.shift();
       }
       // 강력 기술(장판·3연속·심판)은 스킬 컷인으로 알린다 (게임 쪽에서 쿨다운 관리)
@@ -1663,6 +1860,12 @@
     /* 표정 결정 — 자루에 걸림(휘청)·HP 낮음은 당황, 피격은 찡그림, 스킬은 집중 */
     _exprName() {
       if (this.exprLock) return this.exprLock;
+      // 중파·각성·광폭화는 웃는 표정이 없다 — 항상 치열하게
+      if (this.form && this.form !== 'base') {
+        if (this.tripT > 0) return 'flustered';
+        if (this.stagger > 0 || this.hitFlash > 0) return 'hit';
+        return 'focus';
+      }
       if (this.tripT > 0 || this.flusteredT > 0) return 'flustered';
       if (this.stagger > 0) return 'hit';
       if (this.hitFlash > 0) return 'hit';
@@ -1670,9 +1873,14 @@
       return 'normal';
     }
 
-    /* 스킬 종류·페이즈에 맞는 전용 보이스 */
+    /* 스킬 종류·페이즈에 맞는 전용 보이스 (중파 이후에는 중파 보이스 세트) */
     _skillVoice(kind) {
       if (!this.noel) return null;
+      if (this.form === 'damaged' || this.form === 'awakening' || this.form === 'berserk') {
+        const V = G.Xmas.boss.forms.damaged.voices;
+        if (kind === 'perfect' || kind === 'multi' || kind === 'summon' || kind === 'combo') return V.skill2;
+        return V.skill1;
+      }
       if (kind === 'perfect') return 'noel_skill3';
       if (kind === 'multi' || kind === 'summon' || kind === 'combo') return 'noel_skill2';
       if (kind === 'slam' || kind === 'line') return 'noel_skill1';
@@ -1747,6 +1955,13 @@
       this.stateT += dt;
       this.bobT += dt;
       this.moving = 0;
+      // Step 11-2 — 중파 리그를 뒤늦게 받았으면 여기서 교체하고,
+      // HP 구간을 넘으면 중파·광폭화로 넘어간다 (페이즈 잠금이 풀린 뒤)
+      if (this.noel && !this.dying) {
+        if (this._rigPending && G.Rigs && G.Rigs.get(this._rigPending)) this._applyDamagedRig();
+        if (this.form === 'base') this._checkDamaged();
+        else if (this.form === 'awakening') this._checkBerserk();
+      }
       if (this.tripT > 0) this.tripT = Math.max(0, this.tripT - dt);
       if (this.flusteredT > 0) this.flusteredT = Math.max(0, this.flusteredT - dt);
       if (this.phaseLock > 0) this.phaseLock = Math.max(0, this.phaseLock - dt);
@@ -1854,8 +2069,7 @@
           const kind = this.firstAttack ? 'slam' : G.choice(pool);
           this.firstAttack = false;
           this.startAttack(kind);
-          const atk = this.phaseCfg ? this.phaseCfg.atk : [2.3, 1.55];
-          this.atkTimer = G.rand(atk[0], atk[1]);
+          this.atkTimer = this._nextAtkDelay(this.phaseCfg ? this.phaseCfg.atk : [2.3, 1.55]);
         }
       } else if (this.state === 'windup') {
         this._setAttackTex(true);
@@ -1873,7 +2087,7 @@
         this.sprite.y = breathe + 11 * warnP - 8 * Math.sin(p * Math.PI);
         this.rim.y = this.sprite.y - 8;
         this.rim.rotation = this.sprite.rotation;
-        this.aura.alpha = 0.18 + 0.25 * p;
+        this.aura.alpha = this.auraBase + 0.25 * p;
         if (p >= 1) {
           this.state = 'strike';
           this.stateT = 0;
@@ -1904,14 +2118,16 @@
         this.sprite.y = breathe + 10;
         this.rim.y = this.sprite.y - 8;
         this.rim.rotation = this.sprite.rotation;
-        if (this.stateT > 0.45) {
+        if (this.stateT > 0.45 / this._aspdMul()) {
           this.state = 'idle';
-          this.aura.alpha = 0.18;
+          this.aura.alpha = this.auraBase;
           this.sprite.rotation = 0;
           this._setAttackTex(false);
           // 페이즈가 오를수록 곧바로 이어 치는 연속 패턴이 섞인다
-          if (this.phaseCfg && this.phaseCfg.chain && G.chance(this.phaseCfg.chain)) {
-            this.atkTimer = Math.min(this.atkTimer, 0.42);
+          const B = this.formCfg;
+          const aspd = (B && B.aspdMul) ? B.aspdMul : 1;
+          if (this.phaseCfg && this.phaseCfg.chain && G.chance(Math.min(0.9, this.phaseCfg.chain * (aspd > 1 ? 1.6 : 1)))) {
+            this.atkTimer = Math.min(this.atkTimer, aspd > 1 ? 0.14 : 0.42);
           }
         }
       }
@@ -1945,8 +2161,24 @@
       return Math.hypot(px - qx, (py - qy) / 0.4) < r;
     }
 
+    /* 다음 공격까지 대기 — 광폭화는 공격 속도 3배(대기 시간 ÷3) */
+    _aspdMul() {
+      const F = this.formCfg;
+      return (F && F.aspdMul) ? F.aspdMul : 1;
+    }
+
+    _nextAtkDelay(range) {
+      const k = this._aspdMul();
+      return G.rand(range[0] / k, range[1] / k);
+    }
+
     _strike(target) {
       const kind = this.kind;
+      // 광폭화 — 공격할 때마다 자기 체력이 깎인다(자해로도 정상 처치)
+      if (this.form === 'berserk') {
+        this._selfBleed();
+        if (this.dying) return;
+      }
       if (this.noel) this._skillFxStrike(kind);
       const q0 = this.teleTarget || { x: this.teleX, y: this.y, r: this.cfg.radius };
       const dist = Boss.insideEllipse(target.x, target.y, q0.x, q0.y, this.cfg.radius) ? 0 : 1e9;

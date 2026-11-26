@@ -10,7 +10,7 @@
     TITLE: '메리 크리스마스! 성문을 지켜라',
     TITLE_EN: 'MERRY CHRISTMAS · GUARD THE GATE',
     SERIES: '마지막 성문의 수호자 외전',
-    VERSION: 'XMAS-2.3.0-build060',
+    VERSION: 'XMAS-2.4.0-build070',
     STAGE_NAME: '성문 광장',
     BOSS_STAGE_NAME: '눈보라 왕좌',
     STAGE_MSG: 'XMAS · 눈 내리는 성문 광장',
@@ -69,6 +69,54 @@
         summon: { move: '선물 소동', en: 'GIFT TROUBLE' },
       },
       sub: 'DARK SANTA QUEEN',
+
+      /* ---- Step 11-2: 1차 중파 → 각성 → 광폭화 ----
+       * form 흐름: base → damaged(본전 HP 30% 이하) → awakening(본전 격파) → berserk(각성 HP 30% 이하)
+       * hpMul 4.0 = 체력 +300%(4배), dmgMul 3.0 = 데미지 +200%(3배), aspdMul 3.0 = 공격 속도 +200%(3배)
+       * 즉사 방지 — 각성 이후 예고 시간 하한(teleMin)과 1회 피해 상한(heroDmgCap)을 함께 둔다.
+       */
+      forms: {
+        damaged: {
+          key: 'damaged', label: '중파', badge: '중파',
+          hpThreshold: 0.30,
+          rig: 'noel_damaged',
+          portrait: 'portraitNoelDamaged',
+          aura: 0x8a1f3a, auraAlpha: 0.30, rim: 0xff6a7e,
+          cut: {
+            move: '중파 · 무너진 산타', en: 'DAMAGED  ·  PHASE 1',
+            line: '하… 아직이야. 선물도, 이 불빛도, 아직 하나도 안 끝났어.',
+          },
+          voices: { skill1: 'noel_damaged', skill2: 'noel_damaged2', skill3: 'noel_damaged2', hit: 'noel_damaged_hit' },
+        },
+        awakening: {
+          key: 'awakening', label: '각성', badge: '각성',
+          name: '각성 · 노엘',
+          hpMul: 4.0,        // 체력 +300%
+          dmgMul: 3.0,       // 데미지 +200%
+          teleMin: 0.36,     // 예고 시간 하한(즉사 방지)
+          heroDmgCap: 0.42,  // 1회 피해 상한 = 히어로 최대 체력의 42%
+          aura: 0x5b2bd6, auraAlpha: 0.36, rim: 0x9f7bff,
+          cut: {
+            move: '각성 · 성문의 흑월', en: 'AWAKENING',
+            line: '웃기지 마. 크리스마스는 내가 지키는 거야. 아무도 못 보내.',
+          },
+          voice: 'noel_awake',
+        },
+        berserk: {
+          key: 'berserk', label: '광폭화', badge: '광폭화',
+          hpThreshold: 0.30,
+          aspdMul: 3.0,      // 공격 속도 +200% (대기·예고 모두 가속)
+          dmgMul: 1.15,      // 광폭화 추가 피해
+          selfDmg: 0.045,    // 공격할 때마다 최대 체력의 4.5% 자해
+          teleMin: 0.34,
+          aura: 0xc21f36, auraAlpha: 0.46, rim: 0xff3b5c,
+          cut: {
+            move: '광폭화 · 마지막 종', en: 'BERSERK',
+            line: '네가, 네가 전부 망쳤어! 이 손 놓을 때까지 안 끝나!',
+          },
+          voice: 'noel_berserk',
+        },
+      },
 
       /* Step 11-1 — 표정 4종과 스킬 모션 이름 (HUD·검증에서 같이 본다) */
       faces: {
@@ -133,10 +181,12 @@
         '그 불빛, 언제까지 버틸 수 있을까?',
         '손이 시려우면 그만두는 게 어때?',
       ],
-      /* Step 11-1 — 보스·몬스터 보이스 파일 */
+      /* Step 11-1 — 보스·몬스터 보이스 파일 / Step 11-2 — 중파·각성·광폭화 보이스 */
       voice: {
         intro: 'noel_intro', skill1: 'noel_skill1', skill2: 'noel_skill2',
         skill3: 'noel_skill3', hit: 'noel_hit',
+        damaged: 'noel_damaged', damaged2: 'noel_damaged2', damagedHit: 'noel_damaged_hit',
+        awake: 'noel_awake', berserk: 'noel_berserk',
       },
     },
 

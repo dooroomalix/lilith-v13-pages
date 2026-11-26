@@ -99,6 +99,13 @@
    "mesh": "assets/rig/noel/mesh.json",
    "body": "assets/rig/noel/body.webp"
   },
+  "noel_damaged": {
+   "json": "assets/rig/noel_damaged/rig.json",
+   "char": "noel",
+   "skin": "damaged",
+   "mesh": "assets/rig/noel_damaged/mesh.json",
+   "body": "assets/rig/noel_damaged/body.webp"
+  },
   "rudolph": {
    "json": "assets/rig/rudolph/rig.json",
    "char": "rudolph",

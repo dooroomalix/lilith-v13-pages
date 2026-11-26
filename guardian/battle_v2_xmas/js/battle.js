@@ -148,6 +148,7 @@
       this.dialogueDur = 0;
       this.lastLine = '';
       this.bossPhaseLog = [];
+      this.bossFormLog = [];     // Step 11-2: 중파·각성·광폭화 전환 기록(검증용)
       this.bossCutDur = 1.22;
 
       // Step 6: 로비에서 고른 캐릭터·스킨이 그대로 전투 메인으로 출전
@@ -403,6 +404,13 @@
       this._openLobby();
     }
 
+    /* 인트로(타이틀) 잔상 정리 — 페이드가 끝나기 전에 판이 시작돼도 화면에 남지 않게 */
+    _clearIntro() {
+      if (this.introFade) { this.introFade.destroy({ children: true }); this.introFade = null; }
+      if (this.introC) { this.introC.destroy({ children: true }); this.introC = null; }
+      this.introT = 0;
+    }
+
     _openLobby() {
       this.phase = 'lobby';
       if (this.lobby) { this.lobby.charKey = this.deployChar; this.lobby.skin = this.deploySkin; }
@@ -648,6 +656,9 @@
       // 등불이 전부 꺼지면 한기 디버프로 받는 피해가 커진다
       amount = amount * (this.lanterns ? this.lanterns.dmgTakenMul() : 1);
       const kael = this.kael;
+      // Step 11-2 — 각성·광폭화의 강화 피해에도 즉사하지 않게 1회 피해 상한을 둔다
+      const cap = kael.hpMax * (G.Xmas.boss.forms.awakening.heroDmgCap || 0.42);
+      if (amount > cap) amount = cap;
       if (kael.hurt(amount, fromX)) {
         this.scene.shake(11, 0.3);
         this.flashG.clear();
@@ -716,8 +727,10 @@
       }
     }
 
+    /* 보스 등장 — 중파 리그는 미리 받아 둔다(본전 HP 30%에서 바로 교체) */
     enterBossPhase() {
       if (this.phase === 'boss' || this.phase === 'bossIntro') return;
+      if (G.Rigs && G.Rigs.load && G.Xmas.ON) G.Rigs.load('noel_damaged').catch(() => {});
       this.phase = 'bossIntro';
       this.phaseT = 0;
       this.bossPhaseLog.length = 0;
@@ -769,6 +782,86 @@
       this.hitStop = 0.18;
       G.Sfx.counter();
       this.after(1.6, () => this._victory());
+    }
+
+    /* ---- Step 11-2 : 1차 중파 · 각성 · 광폭화 연출 ---- */
+    /* 본전 HP 30% 이하 — 중파 리그로 바뀌고 사선 컷인·하단 자막·HUD 배지 */
+    onBossDamaged(boss) {
+      const D = G.Xmas.boss.forms.damaged;
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'damaged', hp: Math.round(boss.hp), hpMax: boss.hpMax });
+      this.bossCutCD = 7;
+      this.bossCutDur = 2.0;
+      this.bossCutKind = 'damaged';
+      this._bossCutIn({ move: D.cut.move, en: D.cut.en, por: D.portrait, name: '노엘', tint: 0xff5a6e });
+      this.flashImpact(0.72, 0xff5a6e);
+      this.scene.shake(20, 0.8);
+      this.scene.zoomTo(1.09, 0.32);
+      this.after(0.65, () => this.scene.zoomTo(1, 0.6));
+      this.fx.shockRing(boss.x - 60, boss.y - 8, 0xff5a6e, 520, 0.85);
+      this.fx.sparkBurst(boss.x - 30, boss.centerY, 0xffb0c0, 46, 780);
+      this.fx.debris(boss.x - 40, boss.y, 14, 0x8a1f3a, 1.2);
+      this.showPrompt(D.label + ' · 무너진 산타', 0xff8fa8, 2.0);
+      this.after(1.1, () => this.dialogueLine('노엘', D.cut.line, 3.4));
+      G.Sfx.bossRoar();
+      if (G.Sfx.playVoice) G.Sfx.playVoice(D.voices.skill1, { min: 0, chance: 1, pri: 6 });
+    }
+
+    /* 본전 격파 — 쓰러지기 직전 연출 뒤 각성으로 이어진다 */
+    onBossAwakening(boss) {
+      const A = G.Xmas.boss.forms.awakening;
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'awakening-begin' });
+      this.bossCutCD = 9;
+      this.bossCutDur = 2.3;
+      this.bossCutKind = 'awakening';
+      this._bossCutIn({ move: A.cut.move, en: A.cut.en, por: G.Xmas.boss.forms.damaged.portrait, name: '노엘', tint: 0x9f7bff });
+      this.flashImpact(1.0, 0xffffff);
+      this.scene.shake(24, 1.2);
+      this.scene.zoomTo(1.14, 0.5);
+      this.after(1.0, () => this.scene.zoomTo(1, 0.8));
+      this.fx.shockRing(boss.x - 40, boss.y - 8, 0x9f7bff, 720, 1.1);
+      this.fx.shockRing(boss.x - 40, boss.y - 8, 0xffffff, 420, 0.7);
+      this.fx.sparkBurst(boss.x - 20, boss.centerY, 0xd9c2ff, 64, 900);
+      this.fx.cinematicCross();
+      this.showPrompt('각성 · 노엘', 0xb98bff, 2.4);
+      this.after(1.3, () => this.dialogueLine('노엘', A.cut.line, 3.6));
+      G.Sfx.bossRoar();
+      if (G.Sfx.playVoice) G.Sfx.playVoice(A.voice, { min: 0, chance: 1, pri: 6 });
+      this.after(2.0, () => { if (boss && boss.alive) boss.finishAwaken(); });
+    }
+
+    /* 각성 완료 — 다시 일어난 보스의 등장 이펙트 */
+    onBossAwakened(boss) {
+      const A = G.Xmas.boss.forms.awakening;
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'awakening', hp: Math.round(boss.hp), hpMax: boss.hpMax });
+      this.flashImpact(0.85, 0x9f7bff);
+      this.scene.shake(18, 0.9);
+      this.scene.zoomTo(1.07, 0.4);
+      this.after(0.7, () => this.scene.zoomTo(1, 0.6));
+      this.fx.shockRing(boss.x, boss.y - 6, A.aura, 640, 0.9);
+      this.fx.pillar(boss.x, boss.y - 10, 0x9f7bff, 560, 0.85, 180);
+      this.fx.sparkBurst(boss.x, boss.centerY - 40, 0xd9c2ff, 52, 760);
+      this.showPrompt('각성 · 노엘  ·  체력 +300% / 데미지 +200%', 0xd9c2ff, 2.2);
+      G.Sfx.bossRoar();
+    }
+
+    /* 각성 HP 30% 이하 — 광폭화(공격마다 자해 + 공격 속도 +200%) */
+    onBossBerserk(boss) {
+      const B = G.Xmas.boss.forms.berserk;
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'berserk', hp: Math.round(boss.hp), hpMax: boss.hpMax });
+      this.bossCutCD = 9;
+      this.bossCutDur = 2.2;
+      this.bossCutKind = 'berserk';
+      this._bossCutIn({ move: B.cut.move, en: B.cut.en, por: G.Xmas.boss.forms.damaged.portrait, name: '노엘', tint: 0xff2a3a });
+      this.flashImpact(0.95, 0xff2a3a);
+      this.scene.shake(26, 1.1);
+      this.scene.zoomTo(1.12, 0.42);
+      this.after(0.8, () => this.scene.zoomTo(1, 0.7));
+      this.fx.shockRing(boss.x, boss.y - 8, 0xff2a3a, 640, 0.95);
+      this.fx.burst(boss.x - 40, boss.centerY, { color: 0xc21f36, core: 0xffe0e6, rays: 24, length: 320, width: 12, dur: 0.4 });
+      this.showPrompt('광폭화 · 자해 + 공격 속도 +200%', 0xff6a7e, 2.4);
+      this.after(1.2, () => this.dialogueLine('노엘', B.cut.line, 3.6));
+      G.Sfx.bossRoar();
+      if (G.Sfx.playVoice) G.Sfx.playVoice(B.voice, { min: 0, chance: 1, pri: 6 });
     }
 
     onPerfectCounter(boss) {
@@ -1129,9 +1222,12 @@
     _bossCutIn(info) {
       // 외전 보스는 노엘의 상반신 컷인을 쓴다 (리아·아라급 사선 배너 문법 그대로)
       const NOEL = !!(G.Xmas && G.Xmas.ON);
-      const porTex = NOEL ? G.Assets.tex.portraitNoel : G.Assets.tex.portraitBoss;
+      const porTex = (info && info.por && G.Assets.tex[info.por])
+        ? G.Assets.tex[info.por]
+        : (NOEL ? G.Assets.tex.portraitNoel : G.Assets.tex.portraitBoss);
       const porAspect = NOEL ? (470 / 560) : (441 / 560);
       const porH = NOEL ? 368 : 344;
+      const tint = (info && info.tint) || 0xff2a22;
       if (this.bossCutin) {
         this.bossCutin.destroy({ children: true });
         this.bossCutin = null;
@@ -1152,7 +1248,7 @@
       const g = new PIXI.Sprite(G.Assets.tex.glow);
       g.anchor.set(0.5);
       g.blendMode = 'add';
-      g.tint = 0xff2a22;
+      g.tint = tint;
       g.width = 660; g.height = 660;
       g.x = 1104; g.y = 292;
       g.alpha = 0.34;
@@ -1179,7 +1275,7 @@
       aura.anchor.set(0.5);
       aura.height = porH + 14; aura.width = (porH + 14) * porAspect;
       aura.x = 1108; aura.y = 286;
-      aura.tint = 0xff3a1e;
+      aura.tint = tint;
       aura.blendMode = 'add';
       aura.alpha = 0.34;
       c.addChild(aura);
@@ -1188,7 +1284,7 @@
       this.bossCutPorBase = por.scale.x;
 
       const name = new PIXI.Text({
-        text: NOEL ? '노엘' : '아르카논',
+        text: (info && info.name) || (NOEL ? '노엘' : '아르카논'),
         style: G.style({ fontSize: 42, fontWeight: '900', fill: 0xffe6dc, letterSpacing: 4, stroke: { color: 0x3a0409, width: 8 } }),
       });
       name.anchor.set(1, 0.5);
@@ -1959,22 +2055,26 @@
       if (this.overlayDark && G.isPortrait()) this.overlayDark.visible = true;
     }
 
-    restart() {
-      this._clearOverlay();
-      this.overlay.alpha = 1;
-      // 2.5D 디버그 박스는 판을 넘기지 않는다
-      this.debugBoxes = false;
-      this.debugT = 0;
-      if (this.debugG) this.debugG.clear();
-      if (this.debugText) this.debugText.visible = false;
-      // 액터 정리
+    /* 판 정리 — restart() 와 로비 복귀가 같은 경로를 쓴다.
+       Step 11-2: 중파·각성·광폭화 상태(리그·오라·배지·예고)도 여기서 모두 끊는다. */
+    _teardownBattle() {
       this.enemies.forEach((e) => {
         if (e.tele) { e.tele.destroy(); e.tele = null; }
         if (e.obj) e.obj.destroy({ children: true });
       });
       this.enemies = [];
-      if (this.boss && this.boss.tele) { this.boss.tele.destroy(); this.boss.tele = null; }
-      if (this.boss && this.boss.obj) this.boss.obj.destroy({ children: true });
+      if (this.boss) {
+        if (this.boss.tele) { this.boss.tele.destroy(); this.boss.tele = null; }
+        if (this.boss.aura && !this.boss.aura.destroyed) { this.boss.aura.destroy(); this.boss.aura = null; }
+        if (this.boss.rig && this.boss.rig.root && !this.boss.rig.root.destroyed) {
+          this.boss.rig.root.destroy({ children: true });
+        }
+        this.boss.rig = null;
+        this.boss.rigKey = null;
+        this.boss.form = 'base';
+        this.boss.awakenPending = false;
+        if (this.boss.obj && !this.boss.obj.destroyed) this.boss.obj.destroy({ children: true });
+      }
       this.boss = null;
       this.bossSpawned = false;
       if (this.bossTeleLayer) this.bossTeleLayer.removeChildren();
@@ -1982,6 +2082,22 @@
       this.projectiles = [];
       this.fx.clear();
       this.actorLayer.removeChildren();
+      this.bossFormLog.length = 0;
+      this.bossPhaseLog.length = 0;
+      this.bossCutLog.length = 0;
+    }
+
+    restart() {
+      this._clearOverlay();
+      this._clearIntro();          // 타이틀 페이드 잔상이 전투 위에 남지 않게
+      this.overlay.alpha = 1;
+      // 2.5D 디버그 박스는 판을 넘기지 않는다
+      this.debugBoxes = false;
+      this.debugT = 0;
+      if (this.debugG) this.debugG.clear();
+      if (this.debugText) this.debugText.visible = false;
+      // 액터 정리 (중파·각성·광폭화 상태 포함)
+      this._teardownBattle();
       this.stats = { damage: 0, maxCombo: 0, kills: 0 };
       this.combo = 0;
       this.cooldowns = { skill1: 0, skill2: 0 };

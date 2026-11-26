@@ -111,7 +111,7 @@
       put(this.gCombo, [this.comboText, this.comboSub]);
       put(this.gBtn.potion, [this.potionLabel]);
       put(this.gBtn.auto, [this.autoText, this.autoModeText]);
-      put(this.gBoss, [this.bossPhaseText, this.lanternG, this.lanternText]);
+      put(this.gBoss, [this.bossPhaseText, this.lanternG, this.lanternText, this.bossFormText]);
       const jg = this._textCache['jumpGlyph'];
       if (jg) this.gBtn.jump.addChild(jg);
       Object.keys(this.cdTexts || {}).forEach((k) => {
@@ -207,6 +207,12 @@
       this.bossMoodText.anchor.set(0.5, 0.5);
       this.bossMoodText.x = 968; this.bossMoodText.y = 81;
       this.bossMoodText.alpha = 0;
+
+      // Step 11-2 — 중파 / 각성 / 광폭화 배지 (보스 이름 옆)
+      this.bossFormText = this._text('bossform', '', G.style({ fontSize: 14, fill: 0xffb4c2, fontWeight: '900', letterSpacing: 1, stroke: { color: 0x2a0408, width: 4 } }), root);
+      this.bossFormText.anchor.set(0.5, 0.5);
+      this.bossFormText.x = 804; this.bossFormText.y = 46;
+      this.bossFormText.alpha = 0;
 
       // 등블 게이지 (외전) — 켜진 등불 4칸 + 빛의 온기/한기 라벨
       this.lanternG = new PIXI.Graphics();
@@ -788,20 +794,34 @@
           this.bossPhaseText.text = game.boss.phaseKey || 'P1';
           this.bossPhaseText.alpha = 1;
           const mood = { normal: ['여유', 0xffd9a0], focus: ['집중', 0xff8fa8], hit: ['피격', 0xff6a7e], flustered: ['당황', 0x9fd8ff] }[game.boss.expr] || ['여유', 0xffd9a0];
+          if (game.boss.form && game.boss.form !== 'base' && game.boss.expr === 'focus') { mood[0] = '치열'; mood[1] = 0xffb04a; }
           plate(this.bossG, 926, 66, 84, 28, 7, 0x1e0710, 0.82);
           outline(this.bossG, 926, 66, 84, 28, 7, mood[1], 0.7, 1.4);
           this.bossMoodText.text = mood[0];
           this.bossMoodText.style.fill = mood[1];
           this.bossMoodText.alpha = 1;
+          // 중파 / 각성 / 광폭화 배지
+          const FRM = (G.Xmas && G.Xmas.boss && G.Xmas.boss.forms) ? G.Xmas.boss.forms[game.boss.form] : null;
+          if (FRM) {
+            plate(this.bossG, 728, 32, 152, 28, 7, 0x1e0710, 0.86);
+            outline(this.bossG, 728, 32, 152, 28, 7, FRM.rim || 0xff8a99, 0.85, 1.6);
+            this.bossFormText.text = FRM.badge;
+            this.bossFormText.style.fill = FRM.rim || 0xffb4c2;
+            this.bossFormText.alpha = 1;
+          } else {
+            this.bossFormText.alpha = 0;
+          }
         } else {
           this.bossPhaseText.alpha = 0;
           this.bossMoodText.alpha = 0;
+          this.bossFormText.alpha = 0;
         }
       } else {
         this.bossName.alpha = 0;
         this.bossHpText.alpha = 0;
         this.bossPhaseText.alpha = 0;
         this.bossMoodText.alpha = 0;
+        this.bossFormText.alpha = 0;
         this._bossGhostP = 1;
       }
 

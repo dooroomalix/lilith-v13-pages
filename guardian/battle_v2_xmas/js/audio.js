@@ -231,6 +231,12 @@
     noel_skill2: { pri: 4, cool: 7000, vol: 0.82 },
     noel_skill3: { pri: 5, cool: 9000, vol: 0.84 },
     noel_hit: { pri: 3, cool: 9000, vol: 0.72 },
+    // Step 11-2 — 중파·각성·광폭화 보이스
+    noel_damaged: { pri: 5, cool: 8000, vol: 0.86 },
+    noel_damaged2: { pri: 4, cool: 8000, vol: 0.84 },
+    noel_damaged_hit: { pri: 3, cool: 8000, vol: 0.72 },
+    noel_awake: { pri: 6, cool: 15000, vol: 0.92 },
+    noel_berserk: { pri: 6, cool: 15000, vol: 0.92 },
     snowball_atk: { pri: 2, cool: 3600, vol: 0.6 },
     snowball_hit: { pri: 1, cool: 4200, vol: 0.52 },
     mimic_atk: { pri: 2, cool: 3800, vol: 0.6 },

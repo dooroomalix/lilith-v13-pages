@@ -1,14 +1,29 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.3.0-build060
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.4.0-build070
 
-《마지막 성문의 수호자》 크리스마스 외전의 **3차 플레이 가능 빌드**입니다.
-본편 `projects/guardian/battle_v2_sd/`(v5.6.1-build461)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
+《마지막 성문의 수호자》 크리스마스 외전의 **4차 플레이 가능 빌드**입니다.
+본편 `projects/guardian/battle_v2_sd/`(v5.13.2-build532)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
 이 폴더의 코드·에셋은 본편에 영향을 주지 않습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.3.0-build060`
-- 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + **`chars.js`** + **`rig.js`** + **`lobby.js`**), 엔진 PixiJS v8
+- 스크립트 버전: `XMAS-2.4.0-build070`
+- 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + `chars.js` + `rig.js` + `lobby.js`), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
+
+## XMAS-2.4.0-build070 — Step 11-2 노엘 1차 중파 · 각성 · 광폭화
+
+| 국면 | 발동 조건 | 연출·수치 |
+|---|---|---|
+| **1차 중파** | 본전 HP 30% 이하 | 중파 리그(`noel_damaged` — 찢어진 코트·그을린 털·베인 자국·이빨을 드러낸 표정)로 교체 · 사선 컷인 `중파 · 무너진 산타` · 하단 구어체 자막 · HUD `중파` 배지 · 중파 보이스 세트로 전환 |
+| **각성** | 본전 HP 0 | 죽지 않고 다시 일어난다 · 체력 **4배(+300%)** 20,000 → 80,000 · 데미지 **3배(+200%)** · 중파 일러스트 유지 · 전용 오라·컷인 `각성 · 성문의 흑월` · HUD `각성 · 노엘` · 보이스 `noel_awake` |
+| **광폭화** | 각성 HP 30% 이하 | 공격할 때마다 **자해**(최대 체력 4.5%) · **공격 속도 3배**(대기·예고·후딜 ÷3, 예고 하한 0.34초) · 붉은 오라·컷인 `광폭화 · 마지막 종` · HUD `광폭화` · 보이스 `noel_berserk` |
+
+- 수치는 `js/xmas.js` 의 `G.Xmas.boss.forms` 표 하나에 모아 두었습니다(`hpMul: 4.0`, `dmgMul: 3.0`, `aspdMul: 3.0`, `selfDmg: 0.045`, `teleMin`, `heroDmgCap`).
+- **즉사 방지**: 예고 시간 하한(`teleMin`)과 1회 피해 상한(히어로 최대 체력의 42%)을 함께 둡니다.
+- 자해로 HP가 0이 되어도 정상 처치 → 승리 화면으로 이어집니다(Step 11-3 시네마틱은 다음 단계).
+- `restart()` / `_teardownBattle()` 이 중파·각성·광폭화 상태(리그·오라·배지·예고판·기록)를 모두 초기화합니다.
+- 신규 보이스 5종은 ElevenLabs(Eleven v4 · 한국어 PVC Eunha · Stability 50% / Similarity 75%)로 만들었습니다: `noel_damaged` · `noel_damaged2` · `noel_damaged_hit` · `noel_awake` · `noel_berserk` (−16.0~−16.5 LUFS · 128 kbps mono).
+
 
 ## XMAS-2.0.0-build030 — Step 6 전면 개편
 
