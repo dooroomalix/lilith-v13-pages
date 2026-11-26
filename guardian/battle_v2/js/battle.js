@@ -2336,35 +2336,48 @@
       this._drawDebug();
     }
 
+    /* 판정선 두께 보정 배율 (Step 10-3)
+       세로에서는 scene.root 배율(=떠 배율 × 카메라 확대)이 1보다 작아 선이 화면에서 얇아진다.
+       배율의 역수를 곱해 가로와 같은 굵기로 보이게 하고, 1.5~2.0배 사이로 묶는다.
+       가로(1280×720)는 배율 1.0 그대로다. */
+    _judgeScale() {
+      if (!G.isPortrait()) return 1;
+      const s = (G.VIEW.cam && G.VIEW.cam.scale) || 1;
+      const k = s > 0 ? 1 / s : 1;
+      return G.clamp(k, G.JUDGE.portMin, G.JUDGE.portMax);
+    }
+
     _drawDebug() {
       const g = this.debugG, h = this.kael;
       if (!g || !h) return;
       g.clear();
       const shapes = this.judgeShapes = [];
       const f = h.facing || 1;
+      const k = this._judgeScale();                    // 세로 보정 배율 (가로 1.0)
       const reach = (h.atkCfg && h.atkCfg.reach ? h.atkCfg.reach : 252) + 40;
       // 내 전방 타점 박스(초록) — 정면 + 무기 리치, 이 안의 적만 맞는다
       const x0 = f > 0 ? h.x - 6 : h.x - reach;
       g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).fill({ color: 0x54ffa8, alpha: 0.16 });
-      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x8dffc0, width: 2.6, alpha: 0.9 });
-      shapes.push({ kind: 'attack', color: '#54ffa8', x: Math.round(x0), y: Math.round(h.y - G.LANE.hero), w: reach + 6, h: G.LANE.hero * 2 });
+      g.rect(x0, h.y - G.LANE.hero, reach + 6, G.LANE.hero * 2).stroke({ color: 0x8dffc0, width: 2.6 * k, alpha: 0.9 });
+      shapes.push({ kind: 'attack', color: '#54ffa8', x: Math.round(x0), y: Math.round(h.y - G.LANE.hero), w: reach + 6, h: G.LANE.hero * 2, wpx: +(2.6 * k).toFixed(2) });
       // 내 피격 레인(노랑) — 적 공격이 나에게 닿는 깊이
       g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).fill({ color: 0xffe066, alpha: 0.16 });
-      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).stroke({ color: 0xffe97a, width: 2.2, alpha: 0.8 });
-      shapes.push({ kind: 'hurt', color: '#ffe066', x: Math.round(h.x - 22), y: Math.round(h.y - G.LANE.enemy), w: 44, h: G.LANE.enemy * 2 });
-      g.moveTo(h.x, h.y).lineTo(h.x + 46 * f, h.y).stroke({ color: 0x54ffa8, width: 2, alpha: 0.9 });
-      this._dbgFoot(h.x, h.y, 0x9fe8ff, shapes, 'hero');
+      g.rect(h.x - 22, h.y - G.LANE.enemy, 44, G.LANE.enemy * 2).stroke({ color: 0xffe97a, width: 2.2 * k, alpha: 0.8 });
+      shapes.push({ kind: 'hurt', color: '#ffe066', x: Math.round(h.x - 22), y: Math.round(h.y - G.LANE.enemy), w: 44, h: G.LANE.enemy * 2, wpx: +(2.2 * k).toFixed(2) });
+      g.moveTo(h.x, h.y).lineTo(h.x + 46 * f, h.y).stroke({ color: 0x54ffa8, width: 2 * k, alpha: 0.9 });
+      this._dbgFoot(h.x, h.y, 0x9fe8ff, shapes, 'hero', k);
       // 적·보스 피격 박스(빨강) + 예고 중인 공격 범위(보라)
-      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero, shapes); });
-      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss, shapes);
+      this.enemies.forEach((e) => { if (e.alive && !e.dying) this._dbgActor(e, 0xff5a7a, G.LANE.hero, shapes, k); });
+      if (this.boss && this.boss.alive && !this.boss.dying) this._dbgActor(this.boss, 0xff3b6b, G.LANE.boss, shapes, k);
       // 공격 잔상·피격 표식
-      this._drawJudgeTrails(g, shapes);
+      this._drawJudgeTrails(g, shapes, k);
       const txt = 'X ' + Math.round(h.x) + ' · Y ' + Math.round(h.y)
         + ' · 레인 ±' + G.LANE.hero + ' · ' + (f > 0 ? '오른쪽' : '왼쪽') + ' 보기 · 판정 ON';
       if (!this.debugText) {
         this.debugText = new PIXI.Text({ text: txt, style: G.style({ fontSize: 15, fontWeight: '800', fill: 0xd8ffe8, stroke: { color: 0x06210f, width: 4 } }) });
         this.scene.fxLayer.addChild(this.debugText);
       }
+      this.debugText.scale.set(k);                      // 세로에서는 좌표 텍스트도 같이 키운다
       this.debugText.text = txt;
       this.debugText.visible = true;
       this.debugText.x = h.x - 110;
@@ -2372,29 +2385,31 @@
     }
 
     /* 발밑 기준점 — 이 점이 같은 레인(|dy| ≤ 48)에 있으면 서로 맞을 수 있다 */
-    _dbgFoot(x, y, color, shapes, tag) {
+    _dbgFoot(x, y, color, shapes, tag, k) {
       const g = this.debugG;
-      g.ellipse(x, y, 26, 9).stroke({ color, width: 1.3, alpha: 0.75 });
-      g.moveTo(x - 6, y).lineTo(x + 6, y).stroke({ color, width: 1.6, alpha: 0.8 });
-      g.moveTo(x, y - 4).lineTo(x, y + 4).stroke({ color, width: 1.6, alpha: 0.8 });
-      if (shapes) shapes.push({ kind: 'foot', tag, x: Math.round(x), y: Math.round(y), w: 52, h: 18 });
+      const s = k == null ? 1 : k;
+      g.ellipse(x, y, 26, 9).stroke({ color, width: 1.3 * s, alpha: 0.75 });
+      g.moveTo(x - 6, y).lineTo(x + 6, y).stroke({ color, width: 1.6 * s, alpha: 0.8 });
+      g.moveTo(x, y - 4).lineTo(x, y + 4).stroke({ color, width: 1.6 * s, alpha: 0.8 });
+      if (shapes) shapes.push({ kind: 'foot', tag, x: Math.round(x), y: Math.round(y), w: 52, h: 18, wpx: +(1.3 * s).toFixed(2) });
     }
 
-    _dbgActor(e, color, lane, shapes) {
+    _dbgActor(e, color, lane, shapes, k) {
       const g = this.debugG;
       const L = lane || G.LANE.hero;
+      const s = k == null ? 1 : k;
       g.rect(e.x - 20, e.y - L, 40, L * 2).fill({ color, alpha: 0.12 });
-      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 2.0, alpha: 0.7 });
-      g.moveTo(e.x, e.y).lineTo(e.x + 30 * (e.facing || -1), e.y).stroke({ color, width: 1.6, alpha: 0.7 });
-      if (shapes) shapes.push({ kind: 'enemy', x: Math.round(e.x - 20), y: Math.round(e.y - L), w: 40, h: L * 2 });
+      g.rect(e.x - 20, e.y - L, 40, L * 2).stroke({ color, width: 2.0 * s, alpha: 0.7 });
+      g.moveTo(e.x, e.y).lineTo(e.x + 30 * (e.facing || -1), e.y).stroke({ color, width: 1.6 * s, alpha: 0.7 });
+      if (shapes) shapes.push({ kind: 'enemy', x: Math.round(e.x - 20), y: Math.round(e.y - L), w: 40, h: L * 2, wpx: +(2.0 * s).toFixed(2) });
       if (e.state === 'windup') {
         // 예고 중인 적 공격 범위 — 이 박스 안에 있으면 맞는다
         const d = e.atkDir || e.facing || -1;
         const ax0 = d > 0 ? e.x - 6 : e.x - 210;
         const ay = e.atkY == null ? e.y : e.atkY;
         g.rect(ax0, ay - G.LANE.enemy, 216, G.LANE.enemy * 2).fill({ color: 0xb45bff, alpha: 0.12 });
-        g.rect(ax0, ay - G.LANE.enemy, 216, G.LANE.enemy * 2).stroke({ color: 0xc9a8ff, width: 1.6, alpha: 0.8 });
-        if (shapes) shapes.push({ kind: 'enemyAtk', x: Math.round(ax0), y: Math.round(ay - G.LANE.enemy), w: 216, h: G.LANE.enemy * 2 });
+        g.rect(ax0, ay - G.LANE.enemy, 216, G.LANE.enemy * 2).stroke({ color: 0xc9a8ff, width: 1.6 * s, alpha: 0.8 });
+        if (shapes) shapes.push({ kind: 'enemyAtk', x: Math.round(ax0), y: Math.round(ay - G.LANE.enemy), w: 216, h: G.LANE.enemy * 2, wpx: +(1.6 * s).toFixed(2) });
       }
     }
 
@@ -2414,32 +2429,34 @@
       }
       g.clear();
       const on = this.debugBoxes;
+      const k = this._judgeScale();                     // 세로 보정 배율 (가로 1.0)
       this.hitTrails.forEach((tr) => {
         const p = G.clamp(tr.t / tr.dur, 0, 1);
         const a = (on ? 0.30 : 0.10) * p;
         const x0 = tr.f > 0 ? tr.x - 6 : tr.x - tr.reach;
         g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).fill({ color: tr.color, alpha: a });
-        g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).stroke({ color: tr.color, width: 1.2, alpha: Math.min(1, a * 2.4) });
+        g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).stroke({ color: tr.color, width: 1.2 * k, alpha: Math.min(1, a * 2.4) });
       });
       this.hitMarks.forEach((m) => {
         const p = G.clamp(m.t / m.dur, 0, 1);
-        g.circle(m.x, m.y, 18 + 26 * (1 - p)).stroke({ color: 0xffffff, width: 2.2, alpha: 0.55 * p });
+        g.circle(m.x, m.y, 18 + 26 * (1 - p)).stroke({ color: 0xffffff, width: 2.2 * k, alpha: 0.55 * p });
         g.circle(m.x, m.y, 10 + 12 * (1 - p)).fill({ color: m.color || 0xffe9a8, alpha: 0.28 * p });
       });
     }
 
-    _drawJudgeTrails(g, shapes) {
+    _drawJudgeTrails(g, shapes, k) {
       const on = this.debugBoxes;
+      const s = k == null ? 1 : k;
       this.hitTrails.forEach((tr) => {
         const p = G.clamp(tr.t / tr.dur, 0, 1);
         const x0 = tr.f > 0 ? tr.x - 6 : tr.x - tr.reach;
         g.rect(x0, tr.y - tr.lane, tr.reach + 6, tr.lane * 2).fill({ color: 0xffffff, alpha: (on ? 0.26 : 0.10) * p });
-        shapes.push({ kind: 'trail', x: Math.round(x0), y: Math.round(tr.y - tr.lane), w: tr.reach + 6, h: tr.lane * 2, a: +((on ? 0.26 : 0.10) * p).toFixed(2) });
+        shapes.push({ kind: 'trail', x: Math.round(x0), y: Math.round(tr.y - tr.lane), w: tr.reach + 6, h: tr.lane * 2, a: +((on ? 0.26 : 0.10) * p).toFixed(2), wpx: +(1.2 * s).toFixed(2) });
       });
       this.hitMarks.forEach((m) => {
         const p = G.clamp(m.t / m.dur, 0, 1);
-        g.circle(m.x, m.y, 22 + 30 * (1 - p)).stroke({ color: 0xffe9a8, width: 2.4, alpha: 0.7 * p });
-        shapes.push({ kind: 'hit', x: Math.round(m.x - 20), y: Math.round(m.y - 20), w: 40, h: 40, a: +(0.7 * p).toFixed(2) });
+        g.circle(m.x, m.y, 22 + 30 * (1 - p)).stroke({ color: 0xffe9a8, width: 2.4 * s, alpha: 0.7 * p });
+        shapes.push({ kind: 'hit', x: Math.round(m.x - 20), y: Math.round(m.y - 20), w: 40, h: 40, a: +(0.7 * p).toFixed(2), wpx: +(2.4 * s).toFixed(2) });
       });
     }
 
@@ -2625,16 +2642,42 @@
       if (abs <= maxR + 60) h.facing = dir >= 0 ? 1 : -1;
     }
 
-    /* 몸통 겹침 방지 (Step 10-2) — 같은 레인(|dy| < 36)에서 히어로와 적·보스가
-       X·Y 0px로 완전히 겹쳐 서지 않게 최소 이격을 만든다.
+    /* 몸통 겹침 방지 (Step 10-2 · 10-3) — 같은 레인(|dy| < 36)에서 히어로와 적·보스가,
+       적끼리도 X·Y 0px로 완전히 겹쳐 서지 않게 최소 이격을 만든다.
        판정·공격·회피·넉백 계산에는 관여하지 않고 좌표만 부드럽게 민다.
        · 제자리에서 겹쳤을 때: 둘이 나눠서 비켜난다
        · 히어로가 걸어 들어올 때: 히어로는 그대로, 적을 같은 속도로 밀고 나간다
-       · 보스는 밀리지 않는다: 히어로가 접촉면까지만 물러난다 (걸어 들어오는 만큼만) */
+       · 보스는 밀리지 않는다: 히어로가 접촉면까지만 물러난다 (걸어 들어오는 만큼만)
+       · 적↔적(10-3): 같은 레인의 살아있는 적 쌍을 50:50 으로 갈라놓는다 (보스·사망 적 제외) */
     _pushbox(dt) {
       const h = this.kael;
       if (!h || h.state === 'dead' || h.state === 'dodge') return;   // 회피 중에는 통과를 막지 않는다
       const lane = G.PUSHBOX.lane;
+
+      /* ---- 적↔적 (Step 10-3) ----
+         히어로와의 이격보다 먼저 처리해, 같은 프레임에서 적이 히어로 접촉면으로
+         밀려나는 일이 없게 한다(히어로 이격이 마지막에 한 번 더 정리한다).
+         클램프는 사각 링(G.RING.left~right) 안쪽을 지키되, 링 밖에서 걸어 들어오는
+         적은 더 바깥으로 밀지 않는다(스폰 위치가 순간이동하지 않게). */
+      const minE = G.PUSHBOX.enemyEnemy;
+      const live = this.enemies.filter((e) => e && e.alive && !e.dying && e !== this.boss);
+      for (let i = 0; i < live.length; i++) {
+        const a = live[i];
+        for (let j = i + 1; j < live.length; j++) {
+          const b = live[j];
+          if (Math.abs((b.y || 0) - (a.y || 0)) >= lane) continue;   // 다른 레인은 서로 통과
+          const dx = b.x - a.x;
+          const ad = Math.abs(dx);
+          if (ad >= minE) continue;
+          const dir = Math.sign(dx) || (a.facing || b.facing || 1);  // 완전히 겹치면 보는 쪽으로
+          const need = Math.min(minE - ad, G.PUSHBOX.speed * dt) * 0.5;
+          a.x = G.clamp(a.x - dir * need, Math.min(a.x, G.RING.left), Math.max(a.x, G.RING.right));
+          b.x = G.clamp(b.x + dir * need, Math.min(b.x, G.RING.left), Math.max(b.x, G.RING.right));
+          a.obj.x = a.x;
+          b.obj.x = b.x;
+        }
+      }
+
       const pushOne = (a, minSep, heavy) => {
         if (!a || !a.alive || a.dying) return;
         if (Math.abs((a.y || 0) - h.y) >= lane) return;              // 다른 레인은 서로 통과

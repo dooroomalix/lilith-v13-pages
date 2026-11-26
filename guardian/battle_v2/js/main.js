@@ -305,17 +305,40 @@
         trails: (game.hitTrails || []).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), f: t.f, reach: t.reach, t: +t.t.toFixed(2) })),
         marks: (game.hitMarks || []).map((m) => ({ x: Math.round(m.x), y: Math.round(m.y), t: +m.t.toFixed(2) })),
         lane: G.LANE, pushbox: G.PUSHBOX,
+        strokes: { scale: +game._judgeScale().toFixed(2), attack: +(2.6 * game._judgeScale()).toFixed(2),
+          hurt: +(2.2 * game._judgeScale()).toFixed(2), enemy: +(2.0 * game._judgeScale()).toFixed(2),
+          trail: +(1.2 * game._judgeScale()).toFixed(2) },
+        cam: { scale: +(G.VIEW.cam.scale || 1).toFixed(3), zoom: +(G.VIEW.cam.zoom || 1).toFixed(2), active: !!G.VIEW.cam.active },
         hudBtn: game.hud && game.hud.buttons.judge ? { ...game.hud.buttons.judge } : null,
       }),
-      pushboxInfo: () => ({
-        lane: G.PUSHBOX,
-        hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing },
-        enemies: game.enemies.filter((e) => e.alive && !e.dying).map((e) => ({
-          x: Math.round(e.x), y: Math.round(e.y), dx: Math.round(e.x - game.kael.x), dy: Math.round(e.y - game.kael.y),
-        })),
-        boss: game.boss ? { x: Math.round(game.boss.x), y: Math.round(game.boss.y),
-          dx: Math.round(game.boss.x - game.kael.x), dy: Math.round(game.boss.y - game.kael.y) } : null,
-      }),
+      pushboxInfo: () => {
+        const live = game.enemies.filter((e) => e.alive && !e.dying && e !== game.boss);
+        const pairs = [];
+        let minD = null;
+        for (let i = 0; i < live.length; i++) {
+          for (let j = i + 1; j < live.length; j++) {
+            const a = live[i], b = live[j];
+            const dx = Math.abs(b.x - a.x);
+            const dy = Math.abs((b.y || 0) - (a.y || 0));
+            if (dy >= G.PUSHBOX.lane) continue;                 // 다른 레인은 겹침 계산 대상이 아니다
+            pairs.push({ ax: +a.x.toFixed(1), bx: +b.x.toFixed(1), dx: +dx.toFixed(1), dy: +dy.toFixed(1) });
+            if (minD == null || dx < minD) minD = dx;
+          }
+        }
+        return {
+          lane: G.PUSHBOX,
+          enemyEnemy: G.PUSHBOX.enemyEnemy,
+          enemyMinDist: minD == null ? null : +minD.toFixed(1),
+          enemyPairs: pairs,
+          enemyOverlaps: pairs.filter((p) => p.dx < G.PUSHBOX.enemyEnemy - 0.01).length,
+          hero: { x: Math.round(game.kael.x), y: Math.round(game.kael.y), facing: game.kael.facing },
+          enemies: game.enemies.filter((e) => e.alive && !e.dying).map((e) => ({
+            x: Math.round(e.x), y: Math.round(e.y), dx: Math.round(e.x - game.kael.x), dy: Math.round(e.y - game.kael.y),
+          })),
+          boss: game.boss ? { x: Math.round(game.boss.x), y: Math.round(game.boss.y),
+            dx: Math.round(game.boss.x - game.kael.x), dy: Math.round(game.boss.y - game.kael.y) } : null,
+        };
+      },
       autoMoveInfo: () => {
         const t = game._nearestEnemy();
         return {

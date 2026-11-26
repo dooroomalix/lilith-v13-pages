@@ -3,7 +3,7 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'v5.13.0-build530';
+G.VERSION = 'v5.13.1-build531';
 G.ASSET_V = 'a5.8.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
@@ -123,10 +123,13 @@ G.RING = {
 /* 스폰은 좌·우 양쪽에서 — 한쪽 편중을 없앤다 */
 G.SPAWN = { left: [70, 132], right: [1116, 1222], lane: 34 };
 
-/* 몸통 겹침 방지(Pushbox) — Step 10-2
+/* 몸통 겹침 방지(Pushbox) — Step 10-2 · 10-3
    같은 레인(lane px 이내)에서 히어로와 적·보스가 한 몸처럼 겹쳐 서지 않게
-   최소 X 이격을 유지한다. 판정(정면·리치·레인)은 손대지 않고 좌표만 부드럽게 민다. */
-G.PUSHBOX = { lane: 36, enemy: 58, boss: 115, speed: 900 };
+   최소 X 이격을 유지한다. 판정(정면·리치·레인)은 손대지 않고 좌표만 부드럽게 민다.
+     enemy      : 히어로 ↔ 적 최소 X 이격
+     boss       : 히어로 ↔ 보스 최소 X 이격
+     enemyEnemy : 적 ↔ 적 최소 X 이격 (Step 10-3 — 적끼리 한 점에 겹쳐 서지 않게) */
+G.PUSHBOX = { lane: 36, enemy: 58, boss: 115, enemyEnemy: 34, speed: 900 };
 
 G.spawnX = (side) => {
   const s = G.SPAWN[side === 'left' ? 'left' : 'right'];
@@ -152,6 +155,13 @@ G.VIEW = {
   cam: { active: false, zoom: 1, x: 0, y: 0, visW: G.W, visH: G.H },
 };
 G.isPortrait = () => G.VIEW.mode === 'portrait';
+
+/* 판정 표시 선 두께 보정 (Step 10-3)
+   세로는 월드를 폭 맞춤 띠로 줄이고 카메라 확대를 곱하므로, 화면 배율이 1보다 작아
+   2.6px 판정선이 화면에서 1.3px 로 가늘게 보인다. 세로일 때만 배율의 역수를 곱해
+   가로와 같은 굵기로 보이게 하고, 가로(1280×720)는 1.0 그대로 둔다.
+     portMin·portMax : 보정 배율의 하한·상한 (너무 굵어지지 않게 2.0배에서 멈춘다) */
+G.JUDGE = { portMin: 1.5, portMax: 2.0 };
 
 /* ------------------------------------------------------------------
  * 세로 추적 카메라 (Step 10-1)
