@@ -1,4 +1,4 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.4.0-build070
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.5.0-build080
 
 《마지막 성문의 수호자》 크리스마스 외전의 **4차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.13.2-build532)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
@@ -6,9 +6,30 @@
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.4.0-build070`
-- 코드: `js/` 15개 파일(본편 10개 + `xmas.js` + `lanterns.js` + `chars.js` + `rig.js` + `lobby.js`), 엔진 PixiJS v8
+- 스크립트 버전: `XMAS-2.5.0-build080`
+- 코드: `js/` 16개 파일(본편 10개 + `xmas.js` + `lanterns.js` + `chars.js` + `rig.js` + `lobby.js` + `ending.js`), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
+
+## XMAS-2.5.0-build080 — Step 11-3 최종 격파 시네마틱 · 모래먼지 엔딩
+
+각성(2차전) 노엘의 HP가 0이 되면(자해 포함) 승리 판을 바로 띄우지 않고 **시네마틱 엔딩**으로 이어집니다.
+
+| 단계 | 시각 | 연출 |
+|---|---|---|
+| ① 격파·비명 | 0.2초 | 섬광·슬로우·진동 → 한 맺힌 비명(`noel_scream`) · 「으아아아아악—!」 · 바닥에 쓰러진 노엘 일러스트(`noel_fallen`) 페이드 인 |
+| ② 반복 외침 | 1.8 / 5.9 / 8.9초 | 「다시는… 돌아오지 못하게 된 것 같아…」 → 「죽기 싫어… 죽기 싫어!」 → 「아직… 아직 죽기 싫어… 제발…」(`noel_plea1~3`) |
+| ③ 접근·손잡기 | 9.2 / 11.0 / 11.9초 | 출전 캐릭터(카엘·리아·아라·보른·세나)가 걸어가 무릎을 굽히고 손을 뻗어 잡는다 · 손잡기 클로즈업 컷(`noel_hand_hold`) · 카엘 「…응. 잡았어. 이제 그만 아파해도 돼.」 |
+| ④ 모래먼지 소멸 | 15.2~19.8초 | 손을 잡은 뒤 **발끝부터 위로** 마스크가 올라오며 모래 파티클이 바람에 흩어진다 → **잡은 손만 남았다가** 그 손마저 모래가 되어 사라진다 |
+| ⑤ 엔딩 종료 | 22.2초 | 여운 뒤 `MERRY CHRISTMAS!` 승리 결과판 · 오른쪽 위 **건너뛰기** 버튼으로 언제든 결과판으로 |
+
+- 대사는 전부 구어체이고, 비명·외침·속삭임은 ElevenLabs(Eleven v4 · 한국어 PVC Eunha −1.1반음 · Stability 50% / Similarity 75%)로 만들어 −15.9~−17.3 LUFS · 128 kbps mono 로 정리했습니다.
+- `js/ending.js`(신규): 타임라인 표 `Ending.TIMELINE`, 세계 좌표 연출(일러스트·손·파티클) + 화면 좌표(암전·자막·건너뛰기) 분리, 가로/세로 각각의 카메라 줌·팬.
+- `js/battle.js`: `onBossKilled()` 가 최종 격파를 알아보고 `startEnding()` 으로 넘깁니다. 엔딩 동안 입력·자동전투를 멈추고, 끝나면 `_endingDone()` 이 보스를 정리한 뒤 결과판을 띄웁니다.
+- `js/rig.js`: 엔딩 전용 포즈 `kneel`(무릎) · `reach`(손 뻗기) 추가 — 출전 캐릭터 5인 모두 같은 방식으로 동작합니다.
+- `restart()` · `_teardownBattle()` 이 엔딩 오브젝트·파티클·보이스·카메라 팬·BGM 잠금을 모두 되돌립니다.
+- 검증: `tools_xmas/verify_workflow_step11_3_xmas.py` **71/71**(가로 57 · 세로 390×844 12 · 증빙 2).
+
+
 
 ## XMAS-2.4.0-build070 — Step 11-2 노엘 1차 중파 · 각성 · 광폭화
 
@@ -20,7 +41,7 @@
 
 - 수치는 `js/xmas.js` 의 `G.Xmas.boss.forms` 표 하나에 모아 두었습니다(`hpMul: 4.0`, `dmgMul: 3.0`, `aspdMul: 3.0`, `selfDmg: 0.045`, `teleMin`, `heroDmgCap`).
 - **즉사 방지**: 예고 시간 하한(`teleMin`)과 1회 피해 상한(히어로 최대 체력의 42%)을 함께 둡니다.
-- 자해로 HP가 0이 되어도 정상 처치 → 승리 화면으로 이어집니다(Step 11-3 시네마틱은 다음 단계).
+- 자해로 HP가 0이 되어도 정상 처치 → Step 11-3 시네마틱 엔딩으로 이어집니다.
 - `restart()` / `_teardownBattle()` 이 중파·각성·광폭화 상태(리그·오라·배지·예고판·기록)를 모두 초기화합니다.
 - 신규 보이스 5종은 ElevenLabs(Eleven v4 · 한국어 PVC Eunha · Stability 50% / Similarity 75%)로 만들었습니다: `noel_damaged` · `noel_damaged2` · `noel_damaged_hit` · `noel_awake` · `noel_berserk` (−16.0~−16.5 LUFS · 128 kbps mono).
 

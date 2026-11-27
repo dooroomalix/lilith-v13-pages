@@ -335,6 +335,40 @@
       },
       bossApplyBerserk: () => { if (game.boss) { game.boss.hp = Math.round(game.boss.hpMax * 0.29); game.boss.phaseLock = 0; game.boss._applyBerserk(); } return game.boss ? game.boss.form : null; },
       bossSelfBleedNow: () => (game.boss ? game.boss._selfBleed() : null),
+      /* ---- Step 11-3 : 최종 격파 시네마틱 · 모래먼지 엔딩 ---- */
+      endingInfo: () => (game.ending ? game.ending.info() : (
+        game.lastEndingInfo ? Object.assign({ stored: true }, game.lastEndingInfo) : null)),
+      endingStart: () => { const e = game.startEnding(); return e ? e.info() : null; },
+      endingSkip: () => (game.ending ? game.ending.skip() : false),
+      endingSkipRect: () => (game.ending && game.ending.skipRect ? game.ending.skipRect : null),
+      endingStage: () => (game.ending ? game.ending.stage : (game.lastEndingInfo ? 'finished' : null)),
+      endingJump: (sec) => {
+        const e = game.ending;
+        if (!e) return null;
+        const target = Math.max(e.t, sec);
+        const dt = 1 / 60;
+        const n = Math.ceil((target - e.t) / dt) + 1;
+        for (let i = 0; i < n; i++) game.update(dt);
+        return e.info();
+      },
+      endingTexts: () => {
+        const e = game.ending;
+        if (!e || !e.subC) return [];
+        return e.subC.children.filter((c) => typeof c.text === 'string').map((c) => c.text);
+      },
+      endingMaterials: () => ({
+        fallen: !!G.Assets.tex.noelFallen, hand: !!G.Assets.tex.noelHand,
+        fallenW: G.Assets.tex.noelFallen ? G.Assets.tex.noelFallen.width : 0,
+        fallenH: G.Assets.tex.noelFallen ? G.Assets.tex.noelFallen.height : 0,
+        handW: G.Assets.tex.noelHand ? G.Assets.tex.noelHand.width : 0,
+        handH: G.Assets.tex.noelHand ? G.Assets.tex.noelHand.height : 0,
+        timeline: G.Ending ? G.Ending.TIMELINE : null,
+        cfg: G.Xmas.ending,
+      }),
+      endingVoiceFiles: () => ['noel_scream', 'noel_plea1', 'noel_plea2', 'noel_plea3', 'noel_farewell'],
+      camInfo: () => ({ zoom: +game.scene.zoom.toFixed(3), camX: game.scene.camX, camY: game.scene.camY,
+        worldX: +game.scene.world.position.x.toFixed(1), worldY: +game.scene.world.position.y.toFixed(1) }),
+      bossCleanup: () => ({ boss: !!game.boss, ending: !!game.ending, hud: !!(game.hud && game.hud.root.visible) }),
       bossRigSwap: () => { if (game.boss && game.boss._applyDamagedRig) return game.boss._applyDamagedRig(); return null; },
       hudBossFormRect: () => {
         const t = game.hud.bossFormText;

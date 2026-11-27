@@ -222,6 +222,35 @@
         o.hipFar = -0.3 * q; o.kneeFar = 0.5 * q;
         break;
       }
+      /* ---------- Step 11-3 : 엔딩 — 무릎 꿇고 손을 잡는다 ---------- */
+      case 'kneel': {
+        const br = Math.sin(t * 1.6);
+        o.torso.sy = 0.94 + br * 0.005;
+        o.torso.sx = 1.04;
+        o.torso.rot = 0.14;
+        o.head.rot = 0.10;
+        o.hipNear = -0.30; o.kneeNear = 0.62;
+        o.hipFar = -0.26; o.kneeFar = 0.54;
+        o.shNear = 0.30; o.elNear = 0.34;
+        o.shFar = 0.12; o.elFar = 0.26;
+        o.rootY = 5 + br * 0.6;
+        break;
+      }
+      case 'reach': {
+        const q = clamp(p, 0, 1);
+        const br = Math.sin(t * 1.6);
+        o.torso.sy = 0.94 + br * 0.005;
+        o.torso.sx = 1.04;
+        o.torso.rot = 0.12;
+        o.head.rot = 0.02;
+        o.hipNear = -0.30; o.kneeNear = 0.62;
+        o.hipFar = -0.26; o.kneeFar = 0.54;
+        o.shNear = 0.30 - 1.25 * q;
+        o.elNear = 0.34 - 0.16 * q;
+        o.shFar = 0.12; o.elFar = 0.26;
+        o.rootY = 5 + br * 0.6;
+        break;
+      }
       case 'victory': {
         const q = Math.sin(t * 2.4);
         o.shNear = -1.9 + q * 0.06;

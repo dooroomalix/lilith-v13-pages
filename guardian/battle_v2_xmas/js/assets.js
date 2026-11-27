@@ -13,6 +13,10 @@
     portraitSena: 'assets/portrait_sena.webp',
     scout: 'assets/mon_scout.webp',
     boss: 'assets/boss.webp',
+    // Step 11-3 : 최종 격파 시네마틱 — 쓰러진 노엘(손 분리) · 마지막에 남는 손
+    noelFallen: 'assets/ending/noel_fallen.webp',
+    noelHand: 'assets/ending/noel_hand.webp',
+    noelHandHold: 'assets/ending/noel_hand_hold.webp',
   };
 
   // 첫 화면에 바로 필요한 것만 먼저 받는다 (대기·걷기·달리기·1타·리아)

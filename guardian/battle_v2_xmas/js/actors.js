@@ -633,6 +633,10 @@
         st = 'ult'; p = G.clamp(this.stateT / 0.85, 0, 1);
       } else if (this.state === 'dead') {
         st = 'dead'; p = G.clamp(this.stateT / 0.9, 0, 1);
+      } else if (this.state === 'kneel') {
+        st = 'kneel'; p = 1;
+      } else if (this.state === 'reach') {
+        st = 'reach'; p = G.clamp(this.stateT / 0.5, 0, 1);
       } else if (this.z > 0 || this.vz > 0) {
         st = 'jump'; p = G.clamp(this.z / 190, 0, 1);
       } else if (this.landT > 0) {

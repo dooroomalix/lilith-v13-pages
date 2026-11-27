@@ -10,7 +10,7 @@
     TITLE: '메리 크리스마스! 성문을 지켜라',
     TITLE_EN: 'MERRY CHRISTMAS · GUARD THE GATE',
     SERIES: '마지막 성문의 수호자 외전',
-    VERSION: 'XMAS-2.4.0-build070',
+    VERSION: 'XMAS-2.5.0-build080',
     STAGE_NAME: '성문 광장',
     BOSS_STAGE_NAME: '눈보라 왕좌',
     STAGE_MSG: 'XMAS · 눈 내리는 성문 광장',
@@ -187,7 +187,29 @@
         skill3: 'noel_skill3', hit: 'noel_hit',
         damaged: 'noel_damaged', damaged2: 'noel_damaged2', damagedHit: 'noel_damaged_hit',
         awake: 'noel_awake', berserk: 'noel_berserk',
+        scream: 'noel_scream', plea1: 'noel_plea1', plea2: 'noel_plea2', plea3: 'noel_plea3', farewell: 'noel_farewell',
       },
+    },
+
+    /* ---- Step 11-3 : 최종 격파 시네마틱 · 모래먼지 엔딩 ----
+     *  격파 → 한 맺힌 비명 → 「다시는 돌아오지 못하게 된 것 같아 / 죽기 싫어」 반복 → 출전 캐릭터가
+     *  다가가 손을 잡으면 발끝부터 모래먼지로 사라지고, 잡은 손만 남았다가 그것도 바람에 흩어진다.
+     *  대사는 전부 구어체. 보이스는 ElevenLabs 한국어 PVC(Eunha −1.1반음)로 만든 파일을 쓴다.
+     */
+    ending: {
+      fallX: 556, fallY: 664, fallW: 520,   // 쓰러진 노엘 — 화면 좌표(1280×720)
+      heroDx: 300, heroY: 702,              // 다가가 무릎 꿇는 자리(오른쪽 아래·앞줄)
+      windX: 1.0,                           // 모래가 날리는 방향(오른쪽)
+      praise: '으아아아아악—!',
+      plea1: '다시는… 돌아오지 못하게 된 것 같아…',
+      plea2: '죽기 싫어… 죽기 싫어!',
+      plea3: '아직… 아직 죽기 싫어… 제발…',
+      farewell: '고마워… 이제… 조금만 쉬어도 될까…',
+      heroWalk: '…노엘.',
+      heroLine: '…응. 잡았어. 이제 그만 아파해도 돼.',
+      handLine: '손끝에서 모래가 흐른다',
+      skip: '건너뛰기',
+      hand: { x: 669.12, y: 151.5, w: 254, h: 202 },
     },
 
     /* 몬스터 보이스 — {variant}_atk / {variant}_hit */

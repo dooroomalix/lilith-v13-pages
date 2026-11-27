@@ -200,6 +200,8 @@
       this.motes = [];
       this.focus = 0;       // 캐릭터 x 기준 시차 오프셋
       this._focusTarget = 0;
+      this.camX = null;     // Step 11-3: 줌 중심(월드 좌표) — null 이면 화면 중앙
+      this.camY = null;
       this._build();
       // 2.5D 사각 링 — 어느 배경(광장/성문)이든 같은 무대 기준선을 얹는다
       this.ringG = ringFloor();
@@ -647,6 +649,12 @@
       this._zoomDur = dur;
     }
 
+    /* 엔딩용 카메라 팬 — 지정한 월드 좌표가 화면 중앙에 오도록 zoom 과 함께 쓴다 */
+    setCam(x, y) {
+      this.camX = x == null ? null : x;
+      this.camY = y == null ? null : y;
+    }
+
     /* 카메라 초점 (캐릭터 x) — 레이어별 시차 */
     setFocus(x) {
       this._focusTarget = G.clamp((x - 460) * 0.5, -180, 180);
@@ -673,9 +681,11 @@
 
       this.focus = G.lerp(this.focus, this._focusTarget, 1 - Math.pow(0.001, dt));
 
-      // 카메라: 줌 + 흔들림 (월드 전체)
+      // 카메라: 줌 + 흔들림 + (엔딩) 팬 — 월드 전체
       this.world.scale.set(this.zoom);
-      this.world.position.set(G.W / 2 + shakeX, G.H / 2 + shakeY);
+      const panX = this.camX == null ? 0 : -this.zoom * (this.camX - G.W / 2);
+      const panY = this.camY == null ? 0 : -this.zoom * (this.camY - G.H / 2);
+      this.world.position.set(G.W / 2 + shakeX + panX, G.H / 2 + shakeY + panY);
 
       // 레이어 시차
       this.skyLayer.x = -this.focus * 0.05 + Math.sin(t * 0.16) * 4;

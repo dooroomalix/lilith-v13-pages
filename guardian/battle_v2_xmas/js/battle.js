@@ -346,6 +346,7 @@
       this.overlay.scale.set(so);
       this.overlay.position.set(portrait ? w / 2 - 640 * so : 0, portrait ? h * 0.42 - 360 * so : 0);
 
+      if (this.ending && this.ending.applyLayout) this.ending.applyLayout();
       const fi = this.introC || this.introFade;
       if (fi) {
         fi.scale.set(portrait ? band.scale : 1);
@@ -375,6 +376,10 @@
       }
       if (this.phase === 'lobby' && this.lobby && this.lobby.root.visible) {
         this.lobby.tap(x, y);
+        return;
+      }
+      if (this.ending && this.ending.active) {
+        if (this.ending.skipHit(x, y)) { this.ending.skip(); G.Sfx.ui(false); }
         return;
       }
       if (this.resultActive) {
@@ -436,7 +441,8 @@
     handlePointerUp(x, y, id) { this.hud.pointerUp(x, y, id); }
 
     togglePause() {
-      if (this.phase === 'victory' || this.phase === 'defeat') return;
+      if (this.phase === 'victory' || this.phase === 'defeat' || this.phase === 'ending') return;
+      if (this.ending && this.ending.active) return;
       this.paused = !this.paused;
       if (this.paused) this._buildPauseOverlay();
       else this._clearOverlay();
@@ -776,12 +782,43 @@
 
     onBossKilled() {
       this.stats.kills++;
-      if (G.Xmas.ON) this.dialogueLine('노엘', G.Xmas.noel.defeat, 2.6);
+      const b = this.boss;
+      // Step 11-3 — 각성(2차전) 보스를 끝까지 눕혔으면 승리 판 대신 시네마틱 엔딩
+      const final = !!(G.Xmas.ON && G.Ending && b && (b.form === 'awakening' || b.form === 'berserk'));
       this.scene.shake(18, 1.2);
       this.scene.zoomTo(1.12, 1.6);
       this.hitStop = 0.18;
       G.Sfx.counter();
+      if (final) {
+        this.bossCutCD = 99;
+        if (this.bossCutin) { this.bossCutin.destroy({ children: true }); this.bossCutin = null; this.bossCutT = 0; }
+        this.after(0.3, () => this.startEnding());
+        return;
+      }
+      if (G.Xmas.ON) this.dialogueLine('노엘', G.Xmas.noel.defeat, 2.6);
       this.after(1.6, () => this._victory());
+    }
+
+    /* ---- Step 11-3 : 최종 격파 시네마틱 엔딩 ---- */
+    startEnding() {
+      if (this.ending || this.phase === 'victory') return null;
+      if (!G.Ending) { this.after(0.2, () => this._victory()); return null; }
+      this.ending = new G.Ending(this, this.boss);
+      this.ending.start();
+      return this.ending;
+    }
+
+    _endingDone(ending) {
+      this.ending = null;
+      if (this.hud && this.hud.root) this.hud.root.visible = true;
+      if (this.scene && this.scene.setCam) this.scene.setCam(null, null);
+      if (ending && ending.finished) {
+        const b = this.boss;
+        if (b && b.obj && !b.obj.destroyed) { b.obj.destroy({ children: true }); }
+        this.boss = null;
+      }
+      this.phase = 'wave';
+      this._victory();
     }
 
     /* ---- Step 11-2 : 1차 중파 · 각성 · 광폭화 연출 ---- */
@@ -1466,6 +1503,17 @@
         this.scene.update(realDt * 0.6);
         return;
       }
+      if (this.ending && this.ending.active) {
+        this.ending.update(realDt);
+        this.scene.update(realDt);
+        if (this.kael) this.kael.update(realDt, this.time);
+        if (this.lia) this.lia.update(realDt);
+        if (this.lanterns) this.lanterns.update(realDt);
+        if (this.boss && this.boss.update) this.boss.update(realDt, this.time, this.kael);
+        if (this.fx) this.fx.update(realDt);
+        this._updateDialogue(realDt);
+        return;
+      }
 
       // 히트스톱 / 슬로우
       let dt = realDt;
@@ -2058,6 +2106,7 @@
     /* 판 정리 — restart() 와 로비 복귀가 같은 경로를 쓴다.
        Step 11-2: 중파·각성·광폭화 상태(리그·오라·배지·예고)도 여기서 모두 끊는다. */
     _teardownBattle() {
+      if (this.ending) { this.ending.teardown(); this.ending = null; }
       this.enemies.forEach((e) => {
         if (e.tele) { e.tele.destroy(); e.tele = null; }
         if (e.obj) e.obj.destroy({ children: true });
@@ -2089,6 +2138,10 @@
 
     restart() {
       this._clearOverlay();
+      if (this.ending) { this.ending.teardown(); this.ending = null; }
+      if (this.scene && this.scene.setCam) this.scene.setCam(null, null);
+      if (this.hud && this.hud.root) this.hud.root.visible = true;
+      if (this.hud && this.hud.bossFormText) { this.hud.bossFormText.alpha = 0; }
       this._clearIntro();          // 타이틀 페이드 잔상이 전투 위에 남지 않게
       this.overlay.alpha = 1;
       // 2.5D 디버그 박스는 판을 넘기지 않는다

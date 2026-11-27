@@ -237,6 +237,12 @@
     noel_damaged_hit: { pri: 3, cool: 8000, vol: 0.72 },
     noel_awake: { pri: 6, cool: 15000, vol: 0.92 },
     noel_berserk: { pri: 6, cool: 15000, vol: 0.92 },
+    // Step 11-3 — 최종 격파 시네마틱(비명·외침·마지막 속삭임)
+    noel_scream: { pri: 8, cool: 20000, vol: 0.95 },
+    noel_plea1: { pri: 8, cool: 20000, vol: 0.92 },
+    noel_plea2: { pri: 8, cool: 20000, vol: 0.94 },
+    noel_plea3: { pri: 8, cool: 20000, vol: 0.94 },
+    noel_farewell: { pri: 8, cool: 20000, vol: 0.86 },
     snowball_atk: { pri: 2, cool: 3600, vol: 0.6 },
     snowball_hit: { pri: 1, cool: 4200, vol: 0.52 },
     mimic_atk: { pri: 2, cool: 3800, vol: 0.6 },
@@ -274,7 +280,54 @@
   Sfx._unduck = function () {
     this._voiceClean();
     if (this._vAct.length) return;
-    if (this.bgm && !this.muted) this.bgm.volume = this.bgmVolume;
+    if (this.bgm && !this.muted) this.bgm.volume = this.bgmHold != null ? this.bgmHold : this.bgmVolume;
+  };
+
+  /* Step 11-3 — 엔딩에서 BGM 을 서서히 잠재운다(0 이면 완전 정지) */
+  Sfx.bgmHold = null;
+  Sfx.fadeBgmTo = function (to, dur) {
+    const a = this.bgm;
+    const secs = Math.max(0.15, dur || 1.2);
+    if (this._bgmFadeT) { clearInterval(this._bgmFadeT); this._bgmFadeT = null; }
+    if (!a) { this.bgmHold = to; return; }
+    const from = a.volume || 0;
+    const steps = Math.max(1, Math.round(secs * 20));
+    let i = 0;
+    this.bgmHold = to;
+    this._bgmFadeT = setInterval(() => {
+      i += 1;
+      const p = Math.min(1, i / steps);
+      const v = from + (to - from) * p;
+      try { a.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
+      if (p >= 1) {
+        clearInterval(this._bgmFadeT);
+        this._bgmFadeT = null;
+        if (to <= 0.001) { try { a.pause(); } catch (_) {} this.bgmStarted = false; }
+      }
+    }, 50);
+  };
+
+  /* Step 11-3 — 바람 소리(모래가 흩날리는 구간) */
+  Sfx.wind = function (power) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const pw = Math.max(0.2, Math.min(1.6, power == null ? 1 : power));
+    const n = ctx.createBufferSource();
+    n.buffer = this._noiseBuf;
+    n.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(380, t);
+    bp.frequency.exponentialRampToValueAtTime(1350, t + 1.3);
+    bp.frequency.exponentialRampToValueAtTime(620, t + 3.0);
+    bp.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.15 * pw, t + 0.85);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.1);
+    n.connect(bp).connect(g).connect(this.master);
+    n.start(t);
+    n.stop(t + 3.2);
   };
 
   Sfx.stopAllVoices = function () {

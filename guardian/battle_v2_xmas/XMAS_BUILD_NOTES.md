@@ -1,4 +1,54 @@
 ---
+title: "XMAS-2.5.0-build080 — Step 11-3 최종 격파 시네마틱 · 모래먼지 엔딩"
+---
+# XMAS-2.5.0-build080 (2026-11-27) — Step 11-3
+
+기준: `XMAS-2.4.0-build070` → **`XMAS-2.5.0-build080`**
+
+## 1. 새로 만든 에셋
+
+| 파일 | 내용 |
+|---|---|
+| `assets/ending/noel_fallen_raw.png` · `noel_fallen.webp` | 치열한 전투 끝에 바닥에 쓰러진 노엘 전용 일러스트(중파 초상과 같은 화풍). 흰 배경 제거 + 흰 매트 제거 후 게임용 1180×944. 손 영역은 비워 두고 손 스프라이트가 정확히 덮는다 |
+| `assets/ending/noel_hand.webp` | 마지막까지 남는 장갑 낀 손(254×202) — 손목 절단면은 알파 페더 |
+| `assets/ending/noel_fallen.json` | 본체·손 좌표 메타(`hand x 669.12 · y 151.5`) |
+| `assets/ending/noel_hand_hold.webp` | 손을 잡는 순간의 클로즈업 컷(암갑을 낀 기사 손 + 노엘의 손, 손가락 사이로 모래) 1280×1024 |
+| `audio/noel_scream.mp3` | 한 맺힌 비명 2.59초 · −15.9 LUFS |
+| `audio/noel_plea1.mp3` | 「다시는… 돌아오지 못하게 된 것 같아…」 3.79초 · −16.6 LUFS |
+| `audio/noel_plea2.mp3` | 「죽기 싫어… 죽기 싫어!」 2.69초 · −16.4 LUFS |
+| `audio/noel_plea3.mp3` | 「아직… 아직 죽기 싫어… 제발…」 4.13초 · −16.6 LUFS |
+| `audio/noel_farewell.mp3` | 「고마워… 이제… 조금만 쉬어도 될까…」 4.68초 · −17.3 LUFS(속삭임) |
+
+- ElevenLabs Eleven v4 · 한국어 PVC Eunha(−1.1반음) · Stability 50% / Similarity 75% → 128 kbps mono.
+- 크레딧: 9,418 → **9,307**(111 사용, 차단된 테이크 1회 포함).
+- **대사 한 곳만 바꿨습니다**: 「죽고 싶지 않아」는 ElevenLabs 콘텐츠 정책상 차단되어(자해 표현) 같은 뜻의 더 구어적인 **「죽기 싫어…」**로 만들었고, 자막도 보이스와 똑같이 맞췄습니다.
+
+## 2. 고친 파일
+
+| 파일 | 변경 |
+|---|---|
+| `js/ending.js` (신규) | 엔딩 타임라인(`Ending.TIMELINE`) · 쓰러진 노엘/손/파티클(세계 좌표) · 암전·자막·건너뛰기(화면 좌표) · 발끝부터 올라오는 물결 마스크 · 모래 파티클 풀 · 가로/세로 카메라 줌·팬 · `info()` 검증 훅 |
+| `js/battle.js` | `onBossKilled()` 가 각성·광폭화 상태의 격파를 알아보고 `startEnding()` · `_endingDone()` · 엔딩 중 입력/자동전투 정지 · 스킵 포인터 처리 · `restart()`/`_teardownBattle()` 정리 · `applyLayout` 연동 |
+| `js/xmas.js` | `VERSION` · `ending` 설정(좌표·대사·클로즈업) · `noel.voice` 에 엔딩 보이스 5종 |
+| `js/rig.js` | 포즈 `kneel`(무릎 굽히기) · `reach`(손 뻗기) |
+| `js/actors.js` | `_driveRig` 가 `kneel`/`reach` 상태를 리그 포즈로 전달 |
+| `js/scene.js` | `setCam(x, y)` — 줌 중심 팬(엔딩 카메라) |
+| `js/audio.js` | 보이스 표 5종 · `fadeBgmTo()`(BGM 잠금) · `wind()`(모래 바람) |
+| `js/assets.js` | 엔딩 일러스트 3종 등록 |
+| `js/main.js` | 검증 훅 `endingInfo`·`endingStart`·`endingSkip`·`endingJump`·`endingMaterials`·`camInfo` 등 |
+| `js/util.js` · `index.html` | `XMAS-2.5.0-build080` · 쿼리 `r=8` · `G.ASSET_V = axmas2.5.0` · `ending.js` 로드 |
+| `tools_xmas/pack_deploy_xmas.py` | `assets/ending/`(webp·json) 배포 포함 |
+| `tools_xmas/verify_workflow_step11_3_xmas.py` | 신규 검증 59항목(가로 57 · 세로 12 · 증빙 2) |
+
+## 3. 검증 (로컬)
+
+- `node --check` **16/16 OK**.
+- 신규 `verify_workflow_step11_3_xmas.py` **71/71 ALL PASS** — 가로 57 · 세로 390×844 12 · 증빙 2.
+  - 각성 격파 → 엔딩 진입(결과판 아님·HUD 숨김·잔여 적 0), 비명 → 외침 3회(자막 문구 일치) → 접근·무릎·손잡기(리그 상태 kneel/reach, 클로즈업 알파) → 발끝부터 소멸(0→1 단조 증가·파티클) → 손만 남음 → 손 소멸 → MERRY CHRISTMAS 결과판, 건너뛰기, 자해 격파, restart 초기화, 조작·오토·타 게임명.
+- 회귀: 11-2 **65/65** · 11-1 **40/40** · 9-1 **60/60** · 8 **26/26** · 10-4 **50/51**(환경 SwiftShader WebGL 손실 1회 — 이전 빌드와 동일).
+- 기대값 갱신(정당한 변화): 11-2 E4·H10(최종 격파 → 시네마틱 엔딩), 8 H3(동일), 11-1 G5(보이스 16→21).
+
+---
 title: "XMAS-2.4.0-build070 — Step 11-2 노엘 1차 중파·각성·광폭화"
 ---
 
