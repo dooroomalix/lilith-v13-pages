@@ -27,7 +27,7 @@
 - `js/battle.js`: `onBossKilled()` 가 최종 격파를 알아보고 `startEnding()` 으로 넘깁니다. 엔딩 동안 입력·자동전투를 멈추고, 끝나면 `_endingDone()` 이 보스를 정리한 뒤 결과판을 띄웁니다.
 - `js/rig.js`: 엔딩 전용 포즈 `kneel`(무릎) · `reach`(손 뻗기) 추가 — 출전 캐릭터 5인 모두 같은 방식으로 동작합니다.
 - `restart()` · `_teardownBattle()` 이 엔딩 오브젝트·파티클·보이스·카메라 팬·BGM 잠금을 모두 되돌립니다.
-- 검증: `tools_xmas/verify_workflow_step11_3_xmas.py` **71/71**(가로 57 · 세로 390×844 12 · 증빙 2).
+- 검증: `tools_xmas/verify_workflow_step11_3_xmas.py` **72/72**(가로 58 · 세로 390×844 12 · 증빙 2).
 
 
 

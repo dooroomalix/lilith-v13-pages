@@ -307,6 +307,24 @@
     }, 50);
   };
 
+  /* Step 11-3 — 엔딩에서 잠재운 BGM 을 원래대로 되돌린다(재도전·로비 복귀) */
+  Sfx.resetBgm = function () {
+    if (this._bgmFadeT) { clearInterval(this._bgmFadeT); this._bgmFadeT = null; }
+    this.bgmHold = null;
+    const a = this.bgm;
+    if (!a) return;
+    try { a.volume = this.muted ? 0 : this.bgmVolume; } catch (_) {}
+    if (a.paused) {
+      this._wantPlay = true;
+      const p = a.play();
+      if (p && p.then) {
+        p.then(() => { this.bgmStarted = true; }).catch(() => { this._needGesture = true; });
+      } else {
+        this.bgmStarted = true;
+      }
+    }
+  };
+
   /* Step 11-3 — 바람 소리(모래가 흩날리는 구간) */
   Sfx.wind = function (power) {
     if (!this.ctx || this.muted) return;

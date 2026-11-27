@@ -422,6 +422,7 @@
       this.hud.root.visible = false;
       this.vignette.visible = false;
       this.lobby.open();
+      if (G.Sfx && G.Sfx.resetBgm) G.Sfx.resetBgm();
       if (G.Sfx && G.Sfx.lobby) G.Sfx.lobby();
     }
 
@@ -2142,6 +2143,7 @@
       if (this.scene && this.scene.setCam) this.scene.setCam(null, null);
       if (this.hud && this.hud.root) this.hud.root.visible = true;
       if (this.hud && this.hud.bossFormText) { this.hud.bossFormText.alpha = 0; }
+      if (G.Sfx.resetBgm) G.Sfx.resetBgm();   // 엔딩에서 잠재운 BGM 을 되살린다
       this._clearIntro();          // 타이틀 페이드 잔상이 전투 위에 남지 않게
       this.overlay.alpha = 1;
       // 2.5D 디버그 박스는 판을 넘기지 않는다
