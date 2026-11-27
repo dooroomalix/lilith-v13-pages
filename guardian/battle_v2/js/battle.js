@@ -2888,6 +2888,8 @@
 
     _buildResult(win, reason = '') {
       this._clearOverlay();
+      // 결과 판 뒤로 흔들림·펌치가 남아 배경이 흘러 보이지 않게 0 으로 되돌린다 (Step 10-5)
+      if (this.scene && this.scene.resetShake) this.scene.resetShake();
       // 로비 첫 대사가 직전 전투 결과에 반응한다 (Step 4-3)
       this.lastResult = win ? 'victory' : 'defeat';
       if (this.lobby) this.lobby.resultEcho = this.lastResult;
