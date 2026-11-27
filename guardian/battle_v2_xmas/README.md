@@ -1,4 +1,4 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.6.0-build090
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.7.0-build100
 
 《마지막 성문의 수호자》 크리스마스 외전의 **5차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.13.2-build532)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
@@ -6,9 +6,26 @@
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.6.0-build090`
+- 스크립트 버전: `XMAS-2.7.0-build100`
 - 코드: `js/` 16개 파일(본편 10개 + `xmas.js` + `lanterns.js` + `chars.js` + `rig.js` + `lobby.js` + `ending.js`), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
+
+## XMAS-2.7.0-build100 — Step 12 아군 그래픽·관절·메쉬 변형 개선 (본편과 동일 바인딩)
+
+카엘·리아·아라·보른·세나(기본·산타·가라 스킨 포함 15종)와 노엘·미믹·스노볼·루돌프의 가중치 메쉬를 Step 12 바인딩으로 다시 만들었습니다.
+
+| 항목 | 지금 (실제로 그려지는 변 기준) |
+|---|---|
+| 최대 신장률 | **1.2~2.7배** (같은 장면을 이전 그리드 기준으로 재면 최대 27배로 부풀어 보였다 — 그려지지 않는 칸까지 세던 오차) |
+| p99 신장률 | **1.0~1.55배** |
+| 얼굴 왜곡률 | **0.000~0.001%** |
+
+- 본편 `js/rig.js`의 Step 12 변경을 그대로 옮겼습니다: 머리 강체 바인딩 + `vlock`, 쇄골·상완·손목 분배(`CLAV`), 관절 ROM `LIMIT`, 신장 상한 `_limitStretch(1.55)`, 그리고 늘어남 측정을 **실제로 그려지는 변(edges)** 기준으로 교체.
+- 무기는 몸에서 떼지 않고 손 본 100% 강체로 묶습니다(외전은 손 소품이 몸에 붙어 있음).
+- 노엘 표정 오버레이(`Face`)·각성/광폭화 모션·엔딩(`kneel`·`reach`)은 그대로 유지됩니다.
+
+검증: `tools_xmas/verify_workflow_step12_xmas.py` **42/42 PASS**(가로·세로, 5인 × 11모션, 오류 0)
+증빙: `../guardian/evidence/workflow_step12_xmas_qa.png` · `.json`
 
 ## XMAS-2.6.0-build090 — Step 11-4 각성 빠른 BPM 캐롤 BGM · 광폭화 2차 중파
 

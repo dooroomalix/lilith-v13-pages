@@ -75,10 +75,17 @@
     rootY: 0, rootRot: 0, rootSX: 1, rootSY: 1, rootX: 0,
     torso: { rot: 0, x: 0, y: 0, sx: 1, sy: 1 },
     head: { rot: 0, x: 0, y: 0 },
-    shNear: 0, elNear: 0, shFar: 0, elFar: 0,
+    shNear: 0, elNear: 0, shFar: 0, elFar: 0, wrNear: 0, wrFar: 0,
     hipNear: 0, kneeNear: 0, hipFar: 0, kneeFar: 0,
     armSwing: 0,
   });
+
+  /* 사람 관절의 실제 가동 범위(rad) — 12프레임/초 SD 리그에서 넘으면 살이 늘어난다 */
+  const LIMIT = {
+    sh: [-1.45, 1.35], el: [0, 1.70], wr: [-0.55, 0.55],
+    hip: [-0.85, 0.85], knee: [0, 1.75], neck: [-0.55, 0.55], torso: [-0.40, 0.40],
+  };
+  const lim = (v, k) => (v < LIMIT[k][0] ? LIMIT[k][0] : v > LIMIT[k][1] ? LIMIT[k][1] : v);
 
   function pose(state, t, p, cfg) {
     const o = P0();
@@ -142,37 +149,43 @@
         const heavy = state === 'atk3';
         const wind = heavy ? 0.34 : 0.26;
         const q = clamp(p, 0, 1);
+        // 준비(뒤로) → 휘두름(앞으로) → 정리. 어깨·팔꿈치·손목이 시간차로 따라온다.
         let swing;
         if (q < wind) swing = -easeOut(q / wind);
-        else if (q < wind + 0.22) swing = lerp(-1, 1.25, easeIn((q - wind) / 0.22));
-        else swing = lerp(1.25, 0, easeOut((q - wind - 0.22) / (1 - wind - 0.22)));
+        else if (q < wind + 0.22) swing = lerp(-1, 1.15, easeIn((q - wind) / 0.22));
+        else swing = lerp(1.15, 0, easeOut((q - wind - 0.22) / (1 - wind - 0.22)));
         const dir = state === 'atk2' ? -1 : 1;
         const main = K.mainArm === 'near' ? 'Near' : 'Far';
         const off = main === 'Near' ? 'Far' : 'Near';
-        o['sh' + main] = swing * (heavy ? 2.0 : 1.55) * dir;
-        o['el' + main] = (heavy ? 0.35 : 0.55) - Math.max(0, swing) * 0.35;
-        o['sh' + off] = -swing * 0.35;
-        o['el' + off] = 0.25;
-        o.torso.rot = swing * (heavy ? 0.30 : 0.22) * dir;
-        o.head.rot = swing * 0.10;
-        o.hipNear = swing * 0.16;
-        o.hipFar = -swing * 0.10;
-        o.kneeNear = Math.max(0, swing) * 0.18;
-        o.rootX = swing * (heavy ? 7 : 4);
+        // 큰 회전은 상완이 맡고, 쇄골은 조금만(어깨가 으쓱), 팔꿈치는 뒤로 접힌다
+        const armMax = heavy ? 1.30 : 1.10;
+        o['sh' + main] = lim(swing * armMax * dir, 'sh');
+        o['el' + main] = lim((heavy ? 0.55 : 0.65) - Math.max(0, swing) * 0.25, 'el');
+        o['wr' + main] = lim(swing * 0.30 * dir, 'wr');
+        o['sh' + off] = lim(-swing * 0.28, 'sh');
+        o['el' + off] = 0.22;
+        o['wr' + off] = -swing * 0.10;
+        o.torso.rot = lim(swing * (heavy ? 0.22 : 0.16) * dir, 'torso');
+        o.head.rot = swing * 0.08;
+        o.hipNear = swing * 0.13;
+        o.hipFar = -swing * 0.09;
+        o.kneeNear = Math.max(0, swing) * 0.16;
+        o.rootX = swing * (heavy ? 6 : 3.5);
         o.rootY = heavy ? Math.abs(Math.sin(q * Math.PI)) * -3 : 0;
-        if (heavy && q > wind) { o.torso.sy = 1 - 0.05 * Math.sin((q - wind) * 6); }
+        if (heavy && q > wind) { o.torso.sy = 1 - 0.04 * Math.sin((q - wind) * 6); }
         break;
       }
       case 'cast': {
         const q = clamp(p, 0, 1);
         const raise = Math.sin(clamp(q / 0.45, 0, 1) * Math.PI * 0.5);
         const push = clamp((q - 0.45) / 0.3, 0, 1);
-        o.shNear = -1.35 * raise + push * 1.9;
-        o.shFar = -1.1 * raise + push * 1.6;
-        o.elNear = 0.5 * raise;
-        o.elFar = 0.4 * raise;
-        o.torso.rot = -0.12 * raise + push * 0.18;
-        o.head.rot = -0.06 * raise;
+        o.shNear = lim(-1.10 * raise + push * 1.45, 'sh');
+        o.shFar = lim(-0.90 * raise + push * 1.25, 'sh');
+        o.elNear = lim(0.45 * raise + push * 0.25, 'el');
+        o.elFar = 0.35 * raise;
+        o.wrNear = lim(-0.25 * raise + push * 0.30, 'wr');
+        o.torso.rot = lim(-0.10 * raise + push * 0.15, 'torso');
+        o.head.rot = -0.05 * raise;
         o.rootY = -raise * 2;
         o.torso.sy = 1 + 0.03 * raise;
         break;
@@ -180,10 +193,11 @@
       case 'ult': {
         const q = clamp(p, 0, 1);
         const up = Math.sin(clamp(q / 0.5, 0, 1) * Math.PI * 0.5);
-        o.shNear = -1.7 * up; o.shFar = -1.45 * up;
-        o.elNear = 0.25 * up; o.elFar = 0.2 * up;
-        o.torso.rot = -0.16 * up;
-        o.head.rot = -0.22 * up;
+        o.shNear = lim(-1.30 * up, 'sh'); o.shFar = lim(-1.15 * up, 'sh');
+        o.elNear = 0.22 * up; o.elFar = 0.18 * up;
+        o.wrNear = -0.35 * up; o.wrFar = -0.25 * up;
+        o.torso.rot = lim(-0.13 * up, 'torso');
+        o.head.rot = -0.18 * up;
         o.rootY = -3 * up;
         o.rootRot = -0.03 * up;
         break;
@@ -224,11 +238,12 @@
       }
       case 'victory': {
         const q = Math.sin(t * 2.4);
-        o.shNear = -1.9 + q * 0.06;
-        o.elNear = 0.3;
-        o.shFar = 0.25;
-        o.head.rot = -0.1 + q * 0.03;
-        o.torso.rot = -0.05;
+        o.shNear = lim(-1.30 + q * 0.05, 'sh');
+        o.elNear = 0.28;
+        o.shFar = 0.20;
+        o.wrNear = -0.25;
+        o.head.rot = -0.09 + q * 0.03;
+        o.torso.rot = -0.04;
         o.rootY = q * 1.5;
         break;
       }
@@ -256,13 +271,14 @@
       }
       case 'strike': {
         const q = clamp(p, 0, 1);
-        const sw = q < 0.35 ? lerp(-1, 1.5, easeIn(q / 0.35)) : lerp(1.5, 0.7, (q - 0.35) / 0.65);
-        o.shNear = sw * 1.5;
-        o.elNear = 0.3;
-        o.shFar = -sw * 0.3;
-        o.torso.rot = sw * 0.22;
-        o.head.rot = sw * 0.08;
-        o.rootX = sw * 5;
+        const sw = q < 0.35 ? lerp(-1, 1.2, easeIn(q / 0.35)) : lerp(1.2, 0.55, (q - 0.35) / 0.65);
+        o.shNear = lim(sw * 1.1, 'sh');
+        o.elNear = lim(0.30 + Math.max(0, sw) * 0.2, 'el');
+        o.wrNear = sw * 0.2;
+        o.shFar = lim(-sw * 0.25, 'sh');
+        o.torso.rot = lim(sw * 0.18, 'torso');
+        o.head.rot = sw * 0.07;
+        o.rootX = sw * 4;
         break;
       }
       case 'stumble': {
@@ -343,6 +359,18 @@
       this.vertCount = this.rest.length / 2;
       this.vmask = def.vmask || null;
       this.cmask = def.cmask || null;
+      this.edges = def.edges ? Uint32Array.from(def.edges) : null;   // 그려지는 삼각형의 변 목록(Step 12)
+      // Step 12: 머리 강체 코어 — 신장 상한이 얼굴을 당기지 못하게 잠근다
+      this.vlock = new Uint8Array(this.rest.length / 2);
+      const _hi = this.boneByName['head'] ? this.boneByName['head'].idx : -1;
+      if (_hi >= 0) {
+        for (let v = 0; v < this.vlock.length; v++) {
+          const inf = this.weights[v];
+          let wh = 0;
+          for (let k = 0; k < inf.length; k++) if (inf[k][0] === _hi) wh = inf[k][1];
+          if (wh >= 0.98) this.vlock[v] = 1;
+        }
+      }
       this.pos = new Float32Array(this.rest.length);
       this.pos.set(this.rest);
 
@@ -433,31 +461,38 @@
       this.spr.cloth += this.spr.clothV * dt;
 
       // ---- 포즈 → 본 로컬 회전
+      // Step 12: 팔 회전을 쇄골(어깨) → 상완 → 손목으로 나눠 인체 관절처럼 움직인다.
+      //  한 본에 90° 이상 몰아 주면 그 뿌리의 살점이 고무처럼 늘어난다.
       const tr = pd.torso.rot;
+      const CLAV = 0.16;
       const set = (name, rot) => { const b = this.boneByName[name]; if (b) b.rot = rot; };
       set('hips', tr * 0.0);
-      set('spine', tr * 0.45);
-      set('chest', tr * 0.55);
-      set('head', pd.head.rot - 1.35 * tr + this.spr.head * 0.35);
-      set('shoulder_near', 0); set('shoulder_far', 0);
-      set('upperarm_near', pd.shNear);
-      set('upperarm_far', pd.shFar);
-      set('forearm_near', pd.elNear);
-      set('forearm_far', pd.elFar);
-      set('thigh_near', pd.hipNear);
-      set('thigh_far', pd.hipFar);
-      set('shin_near', pd.kneeNear);
-      set('shin_far', pd.kneeFar);
+      set('spine', lim(tr * 0.45, 'torso'));
+      set('chest', lim(tr * 0.55, 'torso'));
+      set('head', lim(pd.head.rot - 0.75 * tr + this.spr.head * 0.35, 'neck'));
+      set('shoulder_near', lim(pd.shNear * CLAV, 'sh'));
+      set('shoulder_far', lim(pd.shFar * CLAV, 'sh'));
+      set('upperarm_near', lim(pd.shNear * (1 - CLAV), 'sh'));
+      set('upperarm_far', lim(pd.shFar * (1 - CLAV), 'sh'));
+      set('forearm_near', lim(pd.elNear, 'el'));
+      set('forearm_far', lim(pd.elFar, 'el'));
+      set('hand_near', lim(pd.wrNear || 0, 'wr'));
+      set('hand_far', lim(pd.wrFar || 0, 'wr'));
+      set('thigh_near', lim(pd.hipNear, 'hip'));
+      set('thigh_far', lim(pd.hipFar, 'hip'));
+      set('shin_near', lim(pd.kneeNear, 'knee'));
+      set('shin_far', lim(pd.kneeFar, 'knee'));
       // 발 디딤 — 앞다리를 살짝 딛고 상체가 먼저 돈다
       if (stepTurn > 0.001) {
         const th = this.boneByName.thigh_near, sh = this.boneByName.shin_near;
-        if (th) th.rot += -0.20 * stepTurn;
-        if (sh) sh.rot += 0.26 * stepTurn;
+        if (th) th.rot = lim(th.rot - 0.20 * stepTurn, 'hip');
+        if (sh) sh.rot = lim(sh.rot + 0.26 * stepTurn, 'knee');
       }
 
       this._solveWorld();
       this._footIK();
       this._skin();
+      this._limitStretch(1.55);   // Step 12: 남은 사슬 경계·긴장 변이 고무줄처럼 늘어나지 않게 상한
 
       // 몸 전체 변환
       const dirNow = this.yawTarget;
@@ -568,6 +603,42 @@
       if (buf) buf.update();
     }
 
+    /* 신장 상한 — 실제로 그려지는 변이 휴지 길이의 maxRatio 배를 넘으면
+     * 양 끝 정점을 서로 당겨 되돌린다(PBD 한 걸음). 가중치 메쉬는 관절에서
+     * 자연스럽게 휘지만, 사슬이 다른 두 정점이 한 변으로 묶인 곳은 팔을 들면
+     * 8~30배까지 늘어난다(Step 12 실측). 그런 소수 변만 잡는다. */
+    _limitStretch(maxRatio) {
+      const E = this.edges;
+      if (!E || !E.length) return;
+      const pos = this.pos, rest = this.rest;
+      let touched = false;
+      for (let it = 0; it < 2; it++) {
+        let any = false;
+        for (let e = 0; e < E.length; e += 2) {
+          const i = E[e], j = E[e + 1];
+          const r0 = Math.hypot(rest[j * 2] - rest[i * 2], rest[j * 2 + 1] - rest[i * 2 + 1]);
+          if (r0 < 3) continue;
+          const dx = pos[j * 2] - pos[i * 2], dy = pos[j * 2 + 1] - pos[i * 2 + 1];
+          const d = Math.hypot(dx, dy);
+          const mx = r0 * maxRatio;
+          if (d <= mx || d < 1e-4) continue;
+          const k = (d - mx) / d;
+          const wi = this.vlock[i] ? 0 : 1, wj = this.vlock[j] ? 0 : 1;
+          const sw = wi + wj;
+          if (!sw) continue;                       // 둘 다 머리 코어면 건드리지 않는다
+          const ki = k * (wi / sw), kj = k * (wj / sw);
+          pos[i * 2] += dx * ki; pos[i * 2 + 1] += dy * ki;
+          pos[j * 2] -= dx * kj; pos[j * 2 + 1] -= dy * kj;
+          any = true; touched = true;
+        }
+        if (!any) break;
+      }
+      if (touched) {
+        const buf = this.geo.getBuffer('aPosition');
+        if (buf) buf.update();
+      }
+    }
+
     hitFlash(color) { this.flash = 1; this.flashColor = color || 0xffb3b3; }
 
     /* 검증용 */
@@ -578,25 +649,38 @@
         out.bones[b.name] = { rot: +b.rot.toFixed(4), wx: +b.wx.toFixed(2), wy: +b.wy.toFixed(2) };
         if (this.nodes[b.name]) this.nodes[b.name].rotation = b.rot;
       }
-      // 이음새/늘어남 — 화면에 보이는 정점으로만 이루어진 격자칸만 본다
+      // 이음새/늘어남 — 실제로 그려지는 삼각형의 변만 본다(Step 12: 사슬 분리 후 변 목록)
       let maxStretch = 0, worst = null;
       const ratios = [];
-      const cols = this.cols, cm = this.cmask, vm = this.vmask;
-      let cell = 0;
-      for (let r = 0; r < this.rows - 1; r++) {
-        for (let c = 0; c < cols - 1; c++, cell++) {
-          const visible = cm ? cm[cell] === 1 : true;
-          if (!visible) continue;
-          const a = r * cols + c, b2 = a + 1, d = a + cols, e = d + 1;
-          if (vm && !(vm[a] && vm[b2] && vm[d] && vm[e])) continue;
-          const cells = [[a, b2], [a, d], [b2, e], [d, e]];
-          for (const [i, j] of cells) {
-            const d0 = Math.hypot(this.rest[j * 2] - this.rest[i * 2], this.rest[j * 2 + 1] - this.rest[i * 2 + 1]);
-            if (d0 < 4) continue;
-            const d1 = Math.hypot(this.pos[j * 2] - this.pos[i * 2], this.pos[j * 2 + 1] - this.pos[i * 2 + 1]);
-            const ratio = d1 / d0;
-            ratios.push(ratio);
-            if (ratio > maxStretch) { maxStretch = ratio; worst = [i, j, +ratio.toFixed(2)]; }
+      if (this.edges && this.edges.length) {
+        const E = this.edges, rest = this.rest, pos = this.pos;
+        for (let e = 0; e < E.length; e += 2) {
+          const i = E[e], j = E[e + 1];
+          const d0 = Math.hypot(rest[j * 2] - rest[i * 2], rest[j * 2 + 1] - rest[i * 2 + 1]);
+          if (d0 < 4) continue;
+          const d1 = Math.hypot(pos[j * 2] - pos[i * 2], pos[j * 2 + 1] - pos[i * 2 + 1]);
+          const ratio = d1 / d0;
+          ratios.push(ratio);
+          if (ratio > maxStretch) { maxStretch = ratio; worst = [i, j, +ratio.toFixed(2)]; }
+        }
+      } else {
+        const cols = this.cols, cm = this.cmask, vm = this.vmask;
+        let cell = 0;
+        for (let r = 0; r < this.rows - 1; r++) {
+          for (let c = 0; c < cols - 1; c++, cell++) {
+            const visible = cm ? cm[cell] === 1 : true;
+            if (!visible) continue;
+            const a = r * cols + c, b2 = a + 1, d = a + cols, e = d + 1;
+            if (vm && !(vm[a] && vm[b2] && vm[d] && vm[e])) continue;
+            const cells = [[a, b2], [a, d], [b2, e], [d, e]];
+            for (const [i, j] of cells) {
+              const d0 = Math.hypot(this.rest[j * 2] - this.rest[i * 2], this.rest[j * 2 + 1] - this.rest[i * 2 + 1]);
+              if (d0 < 4) continue;
+              const d1 = Math.hypot(this.pos[j * 2] - this.pos[i * 2], this.pos[j * 2 + 1] - this.pos[i * 2 + 1]);
+              const ratio = d1 / d0;
+              ratios.push(ratio);
+              if (ratio > maxStretch) { maxStretch = ratio; worst = [i, j, +ratio.toFixed(2)]; }
+            }
           }
         }
       }
@@ -609,6 +693,7 @@
       out.body = { sx: +this.body.scale.x.toFixed(4), sy: +this.body.scale.y.toFixed(4),
         rot: +this.body.rotation.toFixed(4), y: +this.body.y.toFixed(2) };
       out.maxStretch = +maxStretch.toFixed(3);
+      out.worstEdge = worst;
       out.stretchP95 = pct(0.95);
       out.stretchP99 = pct(0.99);
       out.maxMove = +moved.toFixed(2);
