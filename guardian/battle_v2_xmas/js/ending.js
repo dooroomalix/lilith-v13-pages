@@ -513,7 +513,7 @@
 
       // ---- 손잡기 클로즈업 ----
       if (this.closeC) {
-        const tin = G.clamp((this.t - T.closeIn) / 0.45, 0, 1);
+        const tin = G.clamp((this.t - T.closeIn) / 0.28, 0, 1);
         const tout = G.clamp((this.t - (T.closeOut - 0.55)) / 0.55, 0, 1);
         const a = Math.min(tin, 1 - tout);
         this.closeC.alpha = a;
@@ -526,7 +526,8 @@
       }
 
       // ---- 암전·화면 ----
-      this.dim.alpha = G.clamp((this.t - 2.2) / 2.4, 0, 1) * 0.34;
+      const closeA = this.closeC ? this.closeC.alpha : 0;
+      this.dim.alpha = G.clamp((this.t - 2.2) / 2.4, 0, 1) * (0.34 + 0.34 * closeA);
       this.skipC.alpha = 0.92;
       if (!this.skipReady && this.t > 0.6) { this.skipReady = true; }
 
