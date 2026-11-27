@@ -321,6 +321,17 @@
       this.zoom = 1;
       this.shakeAmp = 0;
       this.shakeT = 0;
+      this.shakeDur = 0;
+      /* Step 10-5 — 방향 킥 · 줌 펀치 상태 (정지·로비·결과에서 resetShake() 로 0 복구) */
+      this.kickX = 0;
+      this.kickY = 0;
+      this.kickT = 0;
+      this.kickDur = 0;
+      this.punchAmp = 0;
+      this.punchT = 0;
+      this.punchDur = 0;
+      this.punchZ = 1;
+      this.shakeOff = { x: 0, y: 0 };
       this.time = 0;
       this.embers = [];
       this.motes = [];
@@ -564,10 +575,87 @@
       this.fxLayer.addChild(s);
     }
 
-    shake(amp, dur = 0.25) {
+    /* ----------------------------------------------------------------
+       카메라 흔들림 (Step 4-1 → Step 10-5 강화)
+         shake(진폭px, 시간초, { dirX, dirY })
+       · 랜덤 진동은 기존 그대로 두고, dirX/dirY 를 주면 그 방향으로 한 번 크게
+         밀렸다가 감쇠 코사인으로 튕기며 돌아오는 "방향 킥"을 함께 건다.
+       · 흔들림은 배경이 덮는 여유(coverPad) 안으로 클램프해 가장자리 검은 빈틈이
+         생기지 않는다. 세로 화면에서는 보이는 카메라 창의 여백이 그 한계가 된다.
+       · 시간이 끝나면 진폭·킥을 정확히 0 으로 되돌려 잔류 흔들림이 남지 않는다. */
+    shake(amp, dur = 0.25, opts = null) {
+      const o = opts || {};
       this.shakeAmp = Math.max(this.shakeAmp, amp);
       this.shakeT = Math.max(this.shakeT, dur);
       this.shakeDur = Math.max(this.shakeDur || 0, dur);
+      if (o.dirX || o.dirY) {
+        const kDur = Math.max(0.14, dur * 0.9);
+        this.kickX = (o.dirX || 0) * amp * G.SHAKE.dir;
+        this.kickY = (o.dirY || 0) * amp * G.SHAKE.dirY;
+        this.kickT = kDur;
+        this.kickDur = kDur;
+      }
+    }
+
+    /* 줌 펀치 (Step 10-5) — 임팩트 순간 화면이 살짝 확대됐다가 곧바로 돌아온다.
+       zoomTo() 와 별개로 곱해지므로 큰 연출(궁극기·보스 킬)의 줌을 끊지 않는다.
+       1 미만으로는 내려가지 않아 축소로 인한 빈틈이 생기지 않는다. */
+    punch(amp = 0.03, dur = 0.16) {
+      const a = Math.min(Math.abs(amp), G.SHAKE.maxPunch);
+      if (!(a > 0)) return;
+      this.punchAmp = Math.max(this.punchAmp, a);
+      this.punchT = Math.max(this.punchT, dur);
+      this.punchDur = Math.max(this.punchDur || 0, dur);
+    }
+
+    /* 카메라가 움직인 뒤 흔들림을 새 여백에 맞춰 다시 잠근다 (Step 10-5).
+       세로 추적 카메라는 흔들림 이후에 위치가 바뀌므로, 그대로 두면 창이 월드 밖으로
+       몇 px 나가 빈틈이 생길 수 있다. 매 프레임 카메라 적용 끝에서 한 번 더 잠근다. */
+    reclampShake() {
+      const o = this.shakeOff;
+      if (!o || (!o.x && !o.y)) return;
+      const lim = this._shakeLimit();
+      const x = G.clamp(o.x, -lim.x, lim.x);
+      const y = G.clamp(o.y, -lim.y, lim.y);
+      if (x === o.x && y === o.y) return;
+      o.x = x; o.y = y;
+      const c = this._camCenter();
+      this.world.pivot.set(c.x, c.y);
+      this.world.position.set(c.x + x, c.y + y);
+    }
+
+    /* 흔들림·펀치를 즉시 0 으로 되돌린다 — 정지·로비·결과·재도전 */
+    resetShake() {
+      this.shakeAmp = 0; this.shakeT = 0; this.shakeDur = 0;
+      this.kickX = 0; this.kickY = 0; this.kickT = 0; this.kickDur = 0;
+      this.punchAmp = 0; this.punchT = 0; this.punchDur = 0; this.punchZ = 1;
+      this.shakeOff.x = 0; this.shakeOff.y = 0;
+      const c = this._camCenter();
+      this.world.pivot.set(c.x, c.y);
+      this.world.position.set(c.x, c.y);
+      this.world.scale.set(this.zoom);
+    }
+
+    /* 지금 화면이 보는 월드 창의 중심 — 세로 추적 카메라면 그 창, 가로면 월드 중심.
+       줌 펀치·줌 연출을 이 점을 축으로 걸어야 세로에서도 히어로가 화면 밖으로 밀리지 않는다. */
+    _camCenter() {
+      const c = G.VIEW && G.VIEW.cam;
+      if (c && c.active) return { x: c.x + c.visW / 2, y: c.y + c.visH / 2 };
+      return { x: G.W / 2, y: G.H / 2 };
+    }
+
+    /* 흔들림이 드러내도 되는 최대 이동량(월드 px) — 이만큼만 움직여야 빈틈이 없다 */
+    _shakeLimit() {
+      const c = G.VIEW && G.VIEW.cam;
+      if (c && c.active) {
+        const x = Math.min(c.x, Math.max(0, G.W - c.x - c.visW));
+        const y = Math.min(c.y, Math.max(0, G.H - c.y - c.visH));
+        return { x: Math.max(0, x), y: Math.max(0, y) };
+      }
+      const pad = (G.SHAKE && G.SHAKE.coverPad) || 2;
+      const bx = this.bg ? (this.bg.width - G.W) / 2 : 38;      // Sprite.width 는 배율이 곱해진 화면 크기다
+      const by = this.bg ? (this.bg.height - G.H) / 2 : 21;
+      return { x: Math.max(0, bx - pad), y: Math.max(0, by - pad) };
     }
 
     zoomTo(z, dur) {
@@ -587,12 +675,39 @@
       const t = this.time;
 
       const shakeFade = this.shakeT > 0 ? Math.pow(G.clamp(this.shakeT / Math.max(0.001, this.shakeDur), 0, 1), 1.7) : 0;
-      const shakeX = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade : 0;
-      const shakeY = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade * 0.7 : 0;
+      let shakeX = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade : 0;
+      let shakeY = this.shakeT > 0 ? G.rand(1, -1) * this.shakeAmp * shakeFade * G.SHAKE.yFactor : 0;
       if (this.shakeT > 0) {
         this.shakeT -= dt;
-        if (this.shakeT <= 0) { this.shakeAmp = 0; this.shakeDur = 0; }
+        if (this.shakeT <= 0) { this.shakeT = 0; this.shakeAmp = 0; this.shakeDur = 0; }
       }
+      /* 방향 킥 — 맞은 쪽으로 밀렸다가 감쇠 코사인으로 튕겨 돌아온다 */
+      if (this.kickT > 0) {
+        const kp = 1 - this.kickT / Math.max(0.001, this.kickDur);
+        const damp = Math.exp(-G.SHAKE.kickDecay * kp);
+        const osc = Math.cos(kp * Math.PI * G.SHAKE.kickFreq);
+        shakeX += this.kickX * damp * osc;
+        shakeY += this.kickY * damp * osc;
+        this.kickT -= dt;
+        if (this.kickT <= 0) { this.kickT = 0; this.kickX = 0; this.kickY = 0; this.kickDur = 0; }
+      }
+      if (shakeX || shakeY) {
+        const lim = this._shakeLimit();
+        shakeX = G.clamp(shakeX, -lim.x, lim.x);
+        shakeY = G.clamp(shakeY, -lim.y, lim.y);
+      }
+      this.shakeOff.x = shakeX;
+      this.shakeOff.y = shakeY;
+
+      /* 줌 펀치 — 0프레임에 최대로 확대됐다가 2차 곡선으로 돌아온다 (1 미만 없음) */
+      let punchZ = 1;
+      if (this.punchT > 0) {
+        const pp = 1 - this.punchT / Math.max(0.001, this.punchDur);
+        punchZ = 1 + this.punchAmp * (1 - pp) * (1 - pp);
+        this.punchT -= dt;
+        if (this.punchT <= 0) { this.punchT = 0; this.punchAmp = 0; this.punchDur = 0; punchZ = 1; }
+      }
+      this.punchZ = punchZ;
 
       if (this._zoomDur) {
         this._zoomT += dt;
@@ -603,9 +718,11 @@
 
       this.focus = G.lerp(this.focus, this._focusTarget, 1 - Math.pow(0.001, dt));
 
-      // 카메라: 줌 + 흔들림 (월드 전체)
-      this.world.scale.set(this.zoom);
-      this.world.position.set(G.W / 2 + shakeX, G.H / 2 + shakeY);
+      /* 카메라: 줌(연출×펀치) + 흔들림 — 축은 세로 추적 카메라의 보이는 창 중심 */
+      const center = this._camCenter();
+      this.world.pivot.set(center.x, center.y);
+      this.world.scale.set(this.zoom * punchZ);
+      this.world.position.set(center.x + shakeX, center.y + shakeY);
 
       // 레이어 시차
       this.skyLayer.x = -this.focus * 0.05 + Math.sin(t * 0.16) * 4;

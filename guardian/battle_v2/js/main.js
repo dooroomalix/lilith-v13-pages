@@ -239,6 +239,7 @@
         defDown: game.enemies.filter((e) => e.alive && e.defDown > 0).length +
           (game.boss && game.boss.defDown > 0 ? 1 : 0),
         feel: game.feelLog.slice(-8),
+        feelLog: game.feelLog.slice(-8),
         hitStop: +game.hitStop.toFixed(3),
         shakeAmp: +(game.scene.shakeAmp || 0).toFixed(1),
         audio: G.Sfx.mixState ? G.Sfx.mixState() : null,
@@ -546,6 +547,38 @@
       hudLayout: () => (game.hud && game.hud.layoutInfo ? game.hud.layoutInfo() : null),
       lobbyLayout: () => (game.lobby && game.lobby.layoutInfo ? game.lobby.layoutInfo() : null),
       hitAt: (x, y) => ({ hud: game.hud && game.hud.ownerAt ? game.hud.ownerAt(x, y) : null }),
+      /* ---- Step 10-5 : 카메라 흔들림·줌 펀치·타격 이펙트 ----
+         흔들림·킥·펀치가 지금 얼마나 걸려 있는지와, 월드가 실제로 얼마나 움직였는지(offX/offY)를
+         그대로 돌려준다. 잔류 0 복구를 검사할 때 t·punchT 가 0 인지 본다. */
+      shakeInfo: () => {
+        const s = game.scene;
+        const w = s.world;
+        const cam = G.VIEW.cam;
+        return {
+          amp: +(s.shakeAmp || 0).toFixed(3), t: +(s.shakeT || 0).toFixed(4), dur: +(s.shakeDur || 0).toFixed(4),
+          kickX: +(s.kickX || 0).toFixed(3), kickY: +(s.kickY || 0).toFixed(3),
+          kickT: +(s.kickT || 0).toFixed(4), kickDur: +(s.kickDur || 0).toFixed(4),
+          punchAmp: +(s.punchAmp || 0).toFixed(4), punchT: +(s.punchT || 0).toFixed(4),
+          punchZ: +(s.punchZ || 1).toFixed(4), zoom: +(s.zoom || 1).toFixed(4),
+          worldScale: +(w.scale.x || 1).toFixed(4),
+          offX: +(w.x - w.pivot.x).toFixed(2), offY: +(w.y - w.pivot.y).toFixed(2),
+          pivot: { x: +w.pivot.x.toFixed(2), y: +w.pivot.y.toFixed(2) },
+          limit: (() => { const l = s._shakeLimit(); return { x: +l.x.toFixed(2), y: +l.y.toFixed(2) }; })(),
+          cam: { active: !!cam.active, x: +cam.x.toFixed(2), y: +cam.y.toFixed(2),
+            visW: +cam.visW.toFixed(2), visH: +cam.visH.toFixed(2) },
+        };
+      },
+      fxInfo: () => ({
+        items: game.fx.items.length, count: game.fx.count || 0, emitted: game.fx.emitted || 0,
+        log: game.fx.log.slice(-16), last: game.fx.log[game.fx.log.length - 1] || null,
+      }),
+      /* 검증용 — 지금 판의 타격 이펙트·셰이크를 모두 지운 깨끗한 상태로 만든다 */
+      resetFeel: () => {
+        game.scene.resetShake();
+        game.feelLog.length = 0;
+        game.hitStop = 0;
+        return window.__debug.shakeInfo();
+      },
     };
   }
 

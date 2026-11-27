@@ -246,7 +246,7 @@
         g.boss.kbV = Math.max(g.boss.kbV, 90);
         g.boss.kbDir = g.boss.x >= k.x ? 1 : -1;
       }
-      g._feel('support-ara', { stop: G.FEEL.support.ara.stop, shake: G.FEEL.support.ara.shake, shakeDur: G.FEEL.support.ara.shakeDur });
+      g._feel('support-ara', { stop: G.FEEL.support.ara.stop, shake: G.FEEL.support.ara.shake, shakeDur: G.FEEL.support.ara.shakeDur, punch: G.FEEL.support.ara.punch });
       g.flashImpact(0.08, 0xffc247);
       g.scene.zoomTo(1.025, 0.16);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
@@ -266,7 +266,7 @@
       g.fx.sparkBurst(cx, k.centerY, 0xffc27a, 30, 700);
       g.fx.debris(cx, k.y - 4, 9, 0xffa56a, 1.15);
       g.fx.groundBurst(cx, k.y);
-      g._feel('support-born', { stop: G.FEEL.support.born.stop, shake: G.FEEL.support.born.shake, shakeDur: G.FEEL.support.born.shakeDur });
+      g._feel('support-born', { stop: G.FEEL.support.born.stop, shake: G.FEEL.support.born.shake, shakeDur: G.FEEL.support.born.shakeDur, punch: G.FEEL.support.born.punch, dirY: 0.55 });
       g.flashImpact(0.16, 0xffd0a0);
       g.scene.zoomTo(1.03, 0.14);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
@@ -320,7 +320,7 @@
         g.fx.sparkBurst(e.x, e.centerY - 40, 0xd9c8ff, 6, 200);
       });
       if (g.boss && g.boss.alive && !g.boss.dying) g.fx.ring(g.boss.x, g.boss.y - 12, 0xb98bff, 180, 0.8, 5, 0.4);
-      g._feel('support-sena', { stop: G.FEEL.support.sena.stop, shake: G.FEEL.support.sena.shake, shakeDur: G.FEEL.support.sena.shakeDur });
+      g._feel('support-sena', { stop: G.FEEL.support.sena.stop, shake: G.FEEL.support.sena.shake, shakeDur: G.FEEL.support.sena.shakeDur, punch: G.FEEL.support.sena.punch });
       g.flashImpact(0.12, 0xb98bff);
       g.scene.zoomTo(1.02, 0.16);
       g.after(0.34, () => { if (g.phase === 'wave' || g.phase === 'boss') g.scene.zoomTo(1, 0.42); });
@@ -484,7 +484,7 @@
           a.struck = true;
           g.fx.groundBurst(a.xCast, a.y);
           g.fx.dust(a.xCast, a.y, facing, 1.1);
-          g.scene.shake(a.kind === 'born' ? 11 : 6, 0.26);
+          g.scene.shake(a.kind === 'born' ? 12 : 7, 0.26, { dirY: a.kind === 'born' ? 0.6 : 0.2 });
           this._effect(a.kind);
         }
       } else {

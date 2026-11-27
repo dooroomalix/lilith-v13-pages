@@ -359,6 +359,8 @@
       this.phaseBanner = 0;
       this.phaseMsg = '';
       this.paused = false;
+      // 판을 넘길 때 흔들림·줌 펀치를 0 으로 — 다음 화면(로비·결과)이 흘러 보이지 않게 (Step 10-5)
+      if (this.scene && this.scene.resetShake) this.scene.resetShake();
     }
 
     /* 성문 대기실(로비)로 들어간다 — 타이틀 / 결과 화면 [로비로] */
@@ -369,9 +371,10 @@
       this.kael.hp = this.kael.hpMax;
       this.hud.root.visible = false;
       this.vignette.visible = false;
-      // 전투 카메라 줌이 남아 있으면 다음 출격이 어긋난다
+      // 전투 카메라 줌·흔들림이 남아 있으면 다음 출격·로비 배경이 어긋난다
       this.scene.zoom = 1;
       this.scene._zoomDur = 0;
+      if (this.scene.resetShake) this.scene.resetShake();
       this.scene.focus = 0;
       this.scene._focusTarget = 0;
       G.Sfx.resume();
@@ -604,8 +607,8 @@
       this.cam.visH = G.H / t.zoom;
       this.cam.x = t.x;
       this.cam.y = t.y;
-      this._applyCamera();
       this._publishCam();
+      this._applyCamera();
     }
 
     /* 배우(히어로·보스)의 머리 끝(월드 좌표) — 리그·스프라이트 바운딩을 0.1초에 한 번 잰다.
@@ -693,8 +696,8 @@
         const head = this._actorTop(h, air) - 10;
         if (head < this.cam.y) this.cam.y = G.clamp(head, 0, Math.max(0, G.H - this.cam.visH));
       }
+      this._publishCam();          // 흔들림 재잠금이 '지금' 창을 기준으로 하도록 먼저 공개한다
       this._applyCamera();
-      this._publishCam();
     }
 
     /* 배치가 바뀌거나 새 판이 시작할 때 — 보간 없이 바로 자리를 잡는다 */
@@ -708,8 +711,8 @@
       this.cam.visH = G.H / t.zoom;
       this.cam.x = t.x;
       this.cam.y = t.y;
-      this._applyCamera();
       this._publishCam();
+      this._applyCamera();
     }
 
     _applyCamera() {
@@ -717,6 +720,8 @@
       const s = band.scale * this.cam.zoom;
       this.scene.root.scale.set(s);
       this.scene.root.position.set(band.x - this.cam.x * s, band.y - this.cam.y * s);
+      // 카메라가 움직였으니 흔들림이 새 창 여백을 넘지 않게 다시 잠근다
+      if (this.scene.reclampShake) this.scene.reclampShake();
     }
 
     _publishCam() {
@@ -788,8 +793,11 @@
       if (this.phase === 'lobby') return;          // 로비에는 일시정지가 없다
       if (this.phase === 'victory' || this.phase === 'defeat') return;
       this.paused = !this.paused;
-      if (this.paused) this._buildPauseOverlay();
-      else this._clearOverlay();
+      if (this.paused) {
+        // 일시정지 화면에서 흔들림·펀치가 남아 배경이 흘러 보이지 않게 0 으로 되돌린다
+        if (this.scene.resetShake) this.scene.resetShake();
+        this._buildPauseOverlay();
+      } else this._clearOverlay();
     }
 
     cycleAuto() {
@@ -809,14 +817,22 @@
     }
 
     /* ---------------- 데미지 ---------------- */
-    /* 타격감 적용: G.FEEL(util.js) 기준표의 값을 히트스톱·셰이크에 반영하고 검증용 로그를 남긴다.
-       stop 은 상한(cap)을 넘지 않게 잘라 조작감이 끊기지 않도록 한다. */
+    /* 타격감 적용: G.FEEL(util.js) 기준표의 값을 히트스톱·셰이크·줌 펀치에 반영하고
+       검증용 로그를 남긴다. stop 은 상한(cap)을 넘지 않게 잘라 조작감이 끊기지 않도록 한다.
+       Step 10-5 — dir(좌우)·dirY(위아래)를 주면 그 방향으로 미는 셰이크가 함께 걸린다. */
     _feel(kind, o = {}) {
       const stop = Math.max(0, Math.min(o.stop === undefined ? 0 : o.stop, G.FEEL.cap));
       const shake = o.shake === undefined ? 0 : o.shake;
+      const punch = o.punch === undefined ? 0 : o.punch;
+      const dir = o.dir || 0;
+      const dirY = o.dirY || 0;
       if (stop > 0) this.hitStop = Math.max(this.hitStop, stop);
-      if (shake > 0) this.scene.shake(shake, o.shakeDur || 0.2);
-      const rec = { t: +this.time.toFixed(3), kind, stop: +stop.toFixed(3), shake: +shake.toFixed(1), combo: this.combo };
+      if (shake > 0) this.scene.shake(shake, o.shakeDur || 0.2, { dirX: dir, dirY });
+      if (punch > 0) this.scene.punch(punch, o.punchDur || Math.max(0.13, (o.shakeDur || 0.2) * 0.8));
+      const rec = {
+        t: +this.time.toFixed(3), kind, stop: +stop.toFixed(3), shake: +shake.toFixed(1),
+        punch: +punch.toFixed(3), dir: +dir.toFixed(0), dirY: +dirY.toFixed(1), combo: this.combo,
+      };
       this.feelLog.push(rec);
       if (this.feelLog.length > 200) this.feelLog.shift();
       return rec;
@@ -850,14 +866,19 @@
       const hx = cx + (reachDist - 20) * f;
       /* Step 10-2 — 공격 활성 프레임의 짧은 타점 범위 잔상 (검기 궤적과 같은 방향) */
       this._markStrike(hero, cfg, f, cfg.reach + 40, cfg.c1 != null ? cfg.c1 : 0x9fd6ff);
+      /* Step 10-5 — 방향성 검기 파편: 벨어낸 방향으로 짧게 뻗는 잔광이 속도를 만든다 */
+      const sang = f >= 0 ? cfg.ang : Math.PI - cfg.ang;
+      this.fx.slashStreaks(hx, cy, sang, heavy ? 10 : 5, heavy ? 1.35 : 1.0,
+        heavy ? 0xffe6b0 : 0xcfe9ff, heavy ? 1.25 : 1.0);
       this.fx.burst(hx, cy, {
         color: 0x9fd6ff, core: 0xffffff, rays: heavy ? 22 : 16, length: heavy ? 210 : 155,
         width: heavy ? 9 : 7, dur: 0.19, angle: cfg.ang * 0.3,
       });
-      this.fx.sparkBurst(hx, cy, heavy ? 0xffe0a0 : 0xbfe4ff, heavy ? 14 : 9, heavy ? 520 : 360, cfg.ang);
+      this.fx.sparkBurst(hx, cy, heavy ? 0xffe0a0 : 0xbfe4ff, heavy ? 18 : 10, heavy ? 560 : 390, cfg.ang,
+        { tex: 'spark', spread: 0.9, speed: heavy ? 1.15 : 1.0 });
       if (heavy) {
         this.fx.shockRing(hero.x + 150 * f, hero.y - 8, 0x9fd6ff, 410, 0.6);
-        this.fx.sparkBurst(hx, cy, 0xffd79a, 30, 620, cfg.ang);
+        this.fx.sparkBurst(hx, cy, 0xffd79a, 30, 620, cfg.ang, { tex: 'spark', spread: 1.4 });
         this.fx.groundBurst(hero.x + 170 * f, hero.y);
       }
 
@@ -883,24 +904,24 @@
         }
       }
       if (hits > 0) {
-        // 콤보·공중·보스·크리티컬별로 히트스톱·셰이크 강도를 구분한다 (G.FEEL 기준표)
+        // 콤보·공중·보스·크리티컬별로 히트스톱·셰이크·줌 펀치를 구분한다 (G.FEEL 기준표)
         const bossHit = bossDidHit;
-        const multi = idx >= 2 && hits > 1 ? G.FEEL.multiFinisher : { stopScale: 1, shakeScale: 1 };
+        const multi = idx >= 2 && hits > 1 ? G.FEEL.multiFinisher : { stopScale: 1, shakeScale: 1, punchScale: 1 };
         const sStop = F.stop * (bossHit ? G.FEEL.bossHit.stopScale : critHit ? G.FEEL.crit.stopScale : 1) * multi.stopScale;
         const sShake = F.shake * (bossHit ? G.FEEL.bossHit.shakeScale : critHit ? G.FEEL.crit.shakeScale : 1) * multi.shakeScale;
+        const sPunch = (F.punch || 0) * (bossHit ? G.FEEL.bossHit.punchScale : critHit ? G.FEEL.crit.punchScale : 1) * multi.punchScale;
         this._feel((air ? 'air-' : 'combo-') + (idx + 1), {
           stop: sStop, shake: sShake, shakeDur: F.shakeDur + (bossHit ? 0.04 : 0),
+          punch: sPunch, dir: f, dirY: air ? 0.7 : (heavy ? 0.3 : 0),
         });
-        this.flashImpact(heavy ? 0.55 : air ? 0.2 : 0.07);
+        this.flashImpact(heavy ? 0.4 : air ? 0.2 : (critHit ? 0.17 : 0.11));
         if (heavy) {
-          this.fx.shockRing(hx, cy, 0xe6efff, 570, 0.48);
-          this.fx.sparkBurst(hx, cy, 0xd7baff, 76, 850);
-          this.scene.zoomTo(1.04, 0.09);
-          this.after(0.12, () => this.scene.zoomTo(1, 0.28));
+          this.fx.shockRing(hx, cy, 0xbfe4ff, 465, 0.5);
+          this.fx.sparkBurst(hx, cy, 0xd7baff, 76, 850, cfg.ang, { tex: 'spark', spread: 1.5 });
         }
         if (critHit || bossHit) {
           this.fx.impactFrame(hx, cy, bossHit ? this.boss : null);
-          if (!heavy) this.flashImpact(0.15, 0xffffff);
+          if (!heavy) this.flashImpact(0.2, 0xffffff);
         }
         G.Sfx.hit(heavy || critHit);
         this.combo += hits;
@@ -929,6 +950,16 @@
       const dir = Math.sign(e.x - hero.x) || (hero.facing || 1);   // 때린 쪽 반대로 밀린다
       e.takeDamage(dmg, { crit, knock, dir });
       this._markHit(e.x, e.centerY, crit ? 0xffe9a8 : 0xbfe4ff);   // 누가 맞았는지 즉시 보이게 (Step 10-2)
+      /* Step 10-5 — 맞은 자리에 임팩트 크로스 + 별 섬광 (3타·크리티컬은 크고 밝게) */
+      const heavyHit = idx >= 2;
+      this.fx.impactCross(e.x, e.centerY, {
+        size: crit ? 195 : heavyHit ? 178 : 122,
+        angle: G.rand(0.9, 0.35),
+        color: crit ? 0xffe08a : heavyHit ? 0xffe6b0 : 0xcfe9ff,
+        dur: crit || heavyHit ? 0.2 : 0.15,
+        glow: crit ? 0.6 : 0.4,
+      });
+      if (!heavyHit || crit) this.fx.hitSpark(e.x, e.centerY, crit ? 0xffe0a0 : 0xdff2ff, crit ? 0.85 : 0.6, 0.17);
       if (air) {
         // 공중 공격은 적을 아래로 눌러 찍는 느낌을 더한다
         this.fx.debris(e.x, e.centerY + e.baseH * 0.3, 5, 0xbfe4ff, 0.9);
@@ -957,6 +988,16 @@
       const kb = air ? 110 : (idx === 2 ? 90 : 45);
       this.boss.takeDamage(dmg, { crit, kb, dir: Math.sign(this.boss.x - hero.x) || 1 });
       this._markHit(this.boss.x, this.boss.centerY, crit ? 0xffe9a8 : 0xffc27a);
+      /* Step 10-5 — 보스를 맞힌 타점에도 임팩트 크로스 (보스는 크게, 한결 밝게) */
+      const heavyBoss = idx >= 2 || air;
+      this.fx.impactCross(this.boss.x, this.boss.centerY, {
+        size: crit ? 235 : heavyBoss ? 215 : 150,
+        angle: G.rand(0.9, 0.35),
+        color: crit ? 0xffe08a : 0xffc27a,
+        dur: crit || heavyBoss ? 0.22 : 0.16,
+        glow: crit ? 0.66 : 0.46,
+      });
+      if (!heavyBoss || crit) this.fx.hitSpark(this.boss.x, this.boss.centerY, crit ? 0xffe0a0 : 0xffd9a8, crit ? 1.0 : 0.7, 0.19);
       if (crit) {
         this.fx.impactFrame(this.boss.x, this.boss.centerY, this.boss);
         if (this.time - (this._critPop || -9) > 0.3) {
@@ -978,7 +1019,10 @@
         // 피해량에 따라 가벼운 피격 / 강한 피격을 구분한다 (보스 강타는 묵직하게)
         const heavyHurt = dealt >= G.FEEL.hurt.heavyAt;
         const H = heavyHurt ? G.FEEL.hurt.heavy : G.FEEL.hurt.light;
-        this._feel(heavyHurt ? 'hurt-heavy' : 'hurt-light', { stop: H.stop, shake: H.shake, shakeDur: H.shakeDur });
+        this._feel(heavyHurt ? 'hurt-heavy' : 'hurt-light', {
+          stop: H.stop, shake: H.shake, shakeDur: H.shakeDur, punch: H.punch,
+          dir: -(Math.sign((fromX || this.kael.x + 1) - this.kael.x) || 1), dirY: heavyHurt ? 0.4 : 0,
+        });
         this.flashG.clear();
         this.flashG.rect(0, 0, G.W, G.H).fill({ color: 0xff1a2a, alpha: 0.16 });
         this.flashT = 0.14;
@@ -1057,7 +1101,8 @@
       this.phaseMsg = 'BOSS · ' + (this.stage.bossTitle || '그림자 군주 아르카논');
       this.zoneIndex = Math.max(0, this.zones.length - 1);
       G.Sfx.bossRoar();
-      this.scene.shake(14, 0.9);
+      this.scene.shake(14, 0.9, { dirY: 0.5 });
+      this.scene.punch(0.03, 0.3);
       this.scene.zoomTo(1.06, 1.4);
       // 남은 잡몹 정리
       this.enemies.forEach((e) => { if (e.alive && !e.dying) e.die(); });
@@ -1088,7 +1133,7 @@
 
     onBossKilled() {
       this.stats.kills++;
-      this._feel('killBoss', { stop: G.FEEL.killBoss.stop, shake: G.FEEL.killBoss.shake, shakeDur: G.FEEL.killBoss.shakeDur });
+      this._feel('killBoss', { stop: G.FEEL.killBoss.stop, shake: G.FEEL.killBoss.shake, shakeDur: G.FEEL.killBoss.shakeDur, punch: G.FEEL.killBoss.punch });
       this.scene.zoomTo(1.12, 1.6);
       G.Sfx.counter();
       this.after(1.6, () => this._victory());
@@ -1097,7 +1142,7 @@
     onPerfectCounter(boss) {
       this.perfectCounter = false;
       this.slowT = 0.85;
-      this._feel('perfect', { stop: G.FEEL.perfect.stop, shake: G.FEEL.perfect.shake, shakeDur: G.FEEL.perfect.shakeDur });
+      this._feel('perfect', { stop: G.FEEL.perfect.stop, shake: G.FEEL.perfect.shake, shakeDur: G.FEEL.perfect.shakeDur, punch: G.FEEL.perfect.punch, dir: this.kael ? this.kael.facing : 0 });
       this.scene.zoomTo(1.09, 0.4);
       this.flashImpact(0.22, 0xfff2c0);
       this.fx.popText(640, 300, 'PERFECT COUNTER', { color: 0xffe9a8, size: 52, dur: 1.4, stroke: 0x3a2404, letter: 4 });
@@ -1167,14 +1212,16 @@
         this.fx.rune(tx, ty - 6, C.colors.slash, 150, 0.9);
         this.fx.pillar(tx, ty - 10, C.colors.slash2, 520, 0.8, 160);
         this.fx.ring(tx, ty - 8, C.colors.slash, 320, 0.7, 10);
-        this.fx.sparkBurst(tx, ty - 80, C.colors.slash2, 40, 620);
-        this.scene.shake(8, 0.35);
+        this.fx.sparkBurst(tx, ty - 80, C.colors.slash2, 40, 620, null, { tex: 'spark' });
+        this.scene.shake(10, 0.36, { dirX: f, dirY: 0.5 });
+        this.scene.punch(0.024, 0.2);
         this._skillHit(tx, ty, sk.radius || 320, dmg, { crit: true, color: C.colors.slash2, knock: 260 });
       } else if (kind === 'prayer') {
         this.fx.rune(h.x, h.y - 6, C.colors.slash2, 160, 0.9);
         this.fx.ring(h.x, h.y - 10, C.colors.slash, 300, 0.8, 9);
         this.fx.ring(h.x, h.y - 10, 0xffffff, 200, 0.6, 5);
         this.fx.sparkBurst(h.x, h.y - 90, C.colors.ult2, 34, 460);
+        this.scene.punch(0.018, 0.18);
         const heal = Math.round(h.hpMax * (sk.heal || 0.2));
         h.hp = Math.min(h.hpMax, h.hp + heal);
         this.fx.damage(h.x, h.y - 150, heal, { color: 0x8effc0, size: 26 });
@@ -1184,12 +1231,14 @@
         this.fx.groundBurst(h.x + 90 * f, h.y);
         this.fx.sparkBurst(h.x + 90 * f, h.y - 30, C.colors.slash2, 30, 560);
         this.fx.debris(h.x + 90 * f, h.y, 10, 0xffcf9a, 1.1);
-        this.scene.shake(12, 0.4);
+        this.scene.shake(15, 0.42, { dirX: f, dirY: 0.75 });
+        this.scene.punch(0.032, 0.24);
         this._skillHit(h.x + 60 * f, h.y, sk.radius || 260, dmg, { crit: true, color: C.colors.slash2, knock: 300, stun: sk.stun || 1.5 });
       } else if (kind === 'frost') {
         this.fx.ring(h.x, h.y - 8, C.colors.slash, 300, 0.8, 8);
         this.fx.shockRing(h.x, h.y - 6, C.colors.slash2, 380, 0.5);
-        this.fx.sparkBurst(h.x + 60 * f, h.y - 60, C.colors.slash2, 26, 420);
+        this.fx.sparkBurst(h.x + 60 * f, h.y - 60, C.colors.slash2, 26, 420, null, { tex: 'spark' });
+        this.scene.punch(0.02, 0.2);
         this._skillHit(h.x + 30 * f, h.y, sk.radius || 250, dmg, { color: C.colors.slash, slow: sk.slow || 2.2 });
       }
       return true;
@@ -1229,7 +1278,13 @@
       }
       if (n) {
         this.hitStop = Math.max(this.hitStop, 0.05);
-        this.scene.shake(9, 0.3);
+        this.scene.shake(11, 0.32, { dirX: hf });
+        this.scene.punch(0.026, 0.18);
+        /* Step 10-5 — 스킬은 맞은 무리 위에 큰 크로스를 하나 더 얹어 타점을 명확히 한다 */
+        this.fx.impactCross(cx, cy - 46, {
+          size: G.clamp(radius * 0.62, 150, 260), angle: 0.72,
+          color: opts.color == null ? 0x9fd6ff : opts.color, dur: 0.22, glow: 0.5, squash: 0.92,
+        });
         this.combo += n;
         this.comboT = 2.6;
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
@@ -1292,7 +1347,7 @@
           this.flashImpact(0.95, 0xffffff);
           this.scene.zoomTo(1.06, 0.11);
           this.after(0.14, () => this.scene.zoomTo(1, 0.34));
-          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur });
+          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur, punch: G.FEEL.ult.punch, dirY: 0.45 });
           this._skillHit(tx, ty, u.radius || 280, dmg, { crit: true, color: C.colors.ult, knock: G.FEEL.ult.knock });
         } else if (kind === 'blessing') {
           this.fx.ring(h.x, h.y - 10, C.colors.ult, 460, 0.9, 14);
@@ -1302,7 +1357,7 @@
           h.hp = Math.min(h.hpMax, h.hp + heal);
           this.fx.damage(h.x, h.y - 170, heal, { color: 0x8effc0, size: 34 });
           this.scene.shake(12, 0.5);
-          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur });
+          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur, punch: G.FEEL.ult.punch });
           this._skillHit(h.x, h.y, u.radius || 320, dmg, { crit: true, color: C.colors.ult, knock: 560 });
         } else if (kind === 'quake') {
           this.fx.shockRing(h.x, h.y - 6, C.colors.ult, 700, 0.8);
@@ -1310,8 +1365,8 @@
           this.fx.groundBurst(h.x, h.y);
           this.fx.debris(h.x, h.y, 16, 0xffcf9a, 1.3);
           this.fx.sparkBurst(h.x, h.y - 40, C.colors.ult2, 60, 800);
-          this.scene.shake(20, 0.7);
-          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur });
+          this.scene.shake(20, 0.7, { dirY: 0.9 });
+          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur, punch: G.FEEL.ult.punch, dirY: 0.7 });
           this._skillHit(h.x, h.y, u.radius || 340, dmg, { crit: true, color: C.colors.ult2, knock: 340, stun: u.stun || 2 });
         } else if (kind === 'hunt') {
           for (let i = 0; i < 5; i++) {
@@ -1323,7 +1378,7 @@
             });
           }
           this.scene.shake(14, 0.5);
-          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur });
+          this._feel('ult', { stop: G.FEEL.ult.stop, shake: G.FEEL.ult.shake, shakeDur: G.FEEL.ult.shakeDur, punch: G.FEEL.ult.punch });
           this._skillHit(tx, ty, u.radius || 250, dmg, { crit: true, color: C.colors.slash2, knock: 420, slow: 2.5 });
         }
         G.Sfx.hit(true);
@@ -1332,8 +1387,9 @@
         this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
       });
       this.after(1.14, () => {
-        this.fx.sparkBurst(tx, ty - 85, C.colors.ult2, 60, 780);
-        this.scene.shake(18, 0.42);
+        this.fx.sparkBurst(tx, ty - 85, C.colors.ult2, 60, 780, null, { tex: 'spark' });
+        this.scene.shake(18, 0.42, { dirY: 0.6 });
+        this.scene.punch(0.03, 0.2);
       });
       this.after(1.9, () => { this.summonActive = false; });
       return true;
@@ -1457,6 +1513,8 @@
           color: PC.slash, color2: PC.slash2, edge: 0xffffff, dur: 0.19,
         });
         this.fx.sparkBurst(tx, ty - 30, PC.slash2, 9, 300);
+        this.fx.impactCross(tx, ty - 20, { size: 96, angle: G.rand(0.9, 0.35), color: PC.slash, dur: 0.14, glow: 0.3 });
+        this.scene.punch(0.012, 0.13);
         const L = this.coopLia;
         if (L && L.obj) this.fx.ring(L.obj.x, L.obj.y - 150, 0xffe9a8, 110, 0.32, 3, 0.4);
         this.combo += 1;
@@ -1669,7 +1727,8 @@
       this.bossCutKind = kind;
       this._bossCutIn(info);
       this.flashImpact(0.38, 0xff2a3c);
-      this.scene.shake(7, 0.3);
+      this.scene.shake(9, 0.3);
+      this.scene.punch(0.02, 0.18);
       this.scene.zoomTo(1.03, 0.18);
       this.after(0.45, () => { if (this.phase === 'boss') this.scene.zoomTo(1, 0.42); });
       G.Sfx.bossRoar();
@@ -1688,7 +1747,8 @@
       this.bossCutKind = 'phase';
       this._bossCutIn(PH.cut);
       this.flashImpact(0.6, 0xff7a8a);
-      this.scene.shake(16, 0.7);
+      this.scene.shake(18, 0.7, { dirY: 0.5 });
+      this.scene.punch(0.038, 0.3);
       this.scene.zoomTo(1.08, 0.32);
       this.fx.shockRing(boss.x - 60, boss.y - 8, 0xff5a6e, 470, 0.8);
       this.fx.sparkBurst(boss.x - 40, boss.centerY, 0xffd0d8, 42, 720);
@@ -2301,7 +2361,7 @@
           // 다단히트(0.11초 간격): 히트스톱은 0.2초에 한 번만 걸어 3초 스킬이 끊겨 보이지 않게 한다
           if (tickHit && this.time - this._skillFeelT >= G.FEEL.skillTick.minGap) {
             this._skillFeelT = this.time;
-            this._feel('skill-tick', { stop: G.FEEL.skillTick.stop, shake: G.FEEL.skillTick.shake, shakeDur: G.FEEL.skillTick.shakeDur });
+            this._feel('skill-tick', { stop: G.FEEL.skillTick.stop, shake: G.FEEL.skillTick.shake, shakeDur: G.FEEL.skillTick.shakeDur, punch: G.FEEL.skillTick.punch, dir: this.kael ? this.kael.facing : 0 });
           }
         }
       }
@@ -2658,10 +2718,13 @@
        · 제자리에서 겹쳤을 때: 둘이 나눠서 비켜난다
        · 히어로가 걸어 들어올 때: 히어로는 그대로, 적을 같은 속도로 밀고 나간다
        · 보스는 밀리지 않는다: 히어로가 접촉면까지만 물러난다 (걸어 들어오는 만큼만)
-       · 적↔적(10-3): 같은 레인의 살아있는 적 쌍을 50:50 으로 갈라놓는다 (보스·사망 적 제외) */
+       · 적↔적(10-3): 같은 레인의 살아있는 적 쌍을 50:50 으로 갈라놓는다 (보스·사망 적 제외)
+       · 회피(GUARDIAN-FB-001): 회피 중에는 히어로↔적·보스 이격만 건너뛰고,
+         적끼리 겹침은 그대로 정리한다(회피로 빠져나가도 적들이 한 점에 뭉치지 않게).
+         히어로가 쓰러졌을 때는 판이 끝나는 중이라 전부 멈춘다. */
     _pushbox(dt) {
       const h = this.kael;
-      if (!h || h.state === 'dead' || h.state === 'dodge') return;   // 회피 중에는 통과를 막지 않는다
+      if (!h || h.state === 'dead') return;
       const lane = G.PUSHBOX.lane;
 
       /* ---- 적↔적 (Step 10-3) ----
@@ -2688,6 +2751,7 @@
         }
       }
 
+      if (h.state === 'dodge') return;   // 회피 중 영웅과 적의 이격만 제외
       const pushOne = (a, minSep, heavy) => {
         if (!a || !a.alive || a.dying) return;
         if (Math.abs((a.y || 0) - h.y) >= lane) return;              // 다른 레인은 서로 통과

@@ -6,6 +6,19 @@
     constructor(layer) {
       this.layer = layer;
       this.items = [];
+      /* 검증 훅 (Step 10-5) — 지금 살아 있는 이펙트 수(count)와 최근 발생 기록(log).
+         items 배열은 그대로 두므로 기존 검증(길이·clear)과 호환된다. */
+      this.emitted = 0;
+      this.log = [];
+    }
+
+    /* 지금 살아 있는 이펙트 개수 — 파티클 폭주 감시용 */
+    get count() { return this.items.length; }
+
+    _note(kind) {
+      this.emitted++;
+      this.log.push(kind);
+      if (this.log.length > 160) this.log.shift();
     }
 
     /* ---------- 파티클 ---------- */
@@ -48,11 +61,17 @@
       return item;
     }
 
-    /* ---------- 타격 스파크 (방향성) ---------- */
-    sparkBurst(x, y, color = 0xffffff, count = 12, power = 420, dir = null) {
+    /* ---------- 타격 스파크 (방향성) ----------
+       opts.spread : 부채꼴 폭(rad) · opts.tex : 파편 텍스처('spark' 는 길쭉한 불티)
+       opts.speed  : 추가 배율 — 3타·스킬에서 밀도를 올린다 */
+    sparkBurst(x, y, color = 0xffffff, count = 12, power = 420, dir = null, opts = null) {
+      const o = opts || {};
+      const spread = o.spread == null ? 1.1 : o.spread;
+      const tex = o.tex || 'soft';
+      const mul = o.speed == null ? 1 : o.speed;
       for (let i = 0; i < count; i++) {
-        const a = dir === null ? G.rand(G.TAU) : dir + G.rand(1.1, -1.1);
-        const sp = power * G.rand(1.25, 0.35);
+        const a = dir === null ? G.rand(G.TAU) : dir + G.rand(spread, -spread);
+        const sp = power * mul * G.rand(1.25, 0.35);
         this._particle(x, y, {
           color: G.chance(0.35) ? 0xffffff : color,
           size: G.rand(22, 8),
@@ -61,9 +80,12 @@
           life: G.rand(0.6, 0.24),
           grav: 620,
           drag: 0.9,
+          tex,
+          rot: a,
         });
       }
-      this.impact(x, y, color, 1.0);
+      this.impact(x, y, color, 0.7);
+      this._note('spark');
     }
 
     /* ---------- 네 갈래 별 섬광 (애니 타격의 핵심) ---------- */
@@ -90,6 +112,7 @@
       };
       this.items.push(item);
       this.impact(x, y, color, 0.55 * scale);
+      this._note('star');
     }
 
     impact(x, y, color = 0xaad8ff, scale = 1) {
@@ -106,9 +129,9 @@
           item.t += dt;
           const p = item.t / 0.22;
           if (p >= 1) return false;
-          const sc = (32 + 130 * G.easeOutCubic(p)) * scale;
+          const sc = (32 + 106 * G.easeOutCubic(p)) * scale;
           s.width = sc; s.height = sc;
-          s.alpha = (1 - p) * 0.8;
+          s.alpha = (1 - p) * 0.66;
           return true;
         },
       };
@@ -178,6 +201,7 @@
         },
       };
       this.items.push(item);
+      this._note('slash');
 
       // 칼끝을 따라 흩어지는 잔검 파편
       for (let i = 0; i < Math.round(10 * Math.max(1, o.flare)); i++) {
@@ -195,6 +219,110 @@
           rot: a,
         });
       }
+    }
+
+    /* ---------- 임팩트 크로스 (Step 10-5) ----------
+       맞은 자리에 X자로 교차하는 예리한 칼날 두 장 + 중심 섬광 + 잔광.
+       도형은 한 번만 그리고 scale/alpha 로만 움직여 프레임 비용이 거의 없다.
+         size  : 긴 칼날의 반길이(px) — 3타·크리티컬·스킬일수록 크게
+         squash: y 를 눌러 2.5D 원근에 맞춘다 · angle: 교차 방향
+         glow  : 뒤에 깔리는 잔광(0 이면 생략) */
+    impactCross(x, y, opts = {}) {
+      const o = Object.assign({
+        size: 140, angle: 0.62, color: 0xcfe9ff, core: 0xffffff,
+        dur: 0.16, squash: 0.9, glow: 0.24, flare: 1,
+      }, opts);
+      if (o.glow > 0) {
+        const gl = new PIXI.Sprite(T().glow);
+        gl.anchor.set(0.5);
+        gl.position.set(x, y);
+        gl.tint = o.color;
+        gl.blendMode = 'add';
+        gl.width = o.size * 1.7; gl.height = o.size * 1.7 * o.squash;
+        gl.alpha = o.glow;
+        this.layer.addChild(gl);
+        const gItem = {
+          obj: gl, t: 0,
+          update: (dt) => {
+            gItem.t += dt;
+            const p = gItem.t / (o.dur * 2.2);
+            if (p >= 1) return false;
+            gl.alpha = o.glow * Math.pow(1 - p, 1.5);
+            return true;
+          },
+        };
+        this.items.push(gItem);
+      }
+      const g = new PIXI.Graphics();
+      g.blendMode = 'add';
+      g.position.set(x, y);
+      g.rotation = o.angle;
+      g.scale.set(0.72, 0.72 * o.squash);
+      this.layer.addChild(g);
+      const L = o.size;
+      const W = o.size * 0.15;
+      const blade = (len, wid, color, alpha) => {
+        g.poly([-len, 0, 0, -wid, len, 0, 0, wid]).fill({ color, alpha });
+        g.poly([0, -len, wid, 0, 0, len, -wid, 0]).fill({ color, alpha });
+      };
+      blade(L, W * 1.06, o.color, 0.5 * o.flare);
+      blade(L * 0.88, W * 0.42, o.color, 0.48 * o.flare);
+      blade(L * 0.62, W * 0.16, o.core, 0.7);
+      g.circle(0, 0, W * 0.6).fill({ color: o.core, alpha: 0.85 });
+      const item = {
+        obj: g, t: 0,
+        update: (dt) => {
+          item.t += dt;
+          const p = item.t / o.dur;
+          if (p >= 1) return false;
+          const sc = 0.72 + 0.55 * G.easeOutCubic(p);
+          g.scale.set(sc, sc * o.squash);
+          g.alpha = Math.pow(1 - p, 1.6);
+          return true;
+        },
+      };
+      this.items.push(item);
+      this._note('cross');
+      return item;
+    }
+
+    /* ---------- 방향성 검기 파편 (Step 10-5) ----------
+       타점에서 칼이 지나간 방향으로 짧게 뻗었다 사라지는 잔광 —
+       정지 화면(쇼츠)에서도 "어느 쪽으로 벨었는지"가 한눈에 읽힌다. */
+    slashStreaks(x, y, angle, count = 6, power = 1, color = 0xffffff, spread = 1.0) {
+      for (let i = 0; i < count; i++) {
+        const a = angle + G.rand(spread, -spread) * 0.5;
+        const len = G.rand(190, 90) * power;
+        const w0 = G.rand(11, 5) * Math.min(1.5, power);
+        const s = new PIXI.Sprite(T().streak);
+        s.anchor.set(0.5);
+        s.x = x; s.y = y;
+        s.width = w0; s.height = len;
+        s.rotation = a - Math.PI / 2;
+        s.tint = G.chance(0.35) ? 0xffffff : color;
+        s.blendMode = 'add';
+        s.alpha = G.rand(0.72, 0.34);
+        this.layer.addChild(s);
+        const sp = G.rand(780, 320) * power;
+        const vx = Math.cos(a) * sp;
+        const vy = Math.sin(a) * sp * 0.8;
+        const item = {
+          obj: s, t: 0,
+          update: (dt) => {
+            item.t += dt;
+            const p = item.t / 0.18;
+            if (p >= 1) return false;
+            s.x += vx * dt * (1 - p);
+            s.y += vy * dt * (1 - p);
+            s.height = len * (1 - 0.55 * p);
+            s.width = w0 * (1 - 0.5 * p);
+            s.alpha = 0.7 * (1 - p);
+            return true;
+          },
+        };
+        this.items.push(item);
+      }
+      this._note('streaks');
     }
 
     /* ---------- 타격 버스트 (방사형 섬광) ---------- */
@@ -239,6 +367,7 @@
         },
       };
       this.items.push(item);
+      this._note('burst');
       if (o.star) this.hitSpark(x, y, o.core, 0.7, 0.24);
       else this.impact(x, y, o.core, 0.32);
     }
@@ -262,6 +391,7 @@
       draw(1);
       const it={obj:g,t:0,update:(dt)=>{it.t+=dt;const p=it.t/dur;if(p>=1)return false;draw(Math.pow(1-p,1.3));return true;}};
       this.items.push(it);
+      this._note('cinematic');
     }
 
     /* 40ms 실루엣 + 12개 속도선, 매 프레임 Graphics 신규 생성 없음. */
@@ -276,6 +406,7 @@
       }
       const it={obj:g,t:0,update:(dt)=>{it.t+=dt;g.alpha=Math.max(0,1-it.t/.04);return it.t<.04;}};
       this.items.push(it);
+      this._note('frame');
     }
 
     perfectSeal(x=G.W/2,y=G.H-96) {
@@ -326,6 +457,7 @@
         },
       };
       this.items.push(item);
+      this._note('dmg');
     }
 
     /* ---------- 충격파 링 (다중) ---------- */
@@ -351,6 +483,7 @@
         },
       };
       this.items.push(item);
+      this._note('ring');
     }
 
     /* 지면을 따라 퍼지는 충격파 (타원) */
@@ -433,6 +566,7 @@
         },
       };
       this.items.push(item);
+      this._note('pillar');
     }
 
     /* ---------- 화면 텍스트 (PERFECT 등) ---------- */
@@ -691,6 +825,7 @@
     clear() {
       this.items.forEach((it) => { if (it.obj) it.obj.destroy(); });
       this.items.length = 0;
+      this.log.length = 0;
     }
   }
 
