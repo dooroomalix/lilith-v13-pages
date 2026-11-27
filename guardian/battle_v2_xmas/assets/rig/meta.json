@@ -140,6 +140,10 @@
    "skin": "base",
    "mesh": "assets/rig/snowball/mesh.json",
    "body": "assets/rig/snowball/body.webp"
+  },
+  "noel_berserk": {
+   "mesh": "assets/rig/noel_berserk/mesh.json",
+   "body": "assets/rig/noel_berserk/body.webp"
   }
  },
  "kind": "mesh-skeleton"

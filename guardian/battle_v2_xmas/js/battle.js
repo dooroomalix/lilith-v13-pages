@@ -737,7 +737,12 @@
     /* 보스 등장 — 중파 리그는 미리 받아 둔다(본전 HP 30%에서 바로 교체) */
     enterBossPhase() {
       if (this.phase === 'boss' || this.phase === 'bossIntro') return;
-      if (G.Rigs && G.Rigs.load && G.Xmas.ON) G.Rigs.load('noel_damaged').catch(() => {});
+      if (G.Rigs && G.Rigs.load && G.Xmas.ON) {
+        G.Rigs.load('noel_damaged').catch(() => {});
+        G.Rigs.load('noel_berserk').catch(() => {});   // Step 11-4 — 광폭화 2차 중파 리그
+      }
+      // Step 11-4 — 각성 전용 빠른 BPM 캐롤을 미리 받아 둔다(전환 순간 무지연)
+      if (G.Sfx && G.Sfx.preloadAwakenBgm && G.Xmas.ON) G.Sfx.preloadAwakenBgm();
       this.phase = 'bossIntro';
       this.phaseT = 0;
       this.bossPhaseLog.length = 0;
@@ -848,6 +853,11 @@
     onBossAwakening(boss) {
       const A = G.Xmas.boss.forms.awakening;
       this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'awakening-begin' });
+      // Step 11-4 — 각성과 동시에 기존 전투 BGM → 빠른 BPM 크리스마스 캐롤로 크로스페이드
+      if (G.Sfx && G.Sfx.setBgmMode) {
+        const m = G.Sfx.setBgmMode(A.bgm || 'awakening', 1.8);
+        this.bossFormLog.push({ t: +this.time.toFixed(2), bgm: m });
+      }
       this.bossCutCD = 9;
       this.bossCutDur = 2.3;
       this.bossCutKind = 'awakening';
@@ -870,7 +880,7 @@
     /* 각성 완료 — 다시 일어난 보스의 등장 이펙트 */
     onBossAwakened(boss) {
       const A = G.Xmas.boss.forms.awakening;
-      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'awakening', hp: Math.round(boss.hp), hpMax: boss.hpMax });
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'awakening', rig: boss.rigKey, bgm: G.Sfx && G.Sfx.bgmMode, hp: Math.round(boss.hp), hpMax: boss.hpMax });
       this.flashImpact(0.85, 0x9f7bff);
       this.scene.shake(18, 0.9);
       this.scene.zoomTo(1.07, 0.4);
@@ -885,11 +895,12 @@
     /* 각성 HP 30% 이하 — 광폭화(공격마다 자해 + 공격 속도 +200%) */
     onBossBerserk(boss) {
       const B = G.Xmas.boss.forms.berserk;
-      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'berserk', hp: Math.round(boss.hp), hpMax: boss.hpMax });
+      this.bossFormLog.push({ t: +this.time.toFixed(2), form: 'berserk', rig: boss.rigKey, bgm: G.Sfx && G.Sfx.bgmMode, hp: Math.round(boss.hp), hpMax: boss.hpMax });
       this.bossCutCD = 9;
       this.bossCutDur = 2.2;
       this.bossCutKind = 'berserk';
-      this._bossCutIn({ move: B.cut.move, en: B.cut.en, por: G.Xmas.boss.forms.damaged.portrait, name: '노엘', tint: 0xff2a3a });
+      // Step 11-4 — 컷인 초상도 2차 중파로 바뀐다
+      this._bossCutIn({ move: B.cut.move, en: B.cut.en, por: B.portrait || G.Xmas.boss.forms.damaged.portrait, name: '노엘', tint: 0xff2a3a });
       this.flashImpact(0.95, 0xff2a3a);
       this.scene.shake(26, 1.1);
       this.scene.zoomTo(1.12, 0.42);

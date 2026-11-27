@@ -1554,10 +1554,11 @@
       if (this.game.onBossDamaged) this.game.onBossDamaged(this);
     }
 
-    /* 중파 일러스트 리그로 교체 — 아직 안 받았으면 받아 두고 다음 프레임에 다시 시도 */
-    _applyDamagedRig() {
+    /* 폼별 일러스트 리그로 교체 (Step 11-4 — 중파/광폭화 두 벌) */
+    _applyFormRig(formKey) {
       if (!this.noel || !G.Rigs) return false;
-      const key = G.Xmas.boss.forms.damaged.rig;
+      const F = (G.Xmas.boss.forms && G.Xmas.boss.forms[formKey]) || null;
+      const key = (F && F.rig) || G.Xmas.boss.forms.damaged.rig;
       if (this.rigKey === key && this.rig) return true;
       const def = G.Rigs.get(key);
       if (!def) {
@@ -1578,6 +1579,18 @@
       this.rigKey = key;
       this._rigPending = null;
       return true;
+    }
+
+    /* 1차 중파 리그 (기존 호출부·검증 스크립트 호환) */
+    _applyDamagedRig() { return this._applyFormRig('damaged'); }
+
+    /* 늦게 받은 폼 리그를 적용한다 — 어느 폼의 리그인지 rig 키로 되짚는다 */
+    _applyPendingRig() {
+      const key = this._rigPending;
+      if (!key || !G.Rigs || !G.Rigs.get(key)) return false;
+      const forms = (G.Xmas && G.Xmas.boss && G.Xmas.boss.forms) || {};
+      const fk = Object.keys(forms).find((k) => forms[k].rig === key) || 'damaged';
+      return this._applyFormRig(fk);
     }
 
     /* 본전 격파 → 바로 죽지 않고 각성 준비 (연출 뒤 finishAwaken) */
@@ -1646,7 +1659,9 @@
       this.aura.alpha = B.auraAlpha;
       this.auraBase = B.auraAlpha;
       this.rim.tint = B.rim;
-      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'berserk', hp: Math.round(this.hp), ratio: +(this.hp / this.hpMax).toFixed(3) });
+      // Step 11-4 — 광폭화는 1차 중파와 다른 2차 중파 일러스트로 바뀐다
+      this._applyFormRig('berserk');
+      this.formLog.push({ t: +this.game.time.toFixed(2), form: 'berserk', rig: this.rigKey, hp: Math.round(this.hp), ratio: +(this.hp / this.hpMax).toFixed(3) });
       if (this.game.onBossBerserk) this.game.onBossBerserk(this);
     }
 
@@ -1962,7 +1977,7 @@
       // Step 11-2 — 중파 리그를 뒤늦게 받았으면 여기서 교체하고,
       // HP 구간을 넘으면 중파·광폭화로 넘어간다 (페이즈 잠금이 풀린 뒤)
       if (this.noel && !this.dying) {
-        if (this._rigPending && G.Rigs && G.Rigs.get(this._rigPending)) this._applyDamagedRig();
+        if (this._rigPending) this._applyPendingRig();
         if (this.form === 'base') this._checkDamaged();
         else if (this.form === 'awakening') this._checkBerserk();
       }

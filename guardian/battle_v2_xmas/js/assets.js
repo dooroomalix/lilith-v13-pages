@@ -5,6 +5,8 @@
     bgXmas: 'assets/bg_xmas.webp',
     portraitNoel: 'assets/portrait_noel.webp',
     portraitNoelDamaged: 'assets/portrait_noel_damaged.webp',
+    // Step 11-4 — 광폭화(각성 HP 30% 이하) 2차 중파 초상
+    portraitNoelBerserk: 'assets/portrait_noel_berserk.webp',
     portraitKael: 'assets/portrait_kael.webp',
     portraitLia: 'assets/portrait_lia.webp',
     portraitBoss: 'assets/portrait_boss.webp',

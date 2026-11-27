@@ -10,7 +10,7 @@
     TITLE: '메리 크리스마스! 성문을 지켜라',
     TITLE_EN: 'MERRY CHRISTMAS · GUARD THE GATE',
     SERIES: '마지막 성문의 수호자 외전',
-    VERSION: 'XMAS-2.5.0-build080',
+    VERSION: 'XMAS-2.6.0-build090',
     STAGE_NAME: '성문 광장',
     BOSS_STAGE_NAME: '눈보라 왕좌',
     STAGE_MSG: 'XMAS · 눈 내리는 성문 광장',
@@ -91,6 +91,7 @@
         awakening: {
           key: 'awakening', label: '각성', badge: '각성',
           name: '각성 · 노엘',
+          bgm: 'awakening',   // Step 11-4 — 각성과 동시에 빠른 BPM 캐롤로 전환
           hpMul: 4.0,        // 체력 +300%
           dmgMul: 3.0,       // 데미지 +200%
           teleMin: 0.36,     // 예고 시간 하한(즉사 방지)
@@ -105,6 +106,10 @@
         berserk: {
           key: 'berserk', label: '광폭화', badge: '광폭화',
           hpThreshold: 0.30,
+          // Step 11-4 — 2차 중파 일러스트(더 찢어진 의상·깊은 상처·부서진 장신구)로 교체
+          rig: 'noel_berserk',
+          portrait: 'portraitNoelBerserk',
+          bgm: 'awakening',
           aspdMul: 3.0,      // 공격 속도 +200% (대기·예고 모두 가속)
           dmgMul: 1.15,      // 광폭화 추가 피해
           selfDmg: 0.045,    // 공격할 때마다 최대 체력의 4.5% 자해

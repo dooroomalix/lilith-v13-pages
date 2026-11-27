@@ -111,7 +111,7 @@
       put(this.gCombo, [this.comboText, this.comboSub]);
       put(this.gBtn.potion, [this.potionLabel]);
       put(this.gBtn.auto, [this.autoText, this.autoModeText]);
-      put(this.gBoss, [this.bossPhaseText, this.lanternG, this.lanternText, this.bossFormText]);
+      put(this.gBoss, [this.bossPhaseText, this.lanternG, this.lanternText, this.bossFormText, this.bossPortrait]);
       const jg = this._textCache['jumpGlyph'];
       if (jg) this.gBtn.jump.addChild(jg);
       Object.keys(this.cdTexts || {}).forEach((k) => {
@@ -213,6 +213,14 @@
       this.bossFormText.anchor.set(0.5, 0.5);
       this.bossFormText.x = 804; this.bossFormText.y = 46;
       this.bossFormText.alpha = 0;
+
+      // Step 11-4 — 보스 초상 (중파 / 2차 중파로 바뀐다). 기본 폼에서는 숨김
+      this.bossPortrait = new PIXI.Sprite(G.Assets.tex.portraitNoel || PIXI.Texture.WHITE);
+      this.bossPortrait.width = 36; this.bossPortrait.height = 43;
+      this.bossPortrait.x = 365; this.bossPortrait.y = 14;
+      this.bossPortrait.visible = false;
+      this.bossPortraitKey = null;
+      root.addChild(this.bossPortrait);
 
       // 등블 게이지 (외전) — 켜진 등불 4칸 + 빛의 온기/한기 라벨
       this.lanternG = new PIXI.Graphics();
@@ -800,8 +808,25 @@
           this.bossMoodText.text = mood[0];
           this.bossMoodText.style.fill = mood[1];
           this.bossMoodText.alpha = 1;
+          // Step 11-4 — 보스 초상: 중파 → 2차 중파(광폭화) 그림으로 교체
+          const FORM = (G.Xmas && G.Xmas.boss && G.Xmas.boss.forms) ? G.Xmas.boss.forms[game.boss.form] : null;
+          if (FORM && game.boss.form !== 'base') {
+            const pkey = FORM.portrait || (G.Xmas.boss.forms.damaged && G.Xmas.boss.forms.damaged.portrait) || 'portraitNoelDamaged';
+            const ptex = G.Assets.tex[pkey];
+            if (ptex && this.bossPortrait.texture !== ptex) this.bossPortrait.texture = ptex;
+            this.bossPortraitKey = pkey;
+            // 세로 화면은 보스 줄이 좁아 초상까지 넣으면 조작부를 가린다 — 배지로만 알린다
+            this.bossPortrait.visible = !!ptex && !G.isPortrait();
+            if (this.bossPortrait.visible) {
+              this.bossG.roundRect(360, 10, 46, 52, 7).fill({ color: 0x1e0710, alpha: 0.92 });
+              outline(this.bossG, 360, 10, 46, 52, 7, FORM.rim || 0xff8a99, 0.85, 1.6);
+            }
+          } else {
+            this.bossPortrait.visible = false;
+            this.bossPortraitKey = null;
+          }
           // 중파 / 각성 / 광폭화 배지
-          const FRM = (G.Xmas && G.Xmas.boss && G.Xmas.boss.forms) ? G.Xmas.boss.forms[game.boss.form] : null;
+          const FRM = FORM;
           if (FRM) {
             plate(this.bossG, 728, 32, 152, 28, 7, 0x1e0710, 0.86);
             outline(this.bossG, 728, 32, 152, 28, 7, FRM.rim || 0xff8a99, 0.85, 1.6);
@@ -822,6 +847,7 @@
         this.bossPhaseText.alpha = 0;
         this.bossMoodText.alpha = 0;
         this.bossFormText.alpha = 0;
+        if (this.bossPortrait) { this.bossPortrait.visible = false; this.bossPortraitKey = null; }
         this._bossGhostP = 1;
       }
 

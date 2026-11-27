@@ -4,9 +4,13 @@
     ctx: null,
     master: null,
     muted: false,
-    bgm: null,
+    bgm: null,               // 기준(전투) 트랙 Audio — 호환용
     bgmStarted: false,
     bgmVolume: 0.38,
+    /* Step 11-4 — 두 트랙(전투·각성) 크로스페이드 BGM */
+    bgmMode: 'battle',       // 'battle' | 'awakening'
+    bgmTracks: {},           // kind -> { kind, a, fade, want, ready, playing }
+    bgmBase: null,           // 지금의 기준 볼륨(엔딩 페이드가 줄인다)
 
     init() {
       if (this.ctx) return;
@@ -16,6 +20,7 @@
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 0.9;
       this.master.connect(this.ctx.destination);
+      if (this.bgmBase == null) this.bgmBase = this.bgmVolume;
       this._noiseBuf = this._makeNoise(1.0);
     },
 
@@ -32,9 +37,11 @@
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
       // BGM(4.9MB)은 첫 터치 직후에도 바로 받지 않고, 전투가 시작된 뒤 비동기로 받는다
       if (!this.bgm && !this._bgmScheduled) this._scheduleBgm(1500);
-      if (this._needGesture && this.bgm) {
+      if (this._needGesture) {
         this._needGesture = false;
-        this._playBgm();
+        const t = this.bgmTracks[this.bgmMode];
+        if (t) this._playTrack(this.bgmMode);
+        else this._loadBgm();
       }
     },
 
@@ -45,35 +52,168 @@
       else go();
     },
 
-    _loadBgm() {
-      if (this.bgm) return;
-      const a = new Audio();
-      a.src = 'audio/boss_bgm.mp3';
+    /* 트랙 하나를 만들고 재생 준비만 해 둔다 (loop · 자동재생 금지) */
+    _makeTrack(kind, src) {
+      if (this.bgmTracks[kind]) return this.bgmTracks[kind];
+      let a = null;
+      try { a = new Audio(src); } catch (_) { return null; }
       a.loop = true;
-      a.volume = this.muted ? 0 : this.bgmVolume;
       a.preload = 'auto';
-      this.bgm = a;
-      this._wantPlay = true;
+      a.volume = 0;
+      const rec = { kind, a, src, fade: kind === this.bgmMode ? 1 : 0, want: false, ready: false, playing: false, failed: false };
       a.addEventListener('canplay', () => {
-        if (this._wantPlay) this._playBgm();
+        rec.ready = true;
+        if (rec.want) this._playTrack(kind);
       });
+      a.addEventListener('error', () => { rec.failed = true; });
       a.load();
+      this.bgmTracks[kind] = rec;
+      if (kind === 'battle') this.bgm = a;
+      return rec;
     },
 
-    _playBgm() {
-      if (!this.bgm || this.bgmStarted) return;
-      const p = this.bgm.play();
+    _playTrack(kind) {
+      const t = this.bgmTracks[kind];
+      if (!t || !t.a) return false;
+      t.want = true;
+      if (!t.a.paused) { t.playing = true; return true; }
+      const p = t.a.play();
       if (p && p.then) {
-        p.then(() => { this.bgmStarted = true; }).catch(() => { this._needGesture = true; });
+        p.then(() => {
+          t.playing = true;
+          if (kind === this.bgmMode) this.bgmStarted = true;
+          this._applyBgmVolumes();
+        }).catch(() => { this._needGesture = true; });
       } else {
-        this.bgmStarted = true;
+        t.playing = true;
+        if (kind === this.bgmMode) this.bgmStarted = true;
       }
+      return true;
+    },
+
+    _pauseTrack(kind) {
+      const t = this.bgmTracks[kind];
+      if (!t || !t.a) return;
+      t.want = false;
+      t.playing = false;
+      try { t.a.pause(); } catch (_) {}
+    },
+
+    _loadBgm() {
+      if (this.bgmTracks.battle) return;
+      const t = this._makeTrack('battle', 'audio/boss_bgm.mp3');
+      if (!t) return;
+      t.want = true;
+      if (t.ready) this._playTrack('battle');
+      this._applyBgmVolumes();
+    },
+
+    /* 각성 전용 트랙을 미리 받아 둔다 — 각성 순간에 로딩 지연이 없도록 */
+    preloadAwakenBgm() {
+      const t = this._makeTrack('awakening', 'audio/bgm_xmas_awakening.mp3');
+      if (!t) return null;
+      return { ready: t.ready, src: t.src };
+    },
+
+    /* 지금 모드·더킹·엔딩 페이드를 모두 반영해 트랙 볼륨을 다시 계산한다 */
+    _applyBgmVolumes() {
+      const base = this.bgmBase != null ? this.bgmBase : this.bgmVolume;
+      const ducking = !!(this._vAct && this._vAct.some((v) => v && !v.done));
+      const duckF = ducking ? (this.voiceDuck / (this.bgmVolume || 0.38)) : 1;
+      Object.keys(this.bgmTracks).forEach((k) => {
+        const t = this.bgmTracks[k];
+        if (!t || !t.a) return;
+        const g = t.fade == null ? (k === this.bgmMode ? 1 : 0) : t.fade;
+        let v = this.muted ? 0 : base * duckF * g;
+        v = Math.max(0, Math.min(1, v));
+        try { t.a.volume = v; } catch (_) {}
+      });
+    },
+
+    /**
+     * Step 11-4 — BGM 모드 전환
+     *   'battle'    : 기존 크리스마스 전투 트랙
+     *   'awakening' : 각성 전용 빠른 BPM(166.8) 캐롤 배틀 트랙
+     * dur 초 동안 두 트랙을 크로스페이드한다. 광폭화에서도 유지되고,
+     * 엔딩·재도전·로비 복귀에서는 resetBgm() 이 기준 트랙으로 되돌린다.
+     */
+    setBgmMode(mode, dur) {
+      const m = mode === 'awakening' ? 'awakening' : 'battle';
+      const secs = dur == null ? 1.4 : Math.max(0, dur);
+      this.bgmMode = m;
+      if (m === 'awakening') {
+        const t = this._makeTrack('awakening', 'audio/bgm_xmas_awakening.mp3');
+        if (t && t.a && t.a.paused && !t.ready) this._playTrack('awakening');
+        else if (t && t.a && t.a.paused && (!t.fade || t.fade < 0.02)) {
+          try { t.a.currentTime = 0; } catch (_) {}
+        }
+      }
+      const kinds = ['battle', 'awakening'];
+      kinds.forEach((k) => {
+        const t = this.bgmTracks[k];
+        if (!t) return;
+        t.from = t.fade || 0;
+        t.to = k === m ? 1 : 0;
+      });
+      if (this._bgmXFadeT) { clearInterval(this._bgmXFadeT); this._bgmXFadeT = null; }
+      const active = this.bgmTracks[m];
+      if (active) { active.want = true; this._playTrack(m); }
+      const settle = () => {
+        kinds.forEach((k) => {
+          const t = this.bgmTracks[k];
+          if (t && t.to === 0) this._pauseTrack(k);
+        });
+      };
+      if (secs <= 0.02) {
+        kinds.forEach((k) => { const t = this.bgmTracks[k]; if (t) t.fade = t.to; });
+        settle();
+        this._applyBgmVolumes();
+        return m;
+      }
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      this._applyBgmVolumes();
+      const tick = () => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const p = G.clamp((now - t0) / (secs * 1000), 0, 1);
+        kinds.forEach((k) => {
+          const t = this.bgmTracks[k];
+          if (!t) return;
+          const from = t.from || 0;
+          t.fade = from + (t.to - from) * p;
+        });
+        this._applyBgmVolumes();
+        if (p >= 1) {
+          clearInterval(this._bgmXFadeT);
+          this._bgmXFadeT = null;
+          settle();
+          this._applyBgmVolumes();
+        }
+      };
+      this._bgmXFadeT = setInterval(tick, 33);
+      return m;
+    },
+
+    /* 검증용 BGM 상태 */
+    bgmInfo() {
+      const out = {
+        mode: this.bgmMode, base: +(this.bgmBase || 0).toFixed(3), hold: this.bgmHold,
+        muted: this.muted, started: this.bgmStarted, bursting: false, tracks: {},
+      };
+      Object.keys(this.bgmTracks).forEach((k) => {
+        const t = this.bgmTracks[k];
+        out.tracks[k] = {
+          src: t.src, volume: +((t.a && t.a.volume) || 0).toFixed(3),
+          fade: +((t.fade || 0)).toFixed(2), paused: !!(t.a && t.a.paused),
+          t: +((t.a && t.a.currentTime) || 0).toFixed(2), ready: t.ready, error: !!t.failed,
+        };
+      });
+      return out;
     },
 
     toggleMute() {
       this.muted = !this.muted;
       if (this.master) this.master.gain.value = this.muted ? 0 : 0.9;
-      if (this.bgm) this.bgm.volume = this.muted ? 0 : this.bgmVolume;
+      this._applyBgmVolumes();
       return this.muted;
     },
 
@@ -280,29 +420,32 @@
   Sfx._unduck = function () {
     this._voiceClean();
     if (this._vAct.length) return;
-    if (this.bgm && !this.muted) this.bgm.volume = this.bgmHold != null ? this.bgmHold : this.bgmVolume;
+    this._applyBgmVolumes();
   };
 
   /* Step 11-3 — 엔딩에서 BGM 을 서서히 잠재운다(0 이면 완전 정지) */
   Sfx.bgmHold = null;
   Sfx.fadeBgmTo = function (to, dur) {
-    const a = this.bgm;
     const secs = Math.max(0.15, dur || 1.2);
     if (this._bgmFadeT) { clearInterval(this._bgmFadeT); this._bgmFadeT = null; }
-    if (!a) { this.bgmHold = to; return; }
-    const from = a.volume || 0;
-    const steps = Math.max(1, Math.round(secs * 20));
-    let i = 0;
+    const from = this.bgmBase != null ? this.bgmBase : this.bgmVolume;
     this.bgmHold = to;
+    if (!this.bgmTracks || !Object.keys(this.bgmTracks).length) { this.bgmBase = to; return; }
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     this._bgmFadeT = setInterval(() => {
-      i += 1;
-      const p = Math.min(1, i / steps);
-      const v = from + (to - from) * p;
-      try { a.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const p = Math.min(1, (now - t0) / (secs * 1000));
+      this.bgmBase = from + (to - from) * p;
+      this._applyBgmVolumes();
       if (p >= 1) {
         clearInterval(this._bgmFadeT);
         this._bgmFadeT = null;
-        if (to <= 0.001) { try { a.pause(); } catch (_) {} this.bgmStarted = false; }
+        this.bgmBase = to;
+        this._applyBgmVolumes();
+        if (to <= 0.001) {
+          Object.keys(this.bgmTracks).forEach((k) => this._pauseTrack(k));
+          this.bgmStarted = false;
+        }
       }
     }, 50);
   };
@@ -310,19 +453,23 @@
   /* Step 11-3 — 엔딩에서 잠재운 BGM 을 원래대로 되돌린다(재도전·로비 복귀) */
   Sfx.resetBgm = function () {
     if (this._bgmFadeT) { clearInterval(this._bgmFadeT); this._bgmFadeT = null; }
+    if (this._bgmXFadeT) { clearInterval(this._bgmXFadeT); this._bgmXFadeT = null; }
     this.bgmHold = null;
-    const a = this.bgm;
-    if (!a) return;
-    try { a.volume = this.muted ? 0 : this.bgmVolume; } catch (_) {}
-    if (a.paused) {
-      this._wantPlay = true;
-      const p = a.play();
-      if (p && p.then) {
-        p.then(() => { this.bgmStarted = true; }).catch(() => { this._needGesture = true; });
-      } else {
-        this.bgmStarted = true;
-      }
+    this.bgmBase = this.bgmVolume;
+    // 각성 트랙은 처음으로 되돌리고 멈춘다 — 다음 각성에서 머리부터 다시 시작
+    const aw = this.bgmTracks && this.bgmTracks.awakening;
+    if (aw) {
+      try { aw.a.currentTime = 0; } catch (_) {}
+      aw.fade = 0;
+      this._pauseTrack('awakening');
     }
+    this.bgmMode = 'battle';
+    const t = this.bgmTracks && this.bgmTracks.battle;
+    if (t) {
+      t.fade = 1;
+      if (t.a.paused) this._playTrack('battle');
+    }
+    this._applyBgmVolumes();
   };
 
   /* Step 11-3 — 바람 소리(모래가 흩날리는 구간) */
@@ -351,7 +498,7 @@
   Sfx.stopAllVoices = function () {
     this._vAct.forEach((v) => this._stopVoice(v));
     this._vAct.length = 0;
-    if (this.bgm && !this.muted) this.bgm.volume = this.bgmVolume;
+    this._applyBgmVolumes();
   };
 
   Sfx.voiceInfo = function () {
@@ -426,7 +573,7 @@
       audio.addEventListener('ended', () => { if (audio._ch) audio._ch.done = true; Sfx._unduck(); });
       audio.addEventListener('error', () => { if (audio._ch) audio._ch.done = true; Sfx._unduck(); });
     }
-    if (this.bgm && !this.bgm.paused) this.bgm.volume = this.voiceDuck;
+    this._applyBgmVolumes();
     return true;
   };
 })();

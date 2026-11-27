@@ -1,4 +1,48 @@
 ---
+title: "XMAS-2.6.0-build090 — Step 11-4 각성 빠른 BPM 캐롤 BGM · 광폭화 2차 중파"
+---
+# XMAS-2.6.0-build090 (2026-11-27) — Step 11-4
+
+기준: `XMAS-2.5.0-build080` → **`XMAS-2.6.0-build090`**
+
+## 1. 새로 만든 에셋
+
+| 파일 | 내용 |
+|---|---|
+| `audio/bgm_xmas_awakening.mp3` | 각성 전용 **166.8 BPM** 크리스마스 캐롤 배틀(OpenMusic `Frostfall Fury`). 102마디 146.76초 루프 · −14.3 LUFS · 48kHz 스테레오 192kbps · 3.5MB |
+| `assets/rig/src/noel_berserk.png` | 2차 중파 전신 원화(1145×1373) — 1차 중파를 `images` 로 다시 그려 의상 파손·상처·그을음·부서진 뿔장식을 심화(출혈 없음) |
+| `assets/rig/noel_berserk/body.webp` · `mesh.json` | 18본 가중치 메쉬 리그(565×718 · 정점 2,565 / 삼각 4,928) |
+| `assets/portrait_noel_berserk.webp` | 2차 중파 초상(470×560 · 52KB) — 컷인·HUD 초상에 쓴다 |
+
+- OpenMusic 크레딧: 51.5 → **41.5**(160 BPM 지시로 2곡 생성 · Frostfall Fury/Phase Two · 다운로드 4회 중 2회는 파일 크기 제한으로 실패).
+- 채택 근거: Phase Two 는 실측 110 BPM 으로 기존 전투곡(156 BPM)보다 느려 요구(140~170)에 못 미쳤고, Frostfall Fury 가 166.8 BPM · 루프 마감("cut back cleanly into the opening groove") 지시대로 나왔다.
+
+## 2. 고친 파일
+
+| 파일 | 변경 |
+|---|---|
+| `js/audio.js` | 두 트랙 BGM 엔진 — `setBgmMode()` 크로스페이드 · `preloadAwakenBgm()` · `bgmInfo()` · `_applyBgmVolumes()`(더킹·음소거·엔딩 페이드 공통 적용) · `fadeBgmTo()`/`resetBgm()` 을 두 트랙 기준으로 재작성 |
+| `js/battle.js` | 보스 등장 때 `noel_berserk` 리그·각성 BGM 미리 로드 · `onBossAwakening()` 에서 `setBgmMode(A.bgm='awakening', 1.8)` · 광폭화 컷인 초상을 `B.portrait` 로 · `bossFormLog` 에 `rig`·`bgm` 기록 |
+| `js/actors.js` | `_applyFormRig(formKey)` 로 일반화(중파/광폭화 공용) · `_applyPendingRig()` · `_applyBerserk()` 에서 `noel_berserk` 로 교체 |
+| `js/hud.js` | 보스 초상 칩(`bossPortrait` / `bossPortraitKey`) — 폼별 초상 교체, 세로 화면에서는 숨김 |
+| `js/xmas.js` | `VERSION` · `forms.berserk` 에 `rig`·`portrait`·`bgm` · `forms.awakening.bgm` |
+| `js/assets.js` | `portraitNoelBerserk` 등록 |
+| `js/lobby.js` | `noel_berserk` 리그 프리로드 |
+| `js/util.js` · `index.html` | `XMAS-2.6.0-build090` · 쿼리 `r=9` · `G.ASSET_V = axmas2.6.0` |
+| `tools_xmas/riggen.py` | SPEC 에 `noel_berserk` |
+| `tools_xmas/verify_workflow_step11_4_xmas.py` | 신규 검증 70항목(가로 58 · 세로 11 · 증빙 1) |
+
+## 3. 검증 (로컬)
+
+- `node --check` **16/16 OK**.
+- 신규 `verify_workflow_step11_4_xmas.py` **70/70 ALL PASS** — 가로 58 · 세로 390×844 11 · 증빙 1.
+  - 각성 진입 시 BGM 모드 전환·각성 트랙 재생·크로스페이드 완료(전투 트랙 정지) → 광폭화에서 유지 → 엔딩 페이드로 두 트랙 정지 → restart 후 전투 BGM 복귀·각성 트랙 처음으로 → 재각성 시 머리부터.
+  - 광폭화 진입 시 리그 `noel_berserk` · 컷인 초상 · HUD 초상 교체, 1차 중파 ↔ 2차 중파 본체 픽셀 차이 64.6% · 초상 20.2%.
+  - 자해·공속 회귀, 조작·오토·타 게임명, 콘솔·페이지·HTTP·JS 오류 0, WebGL 정상.
+
+---
+
+---
 title: "XMAS-2.5.0-build080 — Step 11-3 최종 격파 시네마틱 · 모래먼지 엔딩"
 ---
 # XMAS-2.5.0-build080 (2026-11-27) — Step 11-3

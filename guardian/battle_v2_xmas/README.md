@@ -1,14 +1,30 @@
-# 메리 크리스마스! 성문을 지켜라 · XMAS-2.5.0-build080
+# 메리 크리스마스! 성문을 지켜라 · XMAS-2.6.0-build090
 
-《마지막 성문의 수호자》 크리스마스 외전의 **4차 플레이 가능 빌드**입니다.
+《마지막 성문의 수호자》 크리스마스 외전의 **5차 플레이 가능 빌드**입니다.
 본편 `projects/guardian/battle_v2_sd/`(v5.13.2-build532)를 **읽기만 하고 복사해 온 독립 프로젝트**이며,
 이 폴더의 코드·에셋은 본편에 영향을 주지 않습니다.
 
 - 실행: `index.html` (로컬 HTTP 서버로 열 것 — `python3 -m http.server`)
 - 라이브: <https://dooroomalix.github.io/lilith-v13-pages/guardian/battle_v2_xmas/>
-- 스크립트 버전: `XMAS-2.5.0-build080`
+- 스크립트 버전: `XMAS-2.6.0-build090`
 - 코드: `js/` 16개 파일(본편 10개 + `xmas.js` + `lanterns.js` + `chars.js` + `rig.js` + `lobby.js` + `ending.js`), 엔진 PixiJS v8
 - 무대: 눈 내리는 성문 광장 · 크리스마스트리 · 푸른/노란 등불
+
+## XMAS-2.6.0-build090 — Step 11-4 각성 빠른 BPM 캐롤 BGM · 광폭화 2차 중파
+
+노엘이 **각성하는 순간** 전투 BGM이 긴장감 넘치는 빠른 크리스마스 캐롤로 바뀌고, **광폭화**하면 1차 중파와 다른 **2차 중파 일러스트**로 갈아입습니다.
+
+| 국면 | 바뀌는 것 |
+|---|---|
+| **각성** (`awaken()` → `finishAwaken()`) | BGM `audio/boss_bgm.mp3` → **`audio/bgm_xmas_awakening.mp3`**(166.8 BPM · 146.8초 루프 · −14.3 LUFS)로 1.8초 크로스페이드 · 광폭화·각성 전투 내내 유지 |
+| **광폭화** (각성 HP 30% 이하) | 보스 리그 `noel_damaged` → **`noel_berserk`**(2차 중파 전신) · 컷인 초상 **`portrait_noel_berserk`** · HUD 보스 초상 칩도 2차 중파로 교체 |
+| 엔딩 · 재도전 · 로비 복귀 | `fadeBgmTo()` 로 잠시 잦아들었다가 `resetBgm()` 이 **전투 BGM 으로 복귀** — 다음 각성에서는 각성 트랙이 처음부터 다시 흐릅니다 |
+
+- **각성 BGM**: OpenMusic(V2.5 · 160 BPM 지시)에서 `Frostfall Fury`(2:29 · 실측 **166.8 BPM**)를 뽑아, 102마디(146.76초) 본체만 남기고 꼬리 0.5초를 머리에 등파워 크로스페이드해 **루프 이음매**(샘플 점프 0.016 < 평균 간격 0.024)를 맞췄습니다. −14.3 LUFS · 48kHz 스테레오 192kbps · 3.5MB. 교회종·슬레이벨·쇼이스트링 오스티나토·태고·트랩 드럼의 연주곡입니다.
+- **2차 중파 원화**: 1차 중파 원화를 `images` 편집으로 다시 그려(의상 파손 심화·더 깊은 상처·그을음·부러진 뿔장식·격앙된 표정 **·출혈 없음**) 전신 `assets/rig/src/noel_berserk.png`(1145×1373)와 초상 `assets/portrait_noel_berserk.webp`(470×560)를 만들고, `tools_xmas/meshgen.py` 로 **18본 가중치 메쉬 리그**(565×718 · 정점 2,565 / 삼각 4,928)를 생성했습니다.
+- **BGM 구조**: `js/audio.js` 의 `setBgmMode('battle'|'awakening', 초)` · `preloadAwakenBgm()` · `bgmInfo()` — 두 트랙을 각각 `fade` 가중치로 섞고, 보이스 더킹·음소거·엔딩 페이드가 두 트랙에 함께 적용됩니다.
+- **HUD**: 보스 HP 바 왼쪽 위에 폼별 초상 칩(중파 → 2차 중파)을 새로 넣었습니다. 세로 화면(390×844)은 보스 줄이 좁아 칩을 숨기고 배지로만 알립니다.
+- 검증: `tools_xmas/verify_workflow_step11_4_xmas.py` **70/70**(가로 58 · 세로 11 · 증빙 1).
 
 ## XMAS-2.5.0-build080 — Step 11-3 최종 격파 시네마틱 · 모래먼지 엔딩
 

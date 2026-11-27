@@ -3,8 +3,8 @@
  */
 window.G = window.G || {};
 
-G.VERSION = 'XMAS-2.5.0-build080';
-G.ASSET_V = 'axmas2.5.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
+G.VERSION = 'XMAS-2.6.0-build090';
+G.ASSET_V = 'axmas2.6.0';   // 이미지/시트 캐시 무효화용 (에셋을 갱신하면 올린다)
 G.W = 1280;
 G.H = 720;
 

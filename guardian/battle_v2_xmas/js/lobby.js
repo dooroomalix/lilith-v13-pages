@@ -363,7 +363,7 @@
       // 5인 기본복 + 지금 캐릭터의 나머지 스킨 + 적 3종/보스
       G.CHARS.order.forEach((k) => { G.Rigs.load(G.CHARS.rigKey(k, 'basic')).catch(() => {}); });
       G.CHARS.skins.forEach((sk) => { G.Rigs.load(G.CHARS.rigKey(this.charKey, sk)).catch(() => {}); });
-      ['snowball', 'mimic', 'rudolph', 'noel', 'noel_damaged'].forEach((k) => { G.Rigs.load(k).catch(() => {}); });
+      ['snowball', 'mimic', 'rudolph', 'noel', 'noel_damaged', 'noel_berserk'].forEach((k) => { G.Rigs.load(k).catch(() => {}); });
       if (this.game && this.game.onLobbyOpen) this.game.onLobbyOpen();
     }
 
